@@ -25,6 +25,7 @@ urlpatterns = [
     path('', include('backendapp.urls')),
     path('video/', include('video_player.urls', namespace='video_player')),
     path('source-management/', include('source_management.urls', namespace="source_management")),
+    path('inbox/notifications/', include('notifications.urls', namespace='notifications')),
 ]
 
 if settings.DEBUG:

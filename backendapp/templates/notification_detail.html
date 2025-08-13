@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+	<div class="bg-secondary rounded p-4">
+		<h5 class="mb-3">Notification</h5>
+		<div class="card bg-dark text-light">
+			<div class="card-body">
+				<div class="d-flex justify-content-between align-items-center mb-2">
+					<div>
+						<span class="badge {% if notification.unread %}bg-primary{% else %}bg-secondary{% endif %}">
+							{% if notification.unread %}New{% else %}Read{% endif %}
+						</span>
+					</div>
+					<small class="text-muted">{{ notification.timestamp|naturaltime }}</small>
+				</div>
+				<h6 class="card-title mb-2">{{ notification.verb|capfirst }}</h6>
+				<p class="card-text mb-3">{{ notification.description|default:"" }}</p>
+				<div class="row">
+					<div class="col-sm-6">
+						<strong>Actor:</strong> {{ notification.actor|default:"-" }}
+					</div>
+					<div class="col-sm-6">
+						<strong>Target:</strong> {{ notification.target|default:"-" }}
+					</div>
+				</div>
+				{% if notification.target_url %}
+					<div class="mt-3">
+						<a class="btn btn-sm btn-primary" href="{{ notification.target_url }}">Open target</a>
+					</div>
+				{% endif %}
+			</div>
+		</div>
+		<div class="mt-3 d-flex gap-2">
+			<a href="{% url 'notifications_list' %}" class="btn btn-outline-light">Back</a>
+			<a href="/inbox/notifications/" class="btn btn-primary">Open Inbox</a>
+		</div>
+	</div>
+</div>
+{% endblock %}
+

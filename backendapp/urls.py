@@ -54,6 +54,11 @@ urlpatterns = [
     
     # Settings route (using existing settings view)
     path('settings/', views.settings_view, name='settings'),
+
+    # Notifications utilities
+    path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
+    path('notifications/', views.notifications_list, name='notifications_list'),
+    path('notifications/<int:notification_id>/', views.notification_detail, name='notification_detail'),
     
     # Commented out routes that need to be re-implemented
     # path('table/', views.table, name='table'),

@@ -1,4 +1,5 @@
 {% load static %}
+{% load notifications_tags %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -23,6 +24,41 @@
     <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
     <!-- Template Stylesheet -->
     <link href="{% static 'css/style.css' %}" rel="stylesheet">
+     <style>
+     .live_notify_badge {
+         background-color: #dc3545 !important; /* Bootstrap danger */
+         color: #fff !important;
+         border-radius: 1rem;
+         padding: 0.1rem 0.4rem;
+         font-size: 0.75rem;
+         position: relative;
+         top: -0.4rem;
+         left: -0.2rem;
+     }
+     .live_notify_list {
+         margin: 0;
+         padding: 0;
+         list-style: none;
+     }
+     .live_notify_list li {
+         padding: 0.5rem 0.75rem;
+         cursor: pointer;
+     }
+     .live_notify_list li:hover {
+         background-color: #dc3545 !important;
+         color: #fff !important;
+     }
+     .live_notify_list li a {
+         color: inherit !important;
+         text-decoration: none !important;
+         display: block;
+     }
+     .live_notify_list li.clicked {
+         background-color: #b02a37 !important; /* darker red on click */
+         color: #fff !important;
+         transition: background-color 0.25s ease-in-out;
+     }
+     </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -171,11 +207,18 @@
                     <div class="nav-item dropdown">
                         <a href="#" class="nav-link dropdown-toggle position-relative" data-bs-toggle="dropdown">
                             <i class="fa fa-bell me-lg-2"></i>
+                            {% live_notify_badge badge_class="live_notify_badge" %}
                             <span class="d-none d-lg-inline-flex">Notifications</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0" style="min-width: 320px;">
-                            <li><hr class="dropdown-divider"></li>
-                        </ul>
+                        <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0 p-0" style="min-width: 360px;">
+                            <div class="p-2 overflow-auto" style="max-height: 420px;">
+                                {% live_notify_list list_class="live_notify_list list-unstyled mb-0" %}
+                            </div>
+                            <div class="border-top">
+                                <a href="/inbox/notifications/" class="dropdown-item text-center">See all notifications</a>
+                                <a href="{% url 'mark_all_notifications_read' %}" class="dropdown-item text-center">Mark all as read</a>
+                            </div>
+                        </div>
                     </div>
                     <div class="nav-item dropdown">
                         <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
@@ -260,6 +303,8 @@
     <script src="{% static 'lib/tempusdominus/js/tempusdominus-bootstrap-4.min.js' %}"></script>
     <!-- Template Javascript -->
     <script src="{% static 'js/main.js' %}"></script>
+     <script src="{% static 'notifications/notify.js' %}" type="text/javascript"></script>
+     {% register_notify_callbacks callbacks='fill_notification_list,fill_notification_badge' refresh_period=5 fetch=5 api_name='list' badge_class='live_notify_badge' menu_class='live_notify_list' mark_as_read=True %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+	<div class="bg-secondary rounded p-4">
+		<div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-3 gap-2">
+			<h5 class="mb-0">Notifications</h5>
+			<div class="d-flex gap-2">
+				<a href="{% url 'mark_all_notifications_read' %}" class="btn btn-sm btn-primary">Mark all as read</a>
+				<a href="/inbox/notifications/" class="btn btn-sm btn-outline-light">Open Inbox</a>
+			</div>
+		</div>
+		{% if notifications %}
+			<div class="table-responsive">
+				<table class="table table-dark table-hover align-middle mb-0">
+					<thead>
+						<tr>
+							<th scope="col">Status</th>
+							<th scope="col">Notification</th>
+							<th scope="col">When</th>
+							<th scope="col" class="text-end">Action</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for n in notifications %}
+						<tr>
+							<td>{% if n.unread %}<span class="badge bg-primary">New</span>{% else %}<span class="badge bg-secondary">Read</span>{% endif %}</td>
+							<td>
+								<a href="{% url 'notification_detail' n.id %}" class="text-decoration-none text-light">
+									{{ n.verb|capfirst }}
+								</a>
+							</td>
+							<td><small class="text-muted">{{ n.timestamp|naturaltime }}</small></td>
+							<td class="text-end">
+								<a href="{% url 'notification_detail' n.id %}" class="btn btn-outline-light btn-sm">View</a>
+							</td>
+						</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			<p class="text-light mb-0">No notifications.</p>
+		{% endif %}
+	</div>
+</div>
+{% endblock %}
+

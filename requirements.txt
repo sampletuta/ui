@@ -8,3 +8,4 @@ numpy>=1.24.0
 gunicorn>=21.2.0
 whitenoise>=6.5.0
 folium>=0.14.0
+django-notifications-hq>=1.8.3

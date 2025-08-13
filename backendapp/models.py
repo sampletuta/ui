@@ -8,6 +8,8 @@ from PIL import Image, UnidentifiedImageError
 import uuid 
 import json
 from django.conf import settings
+from django.urls import reverse
+from notifications.signals import notify
 
 # Create your models here.
 from datetime import timedelta
@@ -68,6 +70,10 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def get_short_name(self):
         return self.first_name or self.email
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('profile')
+
 class Case(models.Model):
     id=models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case_name = models.CharField(max_length=100)
@@ -78,6 +84,9 @@ class Case(models.Model):
 
     def __str__(self):
         return self.case_name
+
+    def get_absolute_url(self):
+        return reverse('case_detail', kwargs={'pk': self.id})
 
 class Targets_watchlist(models.Model):
     CASE_STATUS = [
@@ -122,6 +131,9 @@ class Targets_watchlist(models.Model):
     def get_image_count(self):
         """Get the total number of images"""
         return self.images.count()
+
+    def get_absolute_url(self):
+        return reverse('target_profile', kwargs={'pk': self.id})
 
 class TargetPhoto(models.Model):
     person = models.ForeignKey(Targets_watchlist, related_name='images', on_delete=models.CASCADE)
@@ -173,6 +185,10 @@ class TargetPhoto(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+    def get_url_for_notifications(self, notification, request):
+        from django.urls import reverse
+        return reverse('target_profile', kwargs={'pk': self.person.id})
         
 # New Advanced Search Models
 class SearchQuery(models.Model):
@@ -221,6 +237,9 @@ class SearchQuery(models.Model):
             return (self.latitude, self.longitude)
         return None
 
+    def get_absolute_url(self):
+        return reverse('search_results_advanced', kwargs={'search_id': self.id})
+
 class SearchResult(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     search_query = models.ForeignKey(SearchQuery, on_delete=models.CASCADE, related_name='results')
@@ -260,7 +279,25 @@ class SearchResult(models.Model):
     def save(self, *args, **kwargs):
         is_new = self._state.adding
         super().save(*args, **kwargs)
-        # Notifications removed - no longer using django-notifications-hq
+        if is_new:
+            try:
+                actor = self.search_query.user
+                recipient = self.search_query.user
+                notify.send(
+                    actor,
+                    recipient=recipient,
+                    verb='detected',
+                    target=self.target,
+                    action_object=self,
+                    description=f"Detection at {self.timestamp}s (conf {self.confidence:.2f})"
+                )
+            except Exception:
+                # Silently ignore notification failures to avoid blocking saves
+                pass
+
+    def get_url_for_notifications(self, notification, request):
+        from django.urls import reverse
+        return reverse('search_results_advanced', kwargs={'search_id': self.search_query.id})
 
 # Legacy models for backward compatibility
 class SearchHistory(models.Model):

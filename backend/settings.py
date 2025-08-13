@@ -41,7 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.humanize",
     "backendapp",
-    # "notifications",  # Temporarily disabled to test session issue
+    "notifications",
     "video_player",
     "source_management",  # Added for video source management
 ]
@@ -150,9 +150,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Django Notifications Settings
-# DJANGO_NOTIFICATIONS_CONFIG = {
-#     'USE_JSONFIELD': True,
-# }
+DJANGO_NOTIFICATIONS_CONFIG = {
+    'USE_JSONFIELD': True,
+}
 
 # Authentication Settings
 LOGIN_URL = '/login/'

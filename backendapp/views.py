@@ -20,6 +20,8 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth.forms import AuthenticationForm
 import logging
+from notifications.signals import notify
+from notifications.models import Notification
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +86,10 @@ def backend(request):
             watchlist = form.save(commit=False)
             watchlist.created_by = request.user
             watchlist.save()
+            try:
+                notify.send(request.user, recipient=watchlist.created_by, verb='added target', target=watchlist)
+            except Exception:
+                pass
             
             # Handle multiple image uploads using validated files from the form
             images = form.cleaned_data.get('images') or []
@@ -93,6 +99,10 @@ def backend(request):
                     try:
                         TargetPhoto.objects.create(person=watchlist, image=image, uploaded_by=request.user)
                         uploaded_count += 1
+                        try:
+                            notify.send(request.user, recipient=watchlist.created_by, verb='uploaded images', target=watchlist, action_object=watchlist)
+                        except Exception:
+                            pass
                     except Exception as e:
                         messages.error(request, f'Failed to upload {getattr(image, "name", "image")}: {str(e)}')
             
@@ -158,6 +168,10 @@ def edit_target(request, pk):
 def delete_target(request, pk):
     target = get_object_or_404(Targets_watchlist, pk=pk)
     if request.method == 'POST':
+        try:
+            notify.send(request.user, recipient=target.created_by or request.user, verb='deleted target', target=target)
+        except Exception:
+            pass
         target.delete()
         messages.success(request, 'Target deleted successfully!')
         return redirect('list_watchlist')
@@ -175,6 +189,10 @@ def add_images(request, pk):
                     try:
                         TargetPhoto.objects.create(person=target, image=image, uploaded_by=request.user)
                         uploaded_count += 1
+                        try:
+                            notify.send(request.user, recipient=target.created_by or request.user, verb='uploaded images', target=target)
+                        except Exception:
+                            pass
                     except Exception as e:
                         messages.error(request, f'Failed to upload {image.name}: {str(e)}')
             
@@ -192,10 +210,48 @@ def delete_image(request, pk, image_id):
     target = get_object_or_404(Targets_watchlist, pk=pk)
     image = get_object_or_404(TargetPhoto, pk=image_id, person=target)
     if request.method == 'POST':
+        try:
+            notify.send(request.user, recipient=target.created_by or request.user, verb='deleted image', target=target, action_object=image)
+        except Exception:
+            pass
         image.delete()
         messages.success(request, 'Image deleted successfully!')
         return redirect('target_profile', pk=pk)
     return render(request, 'delete_image.html', {'target': target, 'image': image})
+
+@login_required
+def mark_all_notifications_read(request):
+    """Mark all notifications as read for the current user and redirect back."""
+    try:
+        request.user.notifications.unread().mark_all_as_read()
+    except Exception:
+        try:
+            Notification.objects.filter(recipient=request.user, unread=True).update(unread=False)
+        except Exception:
+            pass
+    next_url = request.META.get('HTTP_REFERER') or '/inbox/notifications/'
+    return redirect(next_url)
+
+@login_required
+def notifications_list(request):
+    """List notifications for the current user."""
+    notifications_qs = Notification.objects.filter(recipient=request.user).select_related('actor_content_type', 'target_content_type', 'action_object_content_type').order_by('-timestamp')
+    return render(request, 'notifications_list.html', {
+        'notifications': notifications_qs,
+    })
+
+@login_required
+def notification_detail(request, notification_id):
+    """Detail page for a single notification; marks as read and shows metadata."""
+    notification = get_object_or_404(Notification, id=notification_id, recipient=request.user)
+    if notification.unread:
+        try:
+            notification.mark_as_read()
+        except Exception:
+            pass
+    return render(request, 'notification_detail.html', {
+        'notification': notification,
+    })
 
 # Advanced Search Views
 @login_required
@@ -947,6 +1003,10 @@ def case_create(request):
             case.created_by = request.user
             case.save()
             messages.success(request, f'Case "{case.case_name}" created successfully!')
+            try:
+                notify.send(request.user, recipient=request.user, verb='created case', target=case)
+            except Exception:
+                pass
             return redirect('case_detail', pk=case.pk)
     else:
         form = CaseForm()
@@ -969,6 +1029,10 @@ def case_edit(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, f'Case "{case.case_name}" updated successfully!')
+            try:
+                notify.send(request.user, recipient=request.user, verb='updated case', target=case)
+            except Exception:
+                pass
             return redirect('case_detail', pk=case.pk)
     else:
         form = CaseForm(instance=case)
@@ -981,6 +1045,10 @@ def case_delete(request, pk):
     case = get_object_or_404(Case, pk=pk, created_by=request.user)
     if request.method == 'POST':
         case_name = case.case_name
+        try:
+            notify.send(request.user, recipient=case.created_by, verb='deleted case', target=case, description=f'Case "{case_name}" deleted')
+        except Exception:
+            pass
         case.delete()
         messages.success(request, f'Case "{case_name}" deleted successfully!')
         return redirect('case_list')
@@ -999,6 +1067,10 @@ def add_target_to_case(request, case_pk):
             target.case = case
             target.created_by = request.user
             target.save()
+            try:
+                notify.send(request.user, recipient=case.created_by, verb='added target', target=target, action_object=case)
+            except Exception:
+                pass
             
             # Handle multiple image uploads using validated files from the form
             images = form.cleaned_data.get('images') or []

@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 import json
 from django.utils import timezone
+from notifications.signals import notify
 
 User = get_user_model()
 
@@ -110,6 +111,10 @@ class CameraSource(BaseSource):
             "is_active": self.is_active,
         }
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('source_management:camera_detail', kwargs={'source_id': self.source_id})
+
     def get_stream_url(self):
         """Generate stream URL for the camera"""
         auth_part = ""
@@ -178,6 +183,12 @@ class FileSource(BaseSource):
             self.thumbnail_url = f"{base_url}/source-management/api/video/{self.access_token}/stream/"  # Use stream URL for now
         
         super().save(*args, **kwargs)
+        try:
+            # Notify creator when file source becomes ready
+            if self.status == 'ready':
+                notify.send(self.created_by, recipient=self.created_by, verb='processing_ready', target=self)
+        except Exception:
+            pass
 
     def get_file_info(self):
         """Get file-specific information"""
@@ -195,6 +206,10 @@ class FileSource(BaseSource):
             'audio_channels': self.audio_channels,
             'audio_sample_rate': self.audio_sample_rate,
         }
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('source_management:file_detail', kwargs={'source_id': self.source_id})
 
     def get_file_size_display(self):
         """Get human-readable file size"""
@@ -359,6 +374,10 @@ class StreamSource(BaseSource):
             'parameters': self.stream_parameters,
         }
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('source_management:stream_detail', kwargs={'source_id': self.source_id})
+
 class VideoProcessingJob(models.Model):
     """Model to track video processing jobs sent to external services"""
     
@@ -445,3 +464,13 @@ class VideoProcessingJob(models.Model):
                 setattr(self, key, value)
         
         self.save()
+        # Send notifications on status transitions
+        try:
+            if new_status == 'processing':
+                notify.send(self.source.created_by, recipient=self.source.created_by, verb='processing_started', target=self)
+            elif new_status == 'completed':
+                notify.send(self.source.created_by, recipient=self.source.created_by, verb='processing_ready', target=self)
+            elif new_status == 'failed':
+                notify.send(self.source.created_by, recipient=self.source.created_by, verb='processing_failed', target=self)
+        except Exception:
+            pass
