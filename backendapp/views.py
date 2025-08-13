@@ -9,6 +9,7 @@ from django.http import HttpResponse, JsonResponse
 import os
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth import update_session_auth_hash
 from datetime import datetime, timedelta
@@ -22,6 +23,7 @@ from django.contrib.auth.forms import AuthenticationForm
 import logging
 from notifications.signals import notify
 from notifications.models import Notification
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,34 @@ def dashboard(request):
     # Status distribution for chart
     status_counts = list(Targets_watchlist.objects.values('case_status').annotate(count=Count('id')))
     gender_counts = list(Targets_watchlist.objects.values('gender').annotate(count=Count('id')))
+    recent_cases = Case.objects.select_related('created_by').order_by('-created_at')[:5]
+
+    # Monthly trend data (last 7 months including current)
+    from datetime import date
+    now = timezone.now().date()
+    def add_months(d, months):
+        year = d.year + (d.month - 1 + months) // 12
+        month = (d.month - 1 + months) % 12 + 1
+        day = min(d.day, 28)  # avoid end-of-month pitfalls
+        return date(year, month, day)
+
+    months_labels = []
+    targets_month_counts = []
+    cases_month_counts = []
+    images_month_counts = []
+    for i in range(6, -1, -1):  # 7 points
+        mdate = add_months(now.replace(day=1), -i)
+        months_labels.append(mdate.strftime('%b %Y'))
+        targets_month_counts.append(
+            Targets_watchlist.objects.filter(created_at__year=mdate.year, created_at__month=mdate.month).count()
+        )
+        cases_month_counts.append(
+            Case.objects.filter(created_at__year=mdate.year, created_at__month=mdate.month).count()
+        )
+        images_month_counts.append(
+            TargetPhoto.objects.filter(uploaded_at__year=mdate.year, uploaded_at__month=mdate.month).count()
+        )
+
     
     # Notifications removed - no longer using django-notifications-hq
     
@@ -76,6 +106,11 @@ def dashboard(request):
         'recent_targets': recent_targets,
         'status_counts': status_counts,
         'gender_counts': gender_counts,
+        'recent_cases': recent_cases,
+        'months_labels': months_labels,
+        'targets_month_counts': targets_month_counts,
+        'cases_month_counts': cases_month_counts,
+        'images_month_counts': images_month_counts,
     })
 
 @login_required
@@ -119,12 +154,12 @@ def backend(request):
 
 @login_required
 def list_watchlist(request):
-    watchlists = Targets_watchlist.objects.select_related('case', 'created_by').prefetch_related('images').all()
+    watchlists_qs = Targets_watchlist.objects.select_related('case', 'created_by').prefetch_related('images').all()
     
     # Handle search functionality
     search_query = request.GET.get('q')
     if search_query:
-        watchlists = watchlists.filter(
+        watchlists_qs = watchlists_qs.filter(
             Q(target_name__icontains=search_query) |
             Q(target_text__icontains=search_query) |
             Q(target_email__icontains=search_query) |
@@ -132,8 +167,16 @@ def list_watchlist(request):
             Q(case__case_name__icontains=search_query)
         )
     
+    # Pagination
+    from django.core.paginator import Paginator
+    paginator = Paginator(watchlists_qs, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
     return render(request, 'list_watchlist.html', {
-        'watchlists': watchlists,
+        'watchlists': page_obj.object_list,
+        'page_obj': page_obj,
+        'paginator': paginator,
         'search_query': search_query
     })
 
@@ -233,11 +276,124 @@ def mark_all_notifications_read(request):
     return redirect(next_url)
 
 @login_required
+@require_POST
+def mark_notification_read(request):
+    """Mark a single notification as read for the current user (AJAX)."""
+    notification_id = request.POST.get('id') or request.POST.get('notification_id')
+    if not notification_id:
+        return JsonResponse({'success': False, 'error': 'Missing id'}, status=400)
+    try:
+        nid = int(notification_id)
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid id'}, status=400)
+    try:
+        notification = Notification.objects.get(id=nid, recipient=request.user)
+    except Notification.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Not found'}, status=404)
+    try:
+        notification.mark_as_read()
+    except Exception:
+        try:
+            notification.unread = False
+            notification.save(update_fields=['unread'])
+        except Exception:
+            return JsonResponse({'success': False, 'error': 'Failed to mark as read'}, status=500)
+    return JsonResponse({'success': True})
+
+@login_required
+@require_POST
+def clear_notifications(request):
+    """Bulk clear notifications for the current user.
+    Actions:
+      - action=all: delete all notifications
+      - action=read: delete only read notifications
+      - action=older_than_days&days=N: delete notifications older than N days
+      - action=keep_latest&keep=N&scope=all|read: keep latest N (by timestamp desc), delete the rest in scope
+    """
+    action = request.POST.get('action')
+    if not action:
+        return JsonResponse({'success': False, 'error': 'Missing action'}, status=400)
+    qs = Notification.objects.filter(recipient=request.user)
+    try:
+        if action == 'all':
+            deleted, _ = qs.delete()
+            return JsonResponse({'success': True, 'deleted': deleted})
+        if action == 'read':
+            deleted, _ = qs.filter(unread=False).delete()
+            return JsonResponse({'success': True, 'deleted': deleted})
+        if action == 'older_than_days':
+            days_raw = request.POST.get('days')
+            try:
+                days = int(days_raw)
+            except (TypeError, ValueError):
+                return JsonResponse({'success': False, 'error': 'Invalid days'}, status=400)
+            cutoff = timezone.now() - timedelta(days=days)
+            deleted, _ = qs.filter(timestamp__lt=cutoff).delete()
+            return JsonResponse({'success': True, 'deleted': deleted})
+        if action == 'keep_latest':
+            keep_raw = request.POST.get('keep')
+            scope = (request.POST.get('scope') or 'read').lower()
+            try:
+                keep = int(keep_raw)
+            except (TypeError, ValueError):
+                return JsonResponse({'success': False, 'error': 'Invalid keep'}, status=400)
+            scope_qs = qs if scope == 'all' else qs.filter(unread=False)
+            ids_to_keep = list(scope_qs.order_by('-timestamp').values_list('id', flat=True)[:keep])
+            if not ids_to_keep:
+                # nothing to keep; delete per scope
+                deleted, _ = scope_qs.delete()
+                return JsonResponse({'success': True, 'deleted': deleted})
+            deleted, _ = scope_qs.exclude(id__in=ids_to_keep).delete()
+            return JsonResponse({'success': True, 'deleted': deleted})
+        return JsonResponse({'success': False, 'error': 'Unknown action'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def delete_notification(request):
+    """Delete a single notification for the current user (hard delete)."""
+    notification_id = request.POST.get('id') or request.POST.get('notification_id')
+    if not notification_id:
+        return JsonResponse({'success': False, 'error': 'Missing id'}, status=400)
+    try:
+        nid = int(notification_id)
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid id'}, status=400)
+    try:
+        deleted, _ = Notification.objects.filter(id=nid, recipient=request.user).delete()
+        if deleted:
+            return JsonResponse({'success': True, 'deleted': deleted})
+        return JsonResponse({'success': False, 'error': 'Not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@login_required
 def notifications_list(request):
     """List notifications for the current user."""
     notifications_qs = Notification.objects.filter(recipient=request.user).select_related('actor_content_type', 'target_content_type', 'action_object_content_type').order_by('-timestamp')
+    per_page_default = 20
+    try:
+        per_page = int(request.GET.get('per_page', per_page_default))
+    except (TypeError, ValueError):
+        per_page = per_page_default
+    paginator = Paginator(notifications_qs, per_page)
+    page_number = request.GET.get('page')
+    try:
+        page_obj = paginator.page(page_number)
+    except (PageNotAnInteger, EmptyPage):
+        page_obj = paginator.page(1)
+    current = page_obj.number
+    total = paginator.num_pages
+    start = max(1, current - 2)
+    end = min(total, current + 2)
+    page_range = list(range(start, end + 1))
     return render(request, 'notifications_list.html', {
-        'notifications': notifications_qs,
+        'notifications': page_obj,
+        'page_obj': page_obj,
+        'paginator': paginator,
+        'page_range': page_range,
+        'per_page': per_page,
     })
 
 @login_required

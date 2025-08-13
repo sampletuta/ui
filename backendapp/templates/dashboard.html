@@ -1,45 +1,72 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static humanize %}
 {% block content %}
 <div class="container-fluid pt-4 px-4">
-    <h2 class="mb-4">Dashboard</h2>
-    <div class="row g-4 mb-4">
-        <div class="col-md-4">
-            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
-                <div>
-                    <h6 class="mb-2">Total Targets</h6>
-                    <h2 class="mb-0">{{ total_targets }}</h2>
+    <div class="row g-4">
+        <div class="col-sm-6 col-xl-3">
+            <a href="{% url 'list_watchlist' %}" class="text-decoration-none">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
+                    <i class="fa fa-users fa-3x text-primary"></i>
+                    <div class="ms-3 text-end">
+                        <p class="mb-2">Total Targets</p>
+                        <h6 class="mb-0">{{ total_targets }}</h6>
+                    </div>
                 </div>
-                <i class="fa fa-users fa-2x text-primary"></i>
-            </div>
+            </a>
         </div>
-        <div class="col-md-4">
-            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
-                <div>
-                    <h6 class="mb-2">Total Cases</h6>
-                    <h2 class="mb-0">{{ total_cases }}</h2>
+        <div class="col-sm-6 col-xl-3">
+            <a href="{% url 'case_list' %}" class="text-decoration-none">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
+                    <i class="fa fa-briefcase fa-3x text-primary"></i>
+                    <div class="ms-3 text-end">
+                        <p class="mb-2">Total Cases</p>
+                        <h6 class="mb-0">{{ total_cases }}</h6>
+                    </div>
                 </div>
-                <i class="fa fa-briefcase fa-2x text-primary"></i>
-            </div>
+            </a>
         </div>
-        <div class="col-md-4">
-            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
-                <div>
-                    <h6 class="mb-2">Total Images</h6>
-                    <h2 class="mb-0">{{ total_images }}</h2>
+        <div class="col-sm-6 col-xl-3">
+            <a href="{% url 'list_watchlist' %}" class="text-decoration-none">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
+                    <i class="fa fa-image fa-3x text-primary"></i>
+                    <div class="ms-3 text-end">
+                        <p class="mb-2">Total Images</p>
+                        <h6 class="mb-0">{{ total_images }}</h6>
+                    </div>
                 </div>
-                <i class="fa fa-image fa-2x text-primary"></i>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
+                <i class="fa fa-chart-bar fa-3x text-primary"></i>
+                <div class="ms-3 text-end">
+                    <p class="mb-2">Active Users</p>
+                    <h6 class="mb-0">{{ user.get_full_name|default:user.email }}</h6>
+                </div>
             </div>
         </div>
     </div>
-    <div class="row g-4 mb-4">
-        <div class="col-md-6">
-            <div class="bg-secondary rounded p-4">
-                <h6 class="mb-4">Recent Targets</h6>
+
+    <div class="row g-4 pt-4">
+        <div class="col-sm-12 col-xl-6">
+            <div class="bg-secondary text-center rounded p-4">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <h6 class="mb-0">Monthly Trends</h6>
+                    <a href="{% url 'list_watchlist' %}">Show All</a>
+                </div>
+                <canvas id="salse-revenue"></canvas>
+            </div>
+        </div>
+        <div class="col-sm-12 col-xl-6">
+            <div class="bg-secondary text-center rounded p-4">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <h6 class="mb-0">Recent Targets</h6>
+                    <a href="{% url 'list_watchlist' %}">Show All</a>
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                    <table class="table text-start align-middle table-bordered table-hover mb-0">
                         <thead>
-                            <tr>
+                            <tr class="text-white">
                                 <th>Name</th>
                                 <th>Case</th>
                                 <th>Status</th>
@@ -47,27 +74,59 @@
                             </tr>
                         </thead>
                         <tbody>
-                        {% for target in recent_targets %}
+                            {% for target in recent_targets %}
                             <tr>
                                 <td>{{ target.target_name }}</td>
                                 <td>{{ target.case.case_name }}</td>
                                 <td>{{ target.case_status }}</td>
                                 <td>{{ target.created_at|date:'Y-m-d H:i' }}</td>
                             </tr>
-                        {% empty %}
+                            {% empty %}
                             <tr><td colspan="4" class="text-center">No recent targets.</td></tr>
-                        {% endfor %}
+                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
     </div>
-    <div class="row g-4">
-        <div class="col-12">
-            <div class="d-flex gap-2">
-                <a href="{% url 'backend' %}" class="btn btn-primary">Add Target</a>
-                <a href="{% url 'list_watchlist' %}" class="btn btn-secondary">View Watchlist</a>
+
+
+
+    <div class="row g-4 pt-4">
+        <div class="col-sm-12 col-lg-6 col-xl-6">
+            <div class="h-100 bg-secondary rounded p-4">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <h6 class="mb-0">Recent Cases</h6>
+                    <a href="{% url 'case_list' %}">Show All</a>
+                </div>
+                {% for c in recent_cases %}
+                <div class="d-flex align-items-center border-bottom py-3">
+                    <i class="fa fa-briefcase text-primary fa-lg flex-shrink-0" aria-hidden="true"></i>
+                    <div class="w-100 ms-3">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-0">{{ c.case_name }}</h6>
+                            <small class="text-muted">{{ c.created_at|naturaltime }}</small>
+                        </div>
+                        <span>By {{ c.created_by.get_full_name|default:c.created_by.email }}</span>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="mb-0 text-muted">No recent cases.</p>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="col-sm-12 col-lg-6 col-xl-6">
+            <div class="h-100 bg-secondary rounded p-4">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <h6 class="mb-0">Quick Actions</h6>
+                </div>
+                <div class="d-flex flex-column gap-2">
+                    <a href="{% url 'backend' %}" class="btn btn-primary">Add Target</a>
+                    <a href="{% url 'case_create' %}" class="btn btn-outline-light">Create Case</a>
+                    <a href="{% url 'video_player:source_video_list' %}" class="btn btn-outline-light">Video Player</a>
+                    <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-light">Video Sources</a>
+                </div>
             </div>
         </div>
     </div>
@@ -76,39 +135,34 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    var statusLabels = [{% for s in status_counts %}'{{ s.case_status }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
-    var statusDataArr = [{% for s in status_counts %}{{ s.count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
-    var genderLabels = [{% for g in gender_counts %}'{{ g.gender }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
-    var genderDataArr = [{% for g in gender_counts %}{{ g.count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
-    var statusData = {
-        labels: statusLabels,
-        datasets: [{
-            label: 'Status',
-            data: statusDataArr,
-            backgroundColor: [
-                '#0d6efd', '#6c757d', '#198754', '#ffc107', '#dc3545', '#6610f2', '#fd7e14', '#20c997', '#0dcaf0'
-            ]
-        }]
-    };
-    var genderData = {
-        labels: genderLabels,
-        datasets: [{
-            label: 'Gender',
-            data: genderDataArr,
-            backgroundColor: ['#0d6efd', '#dc3545']
-        }]
-    };
-    if (document.getElementById('statusChart')) {
-        new Chart(document.getElementById('statusChart').getContext('2d'), {
-            type: 'pie',
-            data: statusData
-        });
-    }
-    if (document.getElementById('genderChart')) {
-        new Chart(document.getElementById('genderChart').getContext('2d'), {
-            type: 'pie',
-            data: genderData
-        });
-    }
+    // Monthly Trends (mimic salse-revenue)
+    (function() {
+        var labels = [{% for m in months_labels %}'{{ m }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+        var targetsData = [{% for v in targets_month_counts %}{{ v }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        var casesData = [{% for v in cases_month_counts %}{{ v }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        var ctx = document.getElementById('salse-revenue');
+        if (ctx) {
+            var c = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Targets',
+                        data: targetsData,
+                        backgroundColor: 'rgba(235, 22, 22, .7)',
+                        fill: true
+                    },{
+                        label: 'Cases',
+                        data: casesData,
+                        backgroundColor: 'rgba(235, 22, 22, .5)',
+                        fill: true
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+    })();
+
+    // removed detections chart
 </script>
-{% endblock %} 
+{% endblock %}
