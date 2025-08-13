@@ -39,9 +39,9 @@
                             </div>
                         </div>
                         
-                        <h6 class="mb-3">Targets ({{ case.targets_watchlist_set.count }})</h6>
+                        <h6 class="mb-3">Targets ({{ case.targets_watchlist.count }})</h6>
                         
-                        {% if case.targets_watchlist_set.all %}
+                        {% if case.targets_watchlist.all %}
                             <div class="table-responsive">
                                 <table class="table table-hover align-middle">
                                     <thead>
@@ -59,7 +59,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for target in case.targets_watchlist_set.all %}
+                                        {% for target in case.targets_watchlist.all %}
                                         <tr>
                                             <td>
                                                 {% if target.images.first %}
@@ -126,11 +126,11 @@
                                 <h6 class="card-title">Case Statistics</h6>
                                 <div class="row text-center">
                                     <div class="col-6">
-                                        <h4 class="text-primary">{{ case.targets_watchlist_set.count }}</h4>
+                                        <h4 class="text-primary">{{ case.targets_watchlist.count }}</h4>
                                         <small class="text-muted">Total Targets</small>
                                     </div>
                                     <div class="col-6">
-                                        <h4 class="text-success">{{ case.targets_watchlist_set.count }}</h4>
+                                        <h4 class="text-success">{{ case.targets_watchlist.count }}</h4>
                                         <small class="text-muted">Active</small>
                                     </div>
                                 </div>
