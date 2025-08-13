@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="video-detail-container">
+    <!-- Load external CSS -->
+    <link rel="stylesheet" href="{% static 'css/video_player.css' %}">
+
+    <main class="main-content">
+        <div class="video-panel">
+            <div class="video-header">
+                <h1>Video Player</h1>
+                <div class="video-info" style="margin-bottom: 10px;">
+                    <span id="videoSourceInfo" class="text-muted">
+                        {% if sources_count %}
+                            {{ sources_count }} video source{{ sources_count|pluralize }} available
+                        {% else %}
+                            No video sources available
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="camera-tabs" id="cameraTabs">
+                    <!-- Camera tabs will be populated by JavaScript -->
+                </div>
+                <div class="api-controls" style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
+                    <div class="toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggleRealTimeBtn" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <span id="apiStatus" style="font-size: 11px; color: var(--text-secondary); margin-left: auto;">
+                        API: Connected
+                    </span>
+                </div>
+            </div>
+            
+            <div class="video-player-container">
+                {% if sources_count > 0 %}
+                <div class="video-player">
+                    <video id="zmPlayer" preload="metadata">
+                        <source src="" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    
+                    <!-- Custom Video Controls -->
+                    <div class="video-controls-overlay">
+                        <div class="video-controls">
+                            <button class="control-button play-pause-btn" id="playPauseBtn">
+                                <i class="fas fa-play" id="playIcon"></i>
+                            </button>
+                            
+                            <div class="seek-controls">
+                                <button class="seek-button" id="seekBackwardBtn" title="Seek -10s">
+                                    <i class="fas fa-backward"></i>
+                                </button>
+                                <button class="seek-button" id="seekForwardBtn" title="Seek +10s">
+                                    <i class="fas fa-forward"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="progress-container" id="progressContainer">
+                                <div class="progress-buffer" id="progressBuffer"></div>
+                                <div class="progress-bar" id="progressBar"></div>
+                                <div class="progress-time-display" id="progressTimeDisplay">
+                                    <span id="progressCurrentTime">0:00</span>
+                                </div>
+                            </div>
+                            
+                            <div class="time-display" id="timeDisplay">
+                                <span id="currentTime">0:00</span> / <span id="duration">0:00</span>
+                            </div>
+                            
+                            <div class="speed-control">
+                                <button class="speed-button" id="speedButton">1x</button>
+                                <div class="speed-dropdown" id="speedDropdown">
+                                    <div class="speed-option" data-speed="0.25">0.25x</div>
+                                    <div class="speed-option" data-speed="0.5">0.5x</div>
+                                    <div class="speed-option active" data-speed="1">1x</div>
+                                    <div class="speed-option" data-speed="1.25">1.25x</div>
+                                    <div class="speed-option" data-speed="1.5">1.5x</div>
+                                    <div class="speed-option" data-speed="2">2x</div>
+                                    <div class="speed-option" data-speed="4">4x</div>
+                                    <div class="speed-option" data-speed="8">8x</div>
+                                    <div class="speed-option" data-speed="16">16x</div>
+                                    <div class="speed-option" data-speed="20">20x</div>
+                                </div>
+                            </div>
+                            
+                            <button class="control-button volume-btn" id="volumeBtn">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                            
+                            <button class="control-button fullscreen-btn" id="fullscreenBtn">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Loading Overlay -->
+                    <div class="loading-overlay" id="loadingOverlay">
+                        <div class="loading-content">
+                            <div class="loading-spinner"></div>
+                            <div class="loading-text" id="loadingText">Loading video...</div>
+                            <div class="loading-progress">
+                                <div class="loading-progress-bar" id="loadingProgressBar"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Network Error Overlay -->
+                    <div class="network-error" id="networkError">
+                        <div class="error-icon">
+                            <i class="fas fa-wifi-slash"></i>
+                        </div>
+                        <div class="error-title">Network Error</div>
+                        <div class="error-message" id="errorMessage">Unable to load video stream</div>
+                        <button class="retry-button" id="retryButton">Retry</button>
+                    </div>
+                </div>
+                {% else %}
+                <!-- No Video Sources Available -->
+                <div class="no-sources-message" style="text-align: center; padding: 60px 20px; background: #2c3e50; border-radius: 8px;">
+                    <i class="fa fa-video fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Video Sources Available</h4>
+                    <p class="text-muted mb-4">You need to add video sources before you can play videos.</p>
+                    <div>
+                        <a href="{% url 'source_management:source_create' %}?type=file" class="btn btn-primary me-2">
+                            <i class="fa fa-upload me-1"></i>Upload Video
+                        </a>
+                        <a href="{% url 'source_management:source_create' %}?type=camera" class="btn btn-outline-primary me-2">
+                            <i class="fa fa-video me-1"></i>Add Camera
+                        </a>
+                        <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-secondary">
+                            <i class="fa fa-cog me-1"></i>Manage Sources
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Time Navigation Panel -->
+            <div class="time-navigation">
+                <div class="time-nav-header">
+                    <div class="time-nav-title">Time Navigation</div>
+                    <div class="time-nav-tabs">
+                        <button class="time-nav-tab active" data-tab="tags">Time Tags</button>
+                        <button class="time-nav-tab" data-tab="bookmarks">Bookmarks</button>
+                        <button class="time-nav-tab" data-tab="manual">Manual</button>
+                    </div>
+                </div>
+
+                <!-- Time Input for Manual Seeking -->
+                <div class="time-input-container" id="manualTimeContainer" style="display: none;">
+                    <input type="text" class="time-input" id="timeInput" placeholder="00:00" maxlength="5">
+                    <button class="seek-button" id="seekButton">Seek</button>
+                </div>
+
+                <!-- Time Tags Container -->
+                <div class="time-tags-container" id="timeTagsContainer">
+                    <!-- Time tags will be populated by JavaScript -->
+                </div>
+
+                <!-- Bookmarks Container -->
+                <div class="bookmarks-container" id="bookmarksContainer" style="display: none;">
+                    <!-- Bookmarks will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <aside class="timeline-panel">
+            <div class="timeline-header">
+                <div class="live-indicator"></div>
+                <span>LIVE DETECTIONS</span>
+            </div>
+            
+            <div class="detections-list">
+                {% for detection in detection_events %}
+                <div class="detection-item" 
+                     data-camera="{{ detection.camera_id }}"
+                     data-detection-id="{{ detection.id }}"
+                     data-timestamp="{{ detection.timestamp }}">
+                    <div class="detection-thumbnail">
+                        <img src="{{ detection.thumbnail }}" alt="Detection thumbnail">
+                    </div>
+                    <div class="detection-info">
+                        <p class="camera-name">{{ detection.camera_name }}</p>
+                        <p class="time-ago">{{ detection.time_ago }}</p>
+                    </div>
+                    <div class="detection-time">{{ detection.time_label }}</div>
+                    <div class="status-indicator status-{{ detection.status }}"></div>
+                </div>
+                {% endfor %}
+            </div>
+        </aside>
+    </main>
+
+    <!-- Load external JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="{% static 'js/video_player.js' %}"></script>
+    <script>
+        // Initialize data from Django context
+        window.videoStreams = JSON.parse('{{ video_streams|escapejs }}');
+        window.currentCamera = '{{ current_camera }}';
+        window.detectionEvents = JSON.parse('{{ detection_events|escapejs }}');
+        window.initialSeek = {{ initial_seek|default:0 }};
+        
+        // Debug logging
+        console.log('Video streams data:', videoStreams);
+        console.log('Current camera:', currentCamera);
+        console.log('Detection events:', detectionEvents);
+        console.log('Initial seek (s):', window.initialSeek);
+    </script>
+</div>
+{% endblock %}

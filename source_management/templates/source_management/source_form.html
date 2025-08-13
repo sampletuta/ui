@@ -1,0 +1,434 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if form.instance.pk %}Edit {{ source_type|title }} Source{% else %}Add {{ source_type|title }} Source{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12 col-lg-10 mx-auto">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">
+                        <i class="fa fa-{% if source_type == 'camera' %}video-camera{% elif source_type == 'file' %}file-video{% elif source_type == 'stream' %}broadcast-tower{% else %}video{% endif %} me-2"></i>
+                        {% if form.instance.pk %}
+                            Edit {{ source_type|title }} Source
+                        {% else %}
+                            Add {{ source_type|title }} Source
+                        {% endif %}
+                    </h6>
+                    <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa fa-arrow-left me-2"></i>Back to Sources
+                    </a>
+                </div>
+                
+                <form id="source-form" method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="row g-4">
+                        <!-- Basic Information -->
+                        <div class="col-md-6">
+                            <div class="bg-dark rounded p-4">
+                                <h6 class="mb-4 text-primary">
+                                    <i class="fa fa-info-circle me-2"></i>Basic Information
+                                </h6>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.name.id_for_label }}" class="form-label">
+                                        Source Name <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.name }}
+                                    {% if form.name.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.name.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.name.help_text }}</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                                        Description
+                                    </label>
+                                    {{ form.description }}
+                                    {% if form.description.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.description.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.description.help_text }}</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.location.id_for_label }}" class="form-label">
+                                        Location
+                                    </label>
+                                    {{ form.location }}
+                                    {% if form.location.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.location.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.location.help_text }}</small>
+                                </div>
+
+                                {% if form.zone %}
+                                <div class="mb-3">
+                                    <label for="{{ form.zone.id_for_label }}" class="form-label">
+                                        Zone
+                                    </label>
+                                    {{ form.zone }}
+                                    {% if form.zone.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.zone.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.zone.help_text }}</small>
+                                </div>
+                                {% endif %}
+
+                                {% if form.latitude %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="{{ form.latitude.id_for_label }}" class="form-label">
+                                                Latitude
+                                            </label>
+                                            {{ form.latitude }}
+                                            {% if form.latitude.errors %}
+                                                <div class="text-danger small">
+                                                    {{ form.latitude.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                            <small class="form-text text-muted">{{ form.latitude.help_text }}</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="{{ form.longitude.id_for_label }}" class="form-label">
+                                                Longitude
+                                            </label>
+                                            {{ form.longitude }}
+                                            {% if form.longitude.errors %}
+                                                <div class="text-danger small">
+                                                    {{ form.longitude.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                            <small class="form-text text-muted">{{ form.longitude.help_text }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Source Configuration -->
+                        <div class="col-md-6">
+                            <div class="bg-dark rounded p-4">
+                                <h6 class="mb-4 text-primary">
+                                    <i class="fa fa-cog me-2"></i>Source Configuration
+                                </h6>
+
+                                {% if source_type == 'camera' %}
+                                <div class="mb-3">
+                                    <label for="{{ form.camera_ip.id_for_label }}" class="form-label">
+                                        Camera IP <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.camera_ip }}
+                                    {% if form.camera_ip.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.camera_ip.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.camera_ip.help_text }}</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.camera_port.id_for_label }}" class="form-label">
+                                        Port
+                                    </label>
+                                    {{ form.camera_port }}
+                                    {% if form.camera_port.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.camera_port.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.camera_port.help_text }}</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.camera_protocol.id_for_label }}" class="form-label">
+                                        Protocol
+                                    </label>
+                                    {{ form.camera_protocol }}
+                                    {% if form.camera_protocol.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.camera_protocol.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.camera_protocol.help_text }}</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.camera_username.id_for_label }}" class="form-label">
+                                        Username
+                                    </label>
+                                    {{ form.camera_username }}
+                                    {% if form.camera_username.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.camera_username.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.camera_username.help_text }}</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.camera_password.id_for_label }}" class="form-label">
+                                        Password
+                                    </label>
+                                    {{ form.camera_password }}
+                                    {% if form.camera_password.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.camera_password.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.camera_password.help_text }}</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.camera_type.id_for_label }}" class="form-label">
+                                        Camera Type
+                                    </label>
+                                    {{ form.camera_type }}
+                                    {% if form.camera_type.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.camera_type.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.camera_type.help_text }}</small>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="{{ form.camera_resolution.id_for_label }}" class="form-label">
+                                                Resolution
+                                            </label>
+                                            {{ form.camera_resolution }}
+                                            {% if form.camera_resolution.errors %}
+                                                <div class="text-danger small">
+                                                    {{ form.camera_resolution.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                            <small class="form-text text-muted">{{ form.camera_resolution.help_text }}</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="{{ form.camera_fps.id_for_label }}" class="form-label">
+                                                Frame Rate (FPS)
+                                            </label>
+                                            {{ form.camera_fps }}
+                                            {% if form.camera_fps.errors %}
+                                                <div class="text-danger small">
+                                                    {{ form.camera_fps.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                            <small class="form-text text-muted">{{ form.camera_fps.help_text }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if source_type == 'file' %}
+                                <div class="mb-3">
+                                    <label for="{{ form.video_file.id_for_label }}" class="form-label">
+                                        Video File <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.video_file }}
+                                    {% if form.video_file.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.video_file.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.video_file.help_text }}</small>
+                                    <input type="hidden" name="chunked_upload_id" id="chunked_upload_id" />
+                                    <input type="hidden" name="chunked_original_filename" id="chunked_original_filename" />
+                                    <div id="chunked-status" class="small text-info mt-2" style="display:none;"></div>
+                                </div>
+                                {% endif %}
+
+                                {% if source_type == 'stream' %}
+                                <div class="mb-3">
+                                    <label for="{{ form.stream_url.id_for_label }}" class="form-label">
+                                        Stream URL <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.stream_url }}
+                                    {% if form.stream_url.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.stream_url.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.stream_url.help_text }}</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.stream_protocol.id_for_label }}" class="form-label">
+                                        Protocol
+                                    </label>
+                                    {{ form.stream_protocol }}
+                                    {% if form.stream_protocol.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.stream_protocol.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.stream_protocol.help_text }}</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.stream_quality.id_for_label }}" class="form-label">
+                                        Quality
+                                    </label>
+                                    {{ form.stream_quality }}
+                                    {% if form.stream_quality.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.stream_quality.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">{{ form.stream_quality.help_text }}</small>
+                                </div>
+                                {% endif %}
+
+                                {% if form.is_active %}
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        {{ form.is_active }}
+                                        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                            Active
+                                        </label>
+                                        <small class="form-text text-muted d-block">{{ form.is_active.help_text }}</small>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Form Actions -->
+                        <div class="col-12">
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa fa-save me-2"></i>
+                                    {% if form.instance.pk %}Update Source{% else %}Create Source{% endif %}
+                                </button>
+                                <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+                {% if source_type == 'file' %}
+                <script>
+                (function() {
+                  const form = document.getElementById('source-form');
+                  const fileInput = form.querySelector('input[type="file"][name="video_file"]');
+                  if (!fileInput) return;
+                  const threshold = {{ chunk_threshold|default:104857600 }}; // 100MB default
+                  const chunkSize = {{ chunk_size|default:1048576 }}; // 1MB
+                  const statusEl = document.getElementById('chunked-status');
+                  const hidId = document.getElementById('chunked_upload_id');
+                  const hidName = document.getElementById('chunked_original_filename');
+
+                  async function uploadInChunks(file) {
+                    statusEl.style.display = 'block';
+                    statusEl.textContent = 'Preparing chunked upload...';
+                    const uploadId = self.crypto.randomUUID ? self.crypto.randomUUID() : Math.random().toString(36).slice(2);
+                    const totalChunks = Math.ceil(file.size / chunkSize);
+                    for (let i = 0; i < totalChunks; i++) {
+                      const start = i * chunkSize;
+                      const end = Math.min(file.size, start + chunkSize);
+                      const chunk = file.slice(start, end);
+                      const formData = new FormData();
+                      formData.append('upload_id', uploadId);
+                      formData.append('chunk_index', i.toString());
+                      formData.append('total_chunks', totalChunks.toString());
+                      formData.append('original_filename', file.name);
+                      formData.append('chunk', chunk, file.name + '.part');
+                      const resp = await fetch('{% url "upload_chunk" %}', { method: 'POST', body: formData, credentials: 'same-origin' });
+                      const ct = resp.headers.get('content-type') || '';
+                      if (!resp.ok) {
+                        const t = await resp.text();
+                        throw new Error('Chunk upload failed: ' + t);
+                      }
+                      if (ct.includes('text/html')) {
+                        const t = await resp.text();
+                        throw new Error('Chunk upload failed: ' + t);
+                      }
+                      const data = await resp.json();
+                      if (!data.success) {
+                        throw new Error('Chunk upload failed: ' + (data.error || 'unknown error'));
+                      }
+                      if (!resp.ok) {
+                        const t = await resp.text();
+                        throw new Error('Chunk upload failed: ' + t);
+                      }
+                      statusEl.textContent = `Uploading... ${i+1}/${totalChunks}`;
+                    }
+                    // Mark hidden fields
+                    hidId.value = uploadId;
+                    hidName.value = file.name;
+                    statusEl.textContent = 'Upload complete. Submitting metadata...';
+                  }
+
+                  form.addEventListener('submit', function(e) {
+                    const file = fileInput.files && fileInput.files[0];
+                    if (!file) return; // normal submit blocked in form clean
+                    if (file.size > threshold) {
+                      e.preventDefault();
+                      // Basic extension validation to fail fast on client
+                      const allowed = {{ settings.ALLOWED_VIDEO_EXTENSIONS|default:"['.mp4','.avi','.mov','.mkv','.wmv','.flv','.webm']"|safe }};
+                      const ext = (file.name.split('.').pop() || '').toLowerCase();
+                      if (allowed.indexOf('.' + ext) === -1) {
+                        statusEl.style.display = 'block';
+                        statusEl.classList.add('text-danger');
+                        statusEl.textContent = 'Unsupported file type.';
+                        return;
+                      }
+                      uploadInChunks(file)
+                        .then(() => {
+                          // Remove the file from form so we don't resend bytes
+                          fileInput.value = '';
+                          // Ensure hidden fields exist before submit
+                          if (!hidId.value || !hidName.value) {
+                            statusEl.classList.add('text-danger');
+                            statusEl.textContent = 'Upload metadata missing; please retry.';
+                            return;
+                          }
+                          form.submit();
+                        })
+                        .catch(err => {
+                          statusEl.classList.remove('text-info');
+                          statusEl.classList.add('text-danger');
+                          statusEl.textContent = err.message || 'Chunked upload error';
+                        });
+                    }
+                  });
+                })();
+                </script>
+                {% endif %}
+                
+                {% if messages %}
+                    <div class="mt-3">
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

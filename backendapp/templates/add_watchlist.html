@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12 col-md-10 col-lg-8 mx-auto">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">Add New Target</h6>
+                    <a href="{% url 'case_list' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa fa-briefcase me-2"></i>Manage Cases
+                    </a>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle me-2"></i>
+                    <strong>Note:</strong> You must select a case for this target. If you don't have a case yet, 
+                    <a href="{% url 'case_create' %}" class="alert-link">create one first</a>.
+                </div>
+                <form method="post" enctype="multipart/form-data" class="row g-3">
+                    {% csrf_token %}
+                    
+                    <!-- Case Selection (First and Prominent) -->
+                    <div class="col-12">
+                        <label for="{{ form.case.id_for_label }}" class="form-label">
+                            <i class="fa fa-briefcase me-2"></i>Case * <small class="text-muted">(Required)</small>
+                        </label>
+                        {{ form.case }}
+                        {% if form.case.errors %}
+                            <div class="text-danger small">{{ form.case.errors.0 }}</div>
+                        {% endif %}
+                        <div class="form-text">Select the case this target belongs to</div>
+                    </div>
+                    
+                    <!-- Other Fields -->
+                    {% for field in form %}
+                        {% if field.name != 'case' and field.name != 'images' %}
+                            <div class="col-md-6">
+                                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                                {% for error in field.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <!-- Image Upload Section -->
+                    <div class="col-12">
+                        <label for="{{ form.images.id_for_label }}" class="form-label">
+                            <i class="fa fa-camera me-2"></i>Target Images <span class="text-danger">*</span>
+                        </label>
+                        {{ form.images }}
+                        {% if form.images.help_text %}<div class="form-text">{{ form.images.help_text }}</div>{% endif %}
+                        {% for error in form.images.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fa fa-info-circle me-1"></i>
+                                Select multiple images. At least one image is required for face recognition.
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">Add to Watchlist</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

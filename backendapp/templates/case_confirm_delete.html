@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12 col-md-6 mx-auto">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="text-center mb-4">
+                    <i class="fa fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5 class="text-warning">Confirm Case Deletion</h5>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <strong>Warning:</strong> This action cannot be undone. All targets associated with this case will also be deleted.
+                </div>
+                
+                <div class="card border-0 bg-dark mb-4">
+                    <div class="card-body">
+                        <h6 class="card-title">{{ case.case_name }}</h6>
+                        <p class="card-text text-muted">{{ case.description|default:"No description" }}</p>
+                        <small class="text-muted">
+                            <i class="fa fa-users me-1"></i>{{ case.targets_watchlist_set.count }} targets
+                        </small>
+                    </div>
+                </div>
+                
+                <form method="post" class="d-flex gap-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fa fa-trash me-2"></i>Delete Case
+                    </button>
+                    <a href="{% url 'case_detail' case.pk %}" class="btn btn-outline-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

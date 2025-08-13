@@ -1,0 +1,230 @@
+{% extends 'base.html' %}
+
+{% block title %}Source Management Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0">Source Management Dashboard</h4>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fa fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                        <a href="{% url 'source_management:source_create' %}" class="btn btn-primary btn-sm">
+                            <i class="fa fa-plus me-2"></i>Add Source
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Statistics Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ total_sources }}</h5>
+                                <p class="mb-0 text-muted">Total Sources</p>
+                            </div>
+                            <i class="fa fa-camera fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ total_videos }}</h5>
+                                <p class="mb-0 text-muted">Total Videos</p>
+                            </div>
+                            <i class="fa fa-video fa-2x text-success"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ total_jobs }}</h5>
+                                <p class="mb-0 text-muted">Processing Jobs</p>
+                            </div>
+                            <i class="fa fa-cog fa-2x text-warning"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ active_sources }}</h5>
+                                <p class="mb-0 text-muted">Active Sources</p>
+                            </div>
+                            <i class="fa fa-check-circle fa-2x text-info"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="row g-4 mb-4">
+                    <div class="col-12">
+                        <div class="bg-dark rounded p-4">
+                            <h4 class="card-title mb-4">Quick Actions</h4>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <a href="{% url 'source_management:source_create' %}" class="btn btn-primary w-100 mb-3">
+                                        <i class="bx bx-plus me-2"></i>Add Video Source
+                                    </a>
+                                </div>
+                                <div class="col-md-3">
+                                    <a href="{% url 'source_management:video_upload' %}" class="btn btn-success w-100 mb-3">
+                                        <i class="bx bx-upload me-2"></i>Upload Video
+                                    </a>
+                                </div>
+                                <div class="col-md-3">
+                                    <a href="{% url 'source_management:source_list' %}" class="btn btn-info w-100 mb-3">
+                                        <i class="bx bx-list-ul me-2"></i>View Sources
+                                    </a>
+                                </div>
+                                <div class="col-md-3">
+                                    <a href="{% url 'source_management:video_list' %}" class="btn btn-warning w-100 mb-3">
+                                        <i class="bx bx-video me-2"></i>View Videos
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-6">
+                        <div class="bg-dark rounded p-4">
+                            <h4 class="card-title mb-4">Recent Video Sources</h4>
+                            <div class="table-responsive">
+                                <table class="table table-centered table-nowrap mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Source Name</th>
+                                            <th>Type</th>
+                                            <th>Status</th>
+                                            <th>Created</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for source in recent_sources %}
+                                        <tr>
+                                            <td>
+                                                <a href="{% url 'source_management:source_detail' source.source_id %}" class="text-body fw-bold">
+                                                    {{ source.source_name }}
+                                                </a>
+                                            </td>
+                                            <td>{{ source.get_source_type_display }}</td>
+                                            <td>
+                                                {% if source.is_active %}
+                                                    <span class="badge bg-success">Active</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">Inactive</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ source.created_at|date:"M d, Y" }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="4" class="text-center">No sources found</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-6">
+                        <div class="bg-dark rounded p-4">
+                            <h4 class="card-title mb-4">Recent Videos</h4>
+                            <div class="table-responsive">
+                                <table class="table table-centered table-nowrap mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Video Title</th>
+                                            <th>Status</th>
+                                            <th>Size</th>
+                                            <th>Uploaded</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for video in recent_videos %}
+                                        <tr>
+                                            <td>
+                                                <a href="{% url 'source_management:video_detail' video.id %}" class="text-body fw-bold">
+                                                    {{ video.title|default:video.file_name }}
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ video.status|yesno:'success,warning,danger' }}">
+                                                    {{ video.get_status_display }}
+                                                </span>
+                                            </td>
+                                            <td>{{ video.file_size|filesizeformat }}</td>
+                                            <td>{{ video.created_at|date:"M d, Y" }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="4" class="text-center">No videos found</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Processing Jobs -->
+                <div class="row g-4 mb-4">
+                    <div class="col-12">
+                        <div class="bg-dark rounded p-4">
+                            <h4 class="card-title mb-4">Recent Processing Jobs</h4>
+                            <div class="table-responsive">
+                                <table class="table table-centered table-nowrap mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Job Type</th>
+                                            <th>Video</th>
+                                            <th>Status</th>
+                                            <th>Progress</th>
+                                            <th>Created</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for job in recent_jobs %}
+                                        <tr>
+                                            <td>{{ job.get_job_type_display }}</td>
+                                            <td>
+                                                <a href="{% url 'source_management:video_detail' job.video.id %}" class="text-body">
+                                                    {{ job.video.title|default:job.video.file_name }}
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ job.status|yesno:'success,warning,danger,secondary' }}">
+                                                    {{ job.get_status_display }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="progress" style="height: 6px;">
+                                                    <div class="progress-bar" role="progressbar" style="width: {{ job.progress }}%"></div>
+                                                </div>
+                                                <small class="text-muted">{{ job.progress|floatformat:1 }}%</small>
+                                            </td>
+                                            <td>{{ job.created_at|date:"M d, Y H:i" }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="5" class="text-center">No processing jobs found</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,262 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<style>
+    .search-filters {
+        background: rgba(0,0,0,0.1);
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    .filter-section {
+        margin-bottom: 20px;
+    }
+    .filter-section h6 {
+        color: #fff;
+        margin-bottom: 10px;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+        padding-bottom: 5px;
+    }
+    .map-container {
+        border-radius: 8px;
+        overflow: hidden;
+        margin-top: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">Advanced Search</h6>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'quick_search' %}" class="btn btn-sm btn-outline-primary">Quick Search</a>
+                        <a href="{% url 'milvus_search' %}" class="btn btn-sm btn-outline-info">Milvus Search</a>
+                        <a href="{% url 'search_history' %}" class="btn btn-sm btn-outline-secondary">Search History</a>
+                    </div>
+                </div>
+
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <form method="post" id="advancedSearchForm">
+                    {% csrf_token %}
+                    
+                    <!-- Basic Search Information -->
+                    <div class="search-filters">
+                        <div class="filter-section">
+                            <h6><i class="fa fa-search me-2"></i>Search Configuration</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.search_type.id_for_label }}" class="form-label">Search Type</label>
+                                    {{ form.search_type }}
+                                    {% if form.search_type.errors %}
+                                        <div class="text-danger small">{{ form.search_type.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.query_name.id_for_label }}" class="form-label">Search Name</label>
+                                    {{ form.query_name }}
+                                    {% if form.query_name.errors %}
+                                        <div class="text-danger small">{{ form.query_name.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-12">
+                                    <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+                                    {{ form.description }}
+                                    {% if form.description.errors %}
+                                        <div class="text-danger small">{{ form.description.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Date Range Filtering -->
+                        <div class="filter-section">
+                            <h6><i class="fa fa-calendar me-2"></i>Date Range</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.start_date.id_for_label }}" class="form-label">Start Date</label>
+                                    {{ form.start_date }}
+                                    {% if form.start_date.errors %}
+                                        <div class="text-danger small">{{ form.start_date.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.end_date.id_for_label }}" class="form-label">End Date</label>
+                                    {{ form.end_date }}
+                                    {% if form.end_date.errors %}
+                                        <div class="text-danger small">{{ form.end_date.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Geospatial Search -->
+                        <div class="filter-section">
+                            <h6><i class="fa fa-map-marker-alt me-2"></i>Geospatial Search</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="{{ form.latitude.id_for_label }}" class="form-label">Latitude</label>
+                                    {{ form.latitude }}
+                                    {% if form.latitude.errors %}
+                                        <div class="text-danger small">{{ form.latitude.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.longitude.id_for_label }}" class="form-label">Longitude</label>
+                                    {{ form.longitude }}
+                                    {% if form.longitude.errors %}
+                                        <div class="text-danger small">{{ form.longitude.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.radius_km.id_for_label }}" class="form-label">Radius (km)</label>
+                                    {{ form.radius_km }}
+                                    {% if form.radius_km.errors %}
+                                        <div class="text-danger small">{{ form.radius_km.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <div class="map-container">
+                                    {{ map|safe }}
+                                </div>
+                                <small class="text-muted">Click on the map to set the search center point</small>
+                            </div>
+                        </div>
+
+                        <!-- Target Selection -->
+                        <div class="filter-section">
+                            <h6><i class="fa fa-users me-2"></i>Target Selection</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.targets.id_for_label }}" class="form-label">Select Targets</label>
+                                    <div class="target-selection" style="max-height: 200px; overflow-y: auto;">
+                                        {{ form.targets }}
+                                    </div>
+                                    {% if form.targets.errors %}
+                                        <div class="text-danger small">{{ form.targets.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <label for="{{ form.gender_filter.id_for_label }}" class="form-label">Gender Filter</label>
+                                            {{ form.gender_filter }}
+                                            {% if form.gender_filter.errors %}
+                                                <div class="text-danger small">{{ form.gender_filter.errors.0 }}</div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-12">
+                                            <label for="{{ form.case_filter.id_for_label }}" class="form-label">Case Filter</label>
+                                            {{ form.case_filter }}
+                                            {% if form.case_filter.errors %}
+                                                <div class="text-danger small">{{ form.case_filter.errors.0 }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Confidence Threshold -->
+                        <div class="filter-section">
+                            <h6><i class="fa fa-chart-line me-2"></i>Confidence Settings</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.confidence_threshold.id_for_label }}" class="form-label">
+                                        Confidence Threshold: <span id="confidenceValue">0.7</span>
+                                    </label>
+                                    {{ form.confidence_threshold }}
+                                    {% if form.confidence_threshold.errors %}
+                                        <div class="text-danger small">{{ form.confidence_threshold.errors.0 }}</div>
+                                    {% endif %}
+                                    <small class="text-muted">Minimum confidence score (0.0 - 1.0)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fa fa-search me-2"></i>Execute Search
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                            <i class="fa fa-refresh me-2"></i>Reset
+                        </button>
+                        <button type="button" class="btn btn-outline-info" onclick="saveAsTemplate()">
+                            <i class="fa fa-save me-2"></i>Save as Template
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Confidence threshold slider
+    document.getElementById('{{ form.confidence_threshold.id_for_label }}').addEventListener('input', function(e) {
+        document.getElementById('confidenceValue').textContent = e.target.value;
+    });
+
+    // Form validation
+    document.getElementById('advancedSearchForm').addEventListener('submit', function(e) {
+        var searchType = document.getElementById('{{ form.search_type.id_for_label }}').value;
+        var queryName = document.getElementById('{{ form.query_name.id_for_label }}').value;
+        
+        if (!queryName.trim()) {
+            e.preventDefault();
+            alert('Please enter a search name');
+            return false;
+        }
+        
+        // Additional validation can be added here
+    });
+
+    function resetForm() {
+        document.getElementById('advancedSearchForm').reset();
+        document.getElementById('confidenceValue').textContent = '0.7';
+    }
+
+    function saveAsTemplate() {
+        // Save current form state as a template
+        var formData = new FormData(document.getElementById('advancedSearchForm'));
+        var templateName = prompt('Enter template name:');
+        
+        if (templateName) {
+            // Here you would save the template to localStorage or send to server
+            localStorage.setItem('search_template_' + templateName, JSON.stringify(Object.fromEntries(formData)));
+            alert('Template saved as: ' + templateName);
+        }
+    }
+
+    // Load saved templates
+    function loadTemplate(templateName) {
+        var saved = localStorage.getItem('search_template_' + templateName);
+        if (saved) {
+            var data = JSON.parse(saved);
+            // Populate form fields
+            for (var key in data) {
+                var field = document.getElementById(key);
+                if (field) {
+                    field.value = data[key];
+                }
+            }
+        }
+    }
+</script>
+{% endblock %} 

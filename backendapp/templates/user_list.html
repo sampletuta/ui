@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}User Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">
+                        <i class="fa fa-users me-2"></i>User Management
+                    </h6>
+                    <a href="{% url 'user_create' %}" class="btn btn-primary btn-sm">
+                        <i class="fa fa-plus me-2"></i>Add User
+                    </a>
+                </div>
+
+                <!-- Statistics Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ total_users }}</h5>
+                                <p class="mb-0 text-muted">Total Users</p>
+                            </div>
+                            <i class="fa fa-users fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ active_users }}</h5>
+                                <p class="mb-0 text-muted">Active Users</p>
+                            </div>
+                            <i class="fa fa-user-check fa-2x text-success"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ admin_users }}</h5>
+                                <p class="mb-0 text-muted">Administrators</p>
+                            </div>
+                            <i class="fa fa-user-shield fa-2x text-warning"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ inactive_users }}</h5>
+                                <p class="mb-0 text-muted">Inactive Users</p>
+                            </div>
+                            <i class="fa fa-user-times fa-2x text-danger"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Users Table -->
+                <div class="bg-dark rounded p-4">
+                    <h6 class="mb-4">
+                        <i class="fa fa-list me-2"></i>All Users
+                    </h6>
+                    {% if users %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Role</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user in users %}
+                                    <tr>
+                                        <td>{{ forloop.counter }}</td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="avatar-sm rounded-circle bg-primary me-3 d-flex align-items-center justify-content-center">
+                                                    <span class="text-white fw-bold">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</span>
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-0">{{ user.get_full_name|default:user.username }}</h6>
+                                                    <small class="text-muted">@{{ user.username }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>{{ user.email }}</td>
+                                        <td>
+                                            {% if user.is_superuser %}
+                                                <span class="badge bg-danger">Super Admin</span>
+                                            {% elif user.is_staff %}
+                                                <span class="badge bg-warning">Staff</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">User</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if user.is_active %}
+                                                <span class="badge bg-success">Active</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Inactive</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ user.date_joined|date:"M d, Y" }}</td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="{% url 'user_update' user.pk %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fa fa-edit"></i>
+                                                </a>
+                                                {% if user != request.user %}
+                                                <a href="{% url 'user_delete' user.pk %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this user?');">
+                                                    <i class="fa fa-trash"></i>
+                                                </a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fa fa-users fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No users found</h5>
+                            <p class="text-muted">Get started by adding your first user.</p>
+                            <a href="{% url 'user_create' %}" class="btn btn-primary">
+                                <i class="fa fa-plus me-2"></i>Add Your First User
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Pagination -->
+                {% if is_paginated %}
+                <div class="d-flex justify-content-center mt-4">
+                    <nav>
+                        <ul class="pagination">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">&laquo; First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                                </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">
+                                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

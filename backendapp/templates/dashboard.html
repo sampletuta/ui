@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <h2 class="mb-4">Dashboard</h2>
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
+                <div>
+                    <h6 class="mb-2">Total Targets</h6>
+                    <h2 class="mb-0">{{ total_targets }}</h2>
+                </div>
+                <i class="fa fa-users fa-2x text-primary"></i>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
+                <div>
+                    <h6 class="mb-2">Total Cases</h6>
+                    <h2 class="mb-0">{{ total_cases }}</h2>
+                </div>
+                <i class="fa fa-briefcase fa-2x text-primary"></i>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4">
+                <div>
+                    <h6 class="mb-2">Total Images</h6>
+                    <h2 class="mb-0">{{ total_images }}</h2>
+                </div>
+                <i class="fa fa-image fa-2x text-primary"></i>
+            </div>
+        </div>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="bg-secondary rounded p-4">
+                <h6 class="mb-4">Recent Targets</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Case</th>
+                                <th>Status</th>
+                                <th>Created At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for target in recent_targets %}
+                            <tr>
+                                <td>{{ target.target_name }}</td>
+                                <td>{{ target.case.case_name }}</td>
+                                <td>{{ target.case_status }}</td>
+                                <td>{{ target.created_at|date:'Y-m-d H:i' }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="4" class="text-center">No recent targets.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="d-flex gap-2">
+                <a href="{% url 'backend' %}" class="btn btn-primary">Add Target</a>
+                <a href="{% url 'list_watchlist' %}" class="btn btn-secondary">View Watchlist</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    var statusLabels = [{% for s in status_counts %}'{{ s.case_status }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+    var statusDataArr = [{% for s in status_counts %}{{ s.count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+    var genderLabels = [{% for g in gender_counts %}'{{ g.gender }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+    var genderDataArr = [{% for g in gender_counts %}{{ g.count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+    var statusData = {
+        labels: statusLabels,
+        datasets: [{
+            label: 'Status',
+            data: statusDataArr,
+            backgroundColor: [
+                '#0d6efd', '#6c757d', '#198754', '#ffc107', '#dc3545', '#6610f2', '#fd7e14', '#20c997', '#0dcaf0'
+            ]
+        }]
+    };
+    var genderData = {
+        labels: genderLabels,
+        datasets: [{
+            label: 'Gender',
+            data: genderDataArr,
+            backgroundColor: ['#0d6efd', '#dc3545']
+        }]
+    };
+    if (document.getElementById('statusChart')) {
+        new Chart(document.getElementById('statusChart').getContext('2d'), {
+            type: 'pie',
+            data: statusData
+        });
+    }
+    if (document.getElementById('genderChart')) {
+        new Chart(document.getElementById('genderChart').getContext('2d'), {
+            type: 'pie',
+            data: genderData
+        });
+    }
+</script>
+{% endblock %} 

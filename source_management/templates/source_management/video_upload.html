@@ -1,0 +1,297 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Video{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-title-box d-flex align-items-center justify-content-between">
+                <h4 class="mb-0">Upload Video</h4>
+                <div class="page-title-right">
+                    <ol class="breadcrumb m-0">
+                        <li class="breadcrumb-item"><a href="{% url 'source_management:source_list' %}">Video Sources</a></li>
+                        <li class="breadcrumb-item active">Upload Video</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" id="videoUploadForm">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <!-- Video File Upload -->
+                            <div class="col-md-8">
+                                <h5 class="mb-3">Video File</h5>
+                                
+                                <div class="mb-3">
+                                    <label for="{{ form.video_file.id_for_label }}" class="form-label">
+                                        Video File <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="dropzone-area" id="dropzone">
+                                        <div class="dropzone-content">
+                                            <i class="bx bx-upload font-size-48 text-muted mb-3"></i>
+                                            <h5>Drag and drop your video file here</h5>
+                                            <p class="text-muted">or click to browse</p>
+                                            {{ form.video_file }}
+                                        </div>
+                                    </div>
+                                    {% if form.video_file.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.video_file.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Supported formats: MP4, AVI, MOV, MKV. Max size: 500MB
+                                    </small>
+                                </div>
+
+                                <!-- Upload Progress -->
+                                <div class="upload-progress d-none" id="uploadProgress">
+                                    <div class="progress mb-2">
+                                        <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                    <small class="text-muted">Uploading... <span id="uploadPercentage">0%</span></small>
+                                </div>
+                            </div>
+
+                            <!-- Video Information -->
+                            <div class="col-md-4">
+                                <h5 class="mb-3">Video Information</h5>
+                                
+                                <div class="mb-3">
+                                    <label for="{{ form.source.id_for_label }}" class="form-label">
+                                        Video Source <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.source }}
+                                    {% if form.source.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.source.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.title.id_for_label }}" class="form-label">
+                                        Title
+                                    </label>
+                                    {{ form.title }}
+                                    {% if form.title.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.title.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                                        Description
+                                    </label>
+                                    {{ form.description }}
+                                    {% if form.description.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.description.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.tags.id_for_label }}" class="form-label">
+                                        Tags (JSON Array)
+                                    </label>
+                                    {{ form.tags }}
+                                    {% if form.tags.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.tags.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">e.g., ["outdoor", "daytime", "traffic"]</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Face Detection Options -->
+                        <div class="row">
+                            <div class="col-12">
+                                <h5 class="mb-3">Processing Options</h5>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" id="sendToFaceDetection" name="send_to_face_detection">
+                                            <label class="form-check-label" for="sendToFaceDetection">
+                                                Send to Face Detection Service
+                                            </label>
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Automatically send video to face detection service after upload
+                                        </small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" id="extractMetadata" name="extract_metadata" checked>
+                                            <label class="form-check-label" for="extractMetadata">
+                                                Extract Video Metadata
+                                            </label>
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Extract duration, resolution, codec, and other metadata
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Form Actions -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-end gap-2">
+                                    <a href="{% url 'source_management:video_list' %}" class="btn btn-secondary">
+                                        Cancel
+                                    </a>
+                                    <button type="submit" class="btn btn-primary" id="uploadBtn">
+                                        <i class="bx bx-upload me-1"></i>Upload Video
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.dropzone-area {
+    border: 2px dashed #dee2e6;
+    border-radius: 0.375rem;
+    padding: 2rem;
+    text-align: center;
+    transition: border-color 0.15s ease-in-out;
+    cursor: pointer;
+}
+
+.dropzone-area:hover {
+    border-color: #0d6efd;
+}
+
+.dropzone-area.dragover {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.dropzone-content {
+    pointer-events: none;
+}
+
+.dropzone-area input[type="file"] {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.upload-progress {
+    margin-top: 1rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.querySelector('input[type="file"]');
+    const uploadForm = document.getElementById('videoUploadForm');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const progressBar = uploadProgress.querySelector('.progress-bar');
+    const uploadPercentage = document.getElementById('uploadPercentage');
+    const uploadBtn = document.getElementById('uploadBtn');
+
+    // Drag and drop functionality
+    dropzone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            updateFileName(files[0]);
+        }
+    });
+
+    // File selection
+    fileInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            updateFileName(e.target.files[0]);
+        }
+    });
+
+    function updateFileName(file) {
+        const dropzoneContent = dropzone.querySelector('.dropzone-content');
+        dropzoneContent.innerHTML = `
+            <i class="bx bx-video font-size-48 text-success mb-3"></i>
+            <h5>${file.name}</h5>
+            <p class="text-muted">${(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+        `;
+    }
+
+    // Form submission with progress
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(uploadForm);
+        
+        // Show progress
+        uploadProgress.classList.remove('d-none');
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="bx bx-loader bx-spin me-1"></i>Uploading...';
+
+        // Simulate upload progress (replace with actual upload logic)
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 100) progress = 100;
+            
+            progressBar.style.width = progress + '%';
+            uploadPercentage.textContent = Math.round(progress) + '%';
+            
+            if (progress >= 100) {
+                clearInterval(interval);
+                // Submit the form
+                uploadForm.submit();
+            }
+        }, 200);
+    });
+
+    // Pre-select source if provided in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sourceId = urlParams.get('source');
+    if (sourceId) {
+        const sourceSelect = document.getElementById('{{ form.source.id_for_label }}');
+        if (sourceSelect) {
+            sourceSelect.value = sourceId;
+        }
+    }
+});
+</script>
+{% endblock %} 

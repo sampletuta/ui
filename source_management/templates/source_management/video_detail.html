@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ video.title|default:video.file_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-title-box d-flex align-items-center justify-content-between">
+                <h4 class="mb-0">{{ video.title|default:video.file_name }}</h4>
+                <div class="page-title-right">
+                    <ol class="breadcrumb m-0">
+                        <li class="breadcrumb-item"><a href="{% url 'source_management:source_list' %}">Video Sources</a></li>
+                        <li class="breadcrumb-item active">Video Details</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Video Information -->
+        <div class="col-xl-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Video Information</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Video ID</label>
+                                <p class="text-muted">{{ video.video_id }}</p>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Title</label>
+                                <p class="text-muted">{{ video.title|default:"Not specified" }}</p>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Description</label>
+                                <p class="text-muted">{{ video.description|default:"No description" }}</p>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Source</label>
+                                <p class="text-muted">
+                                    <a href="{% url 'source_management:source_detail' video.source.source_id %}">
+                                        {{ video.source.source_name }}
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Status</label>
+                                <span class="badge bg-{{ video.status|yesno:'success,warning,danger,secondary' }}">
+                                    {{ video.get_status_display }}
+                                </span>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">File Size</label>
+                                <p class="text-muted">{{ video.file_size|filesizeformat }}</p>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Duration</label>
+                                <p class="text-muted">
+                                    {% if video.duration %}
+                                        {{ video.duration|floatformat:1 }} seconds
+                                    {% else %}
+                                        Not available
+                                    {% endif %}
+                                </p>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Resolution</label>
+                                <p class="text-muted">
+                                    {% if video.resolution_width and video.resolution_height %}
+                                        {{ video.resolution_width }}x{{ video.resolution_height }}
+                                    {% else %}
+                                        Not available
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Video Metadata -->
+                    <h6 class="mb-3">Technical Details</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Format</label>
+                                <p class="text-muted">{{ video.format|default:"Not available" }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Codec</label>
+                                <p class="text-muted">{{ video.codec|default:"Not available" }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Frame Rate</label>
+                                <p class="text-muted">
+                                    {% if video.frame_rate %}
+                                        {{ video.frame_rate }} fps
+                                    {% else %}
+                                        Not available
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Tags -->
+                    {% if video.tags %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tags</label>
+                        <div>
+                            {% for tag in video.tags %}
+                                <span class="badge bg-light text-dark me-1">{{ tag }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Actions -->
+                    <div class="mt-4">
+                        <a href="{{ video.file.url }}" class="btn btn-primary me-2" target="_blank">
+                            <i class="bx bx-download me-1"></i>Download Video
+                        </a>
+                        {% if video.status == 'ready' %}
+                        <a href="{% url 'source_management:send_to_face_detection' video.id %}" class="btn btn-success me-2">
+                            <i class="bx bx-face me-1"></i>Send to Face Detection
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'source_management:video_delete' video.id %}" class="btn btn-danger">
+                            <i class="bx bx-trash me-1"></i>Delete Video
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Processing Status -->
+        <div class="col-xl-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Processing Status</h5>
+                    
+                    <!-- Face Detection Status -->
+                    <div class="mb-4">
+                        <h6>Face Detection</h6>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-{{ video.face_detection_status|yesno:'success,warning,danger,secondary' }}">
+                                {{ video.face_detection_status|title }}
+                            </span>
+                            {% if video.face_detection_request_id %}
+                                <small class="text-muted">ID: {{ video.face_detection_request_id }}</small>
+                            {% endif %}
+                        </div>
+                        {% if video.processing_progress > 0 %}
+                        <div class="progress mb-2">
+                            <div class="progress-bar" role="progressbar" style="width: {{ video.processing_progress }}%"></div>
+                        </div>
+                        <small class="text-muted">{{ video.processing_progress|floatformat:1 }}% complete</small>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Processing Jobs -->
+                    <div class="mb-4">
+                        <h6>Processing Jobs</h6>
+                        {% for job in processing_jobs %}
+                        <div class="border rounded p-3 mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold">{{ job.get_job_type_display }}</span>
+                                <span class="badge bg-{{ job.status|yesno:'success,warning,danger,secondary' }}">
+                                    {{ job.get_status_display }}
+                                </span>
+                            </div>
+                            {% if job.progress > 0 %}
+                            <div class="progress mb-2" style="height: 4px;">
+                                <div class="progress-bar" role="progressbar" style="width: {{ job.progress }}%"></div>
+                            </div>
+                            <small class="text-muted">{{ job.progress|floatformat:1 }}% complete</small>
+                            {% endif %}
+                            <small class="text-muted d-block">{{ job.created_at|date:"M d, Y H:i" }}</small>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted small">No processing jobs found</p>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Upload Information -->
+                    <div>
+                        <h6>Upload Information</h6>
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">Uploaded by</small>
+                                <p class="mb-1">{{ video.uploaded_by.get_full_name|default:video.uploaded_by.email }}</p>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Upload date</small>
+                                <p class="mb-1">{{ video.created_at|date:"M d, Y" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Processing Jobs Table -->
+    {% if processing_jobs %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Processing Jobs History</h5>
+                    <div class="table-responsive">
+                        <table class="table table-centered table-nowrap mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Job Type</th>
+                                    <th>Status</th>
+                                    <th>Progress</th>
+                                    <th>Started</th>
+                                    <th>Completed</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for job in processing_jobs %}
+                                <tr>
+                                    <td>{{ job.get_job_type_display }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ job.status|yesno:'success,warning,danger,secondary' }}">
+                                            {{ job.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar" role="progressbar" style="width: {{ job.progress }}%"></div>
+                                        </div>
+                                        <small class="text-muted">{{ job.progress|floatformat:1 }}%</small>
+                                    </td>
+                                    <td>{{ job.started_at|date:"M d, Y H:i"|default:"-" }}</td>
+                                    <td>{{ job.completed_at|date:"M d, Y H:i"|default:"-" }}</td>
+                                    <td>
+                                        <a href="{% url 'source_management:job_detail' job.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bx bx-show"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 

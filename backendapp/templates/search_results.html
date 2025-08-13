@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4 fw-bold">Search Results</h2>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Video: {{ search.video_file.name|slice:'15:' }}</h5>
+            <p class="mb-1"><b>Target List:</b> {{ search.target_list.target_name }}</p>
+            <p class="mb-1"><b>Status:</b> <span class="badge 
+                {% if search.status == 'completed' %}bg-success
+                {% elif search.status == 'processing' %}bg-info
+                {% elif search.status == 'queued' %}bg-secondary
+                {% elif search.status == 'error' %}bg-danger
+                {% elif search.status == 'cancelled' %}bg-warning text-dark
+                {% endif %}">{{ search.get_status_display }}</span></p>
+            <p class="mb-1"><b>Uploaded:</b> {{ search.created_at|date:'Y-m-d H:i' }}</p>
+            {% if search.video_file %}
+            <div class="mt-2">
+                <a class="btn btn-success" href="{% url 'video_player:play_from_url' %}?url={{ search.video_file.url|urlencode }}&name={{ 'Search Video'|urlencode }}">
+                    <i class="fa fa-play me-1"></i> Play in Video Player
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header bg-light fw-bold">Detected Faces</div>
+        <div class="card-body">
+            {% if results %}
+                <div class="row g-3">
+                    {% for result in results %}
+                    <div class="col-md-4 col-lg-3">
+                        <div class="card h-100">
+                            <img src="{{ result.face_image.url }}" class="card-img-top" alt="Face thumbnail">
+                            <div class="card-body">
+                                <h6 class="card-title mb-1">{{ result.target.target_name }}</h6>
+                                <p class="mb-1"><b>Timestamp:</b> {{ result.timestamp|floatformat:2 }}s</p>
+                                <p class="mb-1"><b>Confidence:</b> {{ result.confidence|floatformat:1 }}%</p>
+                                {% if search.video_file %}
+                                <a class="btn btn-sm btn-outline-success mt-2" href="{% url 'video_player:play_from_url' %}?url={{ search.video_file.url|urlencode }}&t={{ result.timestamp|floatformat:'0' }}&name={{ 'Search Video'|urlencode }}">
+                                    <i class="fa fa-play me-1"></i> Play at {{ result.timestamp|floatformat:0 }}s
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-muted">No faces detected in this search.</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="mt-4">
+        <a href="{% url 'video_face_search' %}" class="btn btn-outline-primary">Back to Video Face Search</a>
+    </div>
+</div>
+{% endblock %} 

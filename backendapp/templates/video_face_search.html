@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4 fw-bold">Video Face Search</h2>
+
+    <!-- Simple Upload Form -->
+    <div class="card mb-4 shadow-sm border-0">
+        <div class="card-body">
+            <h5 class="card-title mb-3">Upload Video & Select Target List(s)</h5>
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            <form id="video-face-search-form" method="post" enctype="multipart/form-data" class="row g-3 align-items-end">
+                {% csrf_token %}
+                <div class="col-md-5">
+                    <label for="videoFile" class="form-label">Video File</label>
+                    <input class="form-control" type="file" id="videoFile" name="video_file" accept="video/*" required>
+                </div>
+                <div class="col-md-5">
+                    <label for="targetList" class="form-label">Target List(s)</label>
+                    <select class="form-select" id="targetList" name="target_list" multiple required size="5">
+                        <option value="all">All Target Lists</option>
+                        {% for target in target_lists %}
+                            <option value="{{ target.id }}">{{ target.target_name }}</option>
+                        {% empty %}
+                            <option disabled>No target lists available</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</small>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100" id="start-search-btn" disabled>Start Face Search</button>
+                </div>
+            </form>
+            <div class="mt-3">
+                <div class="progress" id="upload-progress-container" style="height: 1.5rem; display: none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="upload-progress-bar" role="progressbar" style="width: 0%">0%</div>
+                </div>
+                <div class="alert alert-success mt-3 d-none" id="upload-success-msg">
+                    Video uploaded and search started successfully!
+                </div>
+                <div class="alert alert-danger mt-3 d-none" id="upload-error-msg">
+                    Upload failed. Please try again.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Divider -->
+    <hr class="my-4">
+
+    <!-- Recent Uploads/Searches Section -->
+    
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const videoFileInput = document.getElementById('videoFile');
+        const targetListSelect = document.getElementById('targetList');
+        const startBtn = document.getElementById('start-search-btn');
+        const form = document.getElementById('video-face-search-form');
+        const progressContainer = document.getElementById('upload-progress-container');
+        const progressBar = document.getElementById('upload-progress-bar');
+        const successMsg = document.getElementById('upload-success-msg');
+        const errorMsg = document.getElementById('upload-error-msg');
+        function updateButtonState() {
+            const fileSelected = videoFileInput.files.length > 0;
+            const targetsSelected = Array.from(targetListSelect.selectedOptions).length > 0;
+            startBtn.disabled = !(fileSelected && targetsSelected);
+        }
+        videoFileInput.addEventListener('change', updateButtonState);
+        targetListSelect.addEventListener('change', function() {
+            // If 'all' is selected, select all options
+            const selected = Array.from(targetListSelect.selectedOptions).map(opt => opt.value);
+            if (selected.includes('all')) {
+                for (let opt of targetListSelect.options) { opt.selected = true; }
+            }
+            updateButtonState();
+        });
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            progressContainer.style.display = '';
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+            successMsg.classList.add('d-none');
+            errorMsg.classList.add('d-none');
+            startBtn.disabled = true;
+            const formData = new FormData(form);
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', form.action);
+            xhr.upload.onprogress = function(event) {
+                if (event.lengthComputable) {
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    progressBar.style.width = percent + '%';
+                    progressBar.textContent = percent + '%';
+                }
+            };
+            xhr.onload = function() {
+                startBtn.disabled = false;
+                if (xhr.status === 200 || xhr.status === 302) {
+                    progressBar.style.width = '100%';
+                    progressBar.textContent = '100%';
+                    successMsg.classList.remove('d-none');
+                    // Optionally reload or redirect after a short delay
+                    setTimeout(() => { window.location.reload(); }, 1200);
+                } else {
+                    errorMsg.classList.remove('d-none');
+                }
+            };
+            xhr.onerror = function() {
+                startBtn.disabled = false;
+                errorMsg.classList.remove('d-none');
+            };
+            xhr.send(formData);
+        });
+    });
+    </script>
+</div>
+{% endblock %} 

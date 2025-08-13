@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">Quick Search</h6>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'advanced_search' %}" class="btn btn-sm btn-outline-primary">Advanced Search</a>
+                        <a href="{% url 'milvus_search' %}" class="btn btn-sm btn-outline-info">Milvus Search</a>
+                        <a href="{% url 'search_history' %}" class="btn btn-sm btn-outline-secondary">Search History</a>
+                    </div>
+                </div>
+
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-8">
+                        <form method="post" id="quickSearchForm">
+                            {% csrf_token %}
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.search_type.id_for_label }}" class="form-label">Search Type</label>
+                                    {{ form.search_type }}
+                                    {% if form.search_type.errors %}
+                                        <div class="text-danger small">{{ form.search_type.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.date_range.id_for_label }}" class="form-label">Time Range</label>
+                                    {{ form.date_range }}
+                                    {% if form.date_range.errors %}
+                                        <div class="text-danger small">{{ form.date_range.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-12">
+                                    <label for="{{ form.query_text.id_for_label }}" class="form-label">Search Query</label>
+                                    {{ form.query_text }}
+                                    {% if form.query_text.errors %}
+                                        <div class="text-danger small">{{ form.query_text.errors.0 }}</div>
+                                    {% endif %}
+                                    <small class="text-muted">Enter target name, description, or other search terms</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.confidence_threshold.id_for_label }}" class="form-label">
+                                        Confidence Threshold: <span id="confidenceValue">0.7</span>
+                                    </label>
+                                    {{ form.confidence_threshold }}
+                                    {% if form.confidence_threshold.errors %}
+                                        <div class="text-danger small">{{ form.confidence_threshold.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="mt-4">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa fa-search me-2"></i>Search
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                                    <i class="fa fa-refresh me-2"></i>Reset
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="bg-dark rounded p-3">
+                            <h6 class="text-white mb-3">Search Tips</h6>
+                            <ul class="text-muted small">
+                                <li>Use specific target names for better results</li>
+                                <li>Higher confidence thresholds reduce false positives</li>
+                                <li>Shorter time ranges provide faster results</li>
+                                <li>Use advanced search for complex queries</li>
+                            </ul>
+                            
+                            <hr class="my-3">
+                            
+                            <h6 class="text-white mb-2">Recent Searches</h6>
+                            <div class="recent-searches">
+                                <!-- This would be populated with recent searches -->
+                                <div class="text-muted small">No recent searches</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Confidence threshold slider
+    document.getElementById('{{ form.confidence_threshold.id_for_label }}').addEventListener('input', function(e) {
+        document.getElementById('confidenceValue').textContent = e.target.value;
+    });
+
+    // Form validation
+    document.getElementById('quickSearchForm').addEventListener('submit', function(e) {
+        var queryText = document.getElementById('{{ form.query_text.id_for_label }}').value;
+        
+        if (!queryText.trim()) {
+            e.preventDefault();
+            alert('Please enter a search query');
+            return false;
+        }
+    });
+
+    function resetForm() {
+        document.getElementById('quickSearchForm').reset();
+        document.getElementById('confidenceValue').textContent = '0.7';
+    }
+</script>
+{% endblock %} 

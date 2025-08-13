@@ -1,0 +1,20 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+      - temp_data:/app/temp_uploads
+      - sqlite_data:/app
+    environment:
+      - DEBUG=True
+      - DJANGO_SETTINGS_MODULE=backend.settings
+    restart: unless-stopped
+
+volumes:
+  media_data:
+  static_data:
+  temp_data:
+  sqlite_data:

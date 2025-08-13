@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% load humanize %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h6 class="mb-0">Case: {{ case.case_name }}</h6>
+                        <small class="text-muted">Created {{ case.created_at|date:'Y-m-d H:i' }}</small>
+                    </div>
+                    <div class="btn-group" role="group">
+                        <a href="{% url 'case_edit' case.pk %}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fa fa-edit me-2"></i>Edit Case
+                        </a>
+                        <a href="{% url 'add_target_to_case' case.pk %}" class="btn btn-primary btn-sm">
+                            <i class="fa fa-plus me-2"></i>Add Target
+                        </a>
+                    </div>
+                </div>
+                
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card border-0 bg-dark mb-4">
+                            <div class="card-body">
+                                <h6 class="card-title">Description</h6>
+                                <p class="card-text">{{ case.description|default:"No description provided." }}</p>
+                            </div>
+                        </div>
+                        
+                        <h6 class="mb-3">Targets ({{ case.targets_watchlist_set.count }})</h6>
+                        
+                        {% if case.targets_watchlist_set.all %}
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th></th>
+                                            <th>Name</th>
+                                            <th>Status</th>
+                                            <th>Gender</th>
+                                            <th>Email</th>
+                                            <th>Phone</th>
+                                            <th>URL</th>
+                                            <th>Created By</th>
+                                            <th>From Day</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for target in case.targets_watchlist_set.all %}
+                                        <tr>
+                                            <td>
+                                                {% if target.images.first %}
+                                                    <img src="{{ target.images.first.image.url }}" class="rounded" style="width:36px;height:36px;object-fit:cover;" alt="Profile Image">
+                                                {% else %}
+                                                    <img src="https://ui-avatars.com/api/?name={{ target.target_name|urlencode }}&size=36&background=random" class="rounded" style="width:36px;height:36px;object-fit:cover;" alt="No Image">
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <a href="{% url 'target_profile' target.pk %}" class="text-decoration-none">
+                                                    {{ target.target_name }}
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ target.case_status|lower }}">{{ target.get_case_status_display }}</span>
+                                            </td>
+                                            <td>{{ target.get_gender_display }}</td>
+                                            <td>{{ target.target_email|default:'-' }}</td>
+                                            <td>{{ target.target_phone|default:'-' }}</td>
+                                            <td>
+                                                {% if target.target_url %}
+                                                    <a href="{{ target.target_url }}" target="_blank">Link</a>
+                                                {% else %}-{% endif %}
+                                            </td>
+                                            <td>{{ target.created_by.email|default:'-' }}</td>
+                                            <td>
+                                                <span title="{{ target.created_at|date:'Y-m-d H:i' }}">{{ target.created_at|naturaltime }}</span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <a href="{% url 'target_profile' target.pk %}" class="btn btn-sm btn-outline-secondary">
+                                                        <i class="fa fa-eye"></i>
+                                                    </a>
+                                                    <a href="{% url 'edit_target' target.pk %}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fa fa-edit"></i>
+                                                    </a>
+                                                    {% if not target.has_images %}
+                                                        <a href="{% url 'add_images' target.pk %}" class="btn btn-sm btn-outline-warning" title="No images - Add images">
+                                                            <i class="fa fa-camera"></i>
+                                                        </a>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4">
+                                <i class="fa fa-users fa-2x text-muted mb-3"></i>
+                                <h6 class="text-muted">No targets in this case</h6>
+                                <p class="text-muted">Add targets to start monitoring.</p>
+                                <a href="{% url 'add_target_to_case' case.pk %}" class="btn btn-primary">
+                                    <i class="fa fa-plus me-2"></i>Add First Target
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-dark">
+                            <div class="card-body">
+                                <h6 class="card-title">Case Statistics</h6>
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <h4 class="text-primary">{{ case.targets_watchlist_set.count }}</h4>
+                                        <small class="text-muted">Total Targets</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <h4 class="text-success">{{ case.targets_watchlist_set.count }}</h4>
+                                        <small class="text-muted">Active</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

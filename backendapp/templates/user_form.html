@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if form.instance.pk %}Edit User{% else %}Create User{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12 col-lg-8 mx-auto">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">
+                        <i class="fa fa-user me-2"></i>
+                        {% if form.instance.pk %}
+                            Edit User
+                        {% else %}
+                            Create User
+                        {% endif %}
+                    </h6>
+                    <a href="{% url 'user_list' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa fa-arrow-left me-2"></i>Back to Users
+                    </a>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row g-4">
+                        <!-- Personal Information -->
+                        <div class="col-md-6">
+                            <div class="bg-dark rounded p-4">
+                                <h6 class="mb-4 text-primary">
+                                    <i class="fa fa-user me-2"></i>Personal Information
+                                </h6>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.first_name.id_for_label }}" class="form-label">
+                                        First Name <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.first_name }}
+                                    {% if form.first_name.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.first_name.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.last_name.id_for_label }}" class="form-label">
+                                        Last Name <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.last_name }}
+                                    {% if form.last_name.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.last_name.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.email.id_for_label }}" class="form-label">
+                                        Email <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.email }}
+                                    {% if form.email.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.email.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Account Settings -->
+                        <div class="col-md-6">
+                            <div class="bg-dark rounded p-4">
+                                <h6 class="mb-4 text-primary">
+                                    <i class="fa fa-cog me-2"></i>Account Settings
+                                </h6>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.username.id_for_label }}" class="form-label">
+                                        Username <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.username }}
+                                    {% if form.username.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.username.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                {% if not form.instance.pk %}
+                                <div class="mb-3">
+                                    <label for="{{ form.password1.id_for_label }}" class="form-label">
+                                        Password <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.password1 }}
+                                    {% if form.password1.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.password1.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.password2.id_for_label }}" class="form-label">
+                                        Confirm Password <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.password2 }}
+                                    {% if form.password2.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.password2.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        {{ form.is_active }}
+                                        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                            Active Account
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        {{ form.is_staff }}
+                                        <label class="form-check-label" for="{{ form.is_staff.id_for_label }}">
+                                            Staff Status
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        {{ form.is_superuser }}
+                                        <label class="form-check-label" for="{{ form.is_superuser.id_for_label }}">
+                                            Superuser Status
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'user_list' %}" class="btn btn-secondary">
+                            <i class="fa fa-times me-2"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fa fa-save me-2"></i>
+                            {% if form.instance.pk %}
+                                Update User
+                            {% else %}
+                                Create User
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

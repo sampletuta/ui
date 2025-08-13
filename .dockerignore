@@ -1,0 +1,64 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+LICENSE*
+
+# Development files
+.eslintrc.cjs
+.prettierrc.cjs
+.prettierignore
+
+# Test files
+test_*.py
+demo_*.py
+*_test.py
+
+# Sample pages (not needed in production)
+samplepages/
+
+# Database
+db.sqlite3
+
+# Media files (will be mounted as volume)
+media/
+
+# Static files (will be collected)
+staticfiles/
+
+# Temporary files
+temp_uploads/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

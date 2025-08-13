@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block title %}Videos{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-title-box d-flex align-items-center justify-content-between">
+                <h4 class="mb-0">Videos</h4>
+                <div class="page-title-right">
+                    <a href="{% url 'source_management:video_upload' %}" class="btn btn-primary">
+                        <i class="bx bx-upload me-1"></i>Upload Video
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="status" class="form-label">Status</label>
+                            {{ filter_form.status }}
+                        </div>
+                        <div class="col-md-3">
+                            <label for="source" class="form-label">Source</label>
+                            {{ filter_form.source }}
+                        </div>
+                        <div class="col-md-3">
+                            <label for="uploaded_by" class="form-label">Uploaded By</label>
+                            {{ filter_form.uploaded_by }}
+                        </div>
+                        <div class="col-md-3">
+                            <label for="date_from" class="form-label">Date From</label>
+                            {{ filter_form.date_from }}
+                        </div>
+                        <div class="col-md-3">
+                            <label for="date_to" class="form-label">Date To</label>
+                            {{ filter_form.date_to }}
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary me-2">Filter</button>
+                            <a href="{% url 'source_management:video_list' %}" class="btn btn-secondary">Clear</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Videos Grid -->
+    <div class="row">
+        {% for video in videos %}
+        <div class="col-xl-3 col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <!-- Video Thumbnail -->
+                    <div class="video-thumbnail mb-3">
+                        <div class="ratio ratio-16x9 bg-light rounded">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bx bx-video font-size-48 text-muted"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Video Info -->
+                    <div class="video-info">
+                        <h6 class="card-title mb-1">
+                            <a href="{% url 'source_management:video_detail' video.id %}" class="text-body">
+                                {{ video.title|default:video.file_name|truncatechars:30 }}
+                            </a>
+                        </h6>
+                        <p class="text-muted small mb-2">{{ video.source.source_name }}</p>
+                        
+                        <!-- Video Details -->
+                        <div class="row text-muted small mb-3">
+                            <div class="col-6">
+                                <i class="bx bx-time me-1"></i>
+                                {% if video.duration %}
+                                    {{ video.duration|floatformat:0 }}s
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </div>
+                            <div class="col-6">
+                                <i class="bx bx-hdd me-1"></i>
+                                {{ video.file_size|filesizeformat }}
+                            </div>
+                        </div>
+
+                        <!-- Status and Actions -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-{{ video.status|yesno:'success,warning,danger,secondary' }}">
+                                {{ video.get_status_display }}
+                            </span>
+                            <div class="dropdown">
+                                <a class="text-muted dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                    <i class="bx bx-dots-vertical"></i>
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <a class="dropdown-item" href="{% url 'source_management:video_detail' video.id %}">
+                                        <i class="bx bx-show me-2"></i>View Details
+                                    </a>
+                                    {% if video.status == 'ready' %}
+                                    <a class="dropdown-item" href="{% url 'source_management:send_to_face_detection' video.id %}">
+                                        <i class="bx bx-face me-2"></i>Send to Face Detection
+                                    </a>
+                                    {% endif %}
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item text-danger" href="{% url 'source_management:video_delete' video.id %}">
+                                        <i class="bx bx-trash me-2"></i>Delete
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <small class="text-muted">
+                        <i class="bx bx-user me-1"></i>{{ video.uploaded_by.get_full_name|default:video.uploaded_by.email }}
+                        <span class="ms-2">
+                            <i class="bx bx-calendar me-1"></i>{{ video.created_at|date:"M d, Y" }}
+                        </span>
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="bx bx-video font-size-48 text-muted mb-3"></i>
+                    <h5>No videos found</h5>
+                    <p class="text-muted">Get started by uploading your first video.</p>
+                    <a href="{% url 'source_management:video_upload' %}" class="btn btn-primary">
+                        <i class="bx bx-upload me-2"></i>Upload Video
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if videos.has_other_pages %}
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if videos.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ videos.previous_page_number }}">Previous</a>
+                        </li>
+                    {% endif %}
+
+                    {% for num in videos.paginator.page_range %}
+                        {% if videos.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% elif num > videos.number|add:'-3' and num < videos.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if videos.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ videos.next_page_number }}">Next</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.video-thumbnail {
+    position: relative;
+}
+
+.video-thumbnail .ratio {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.video-info {
+    min-height: 120px;
+}
+
+.card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %} 

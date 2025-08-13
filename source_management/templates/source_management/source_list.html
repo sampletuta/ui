@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block title %}Video Sources{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0">
+                        <i class="fa fa-video me-2"></i>Video Sources
+                    </h4>
+                    <div class="d-flex gap-2">
+                        {% if total_sources > 0 %}
+                        <a href="{% url 'video_player:source_video_list' %}" class="btn btn-success">
+                            <i class="fa fa-play me-2"></i>Video Player
+                        </a>
+                        {% endif %}
+                        <div class="dropdown">
+                            <button class="btn btn-primary dropdown-toggle" type="button" id="addSourceDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fa fa-plus me-2"></i>Add Source
+                            </button>
+                            <ul class="dropdown-menu bg-secondary border-0" aria-labelledby="addSourceDropdown">
+                                <li><a class="dropdown-item" href="{% url 'source_management:source_create' %}?type=camera">
+                                    <i class="fa fa-video-camera me-2"></i>Add Camera
+                                </a></li>
+                                <li><a class="dropdown-item" href="{% url 'source_management:source_create' %}?type=file">
+                                    <i class="fa fa-file-video me-2"></i>Add File
+                                </a></li>
+                                <li><a class="dropdown-item" href="{% url 'source_management:source_create' %}?type=stream">
+                                    <i class="fa fa-broadcast-tower me-2"></i>Add Stream
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ total_sources }}</h5>
+                                <p class="mb-0 text-muted">Total Sources</p>
+                            </div>
+                            <i class="fa fa-video fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ camera_sources_count }}</h5>
+                                <p class="mb-0 text-muted">Cameras</p>
+                            </div>
+                            <i class="fa fa-video-camera fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ file_sources_count }}</h5>
+                                <p class="mb-0 text-muted">Files</p>
+                            </div>
+                            <i class="fa fa-file-video fa-2x text-success"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ stream_sources_count }}</h5>
+                                <p class="mb-0 text-muted">Streams</p>
+                            </div>
+                            <i class="fa fa-broadcast-tower fa-2x text-info"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sources Grid -->
+                <div class="row g-4">
+                    <div class="col-12">
+                        <div class="bg-dark rounded p-4">
+                            <h5 class="mb-4">
+                                <i class="fa fa-list me-2"></i>All Video Sources
+                            </h5>
+                            {% if sources %}
+                                <div class="row g-4">
+                                    {% for source in sources %}
+                                    <div class="col-xl-4 col-md-6">
+                                        <div class="bg-secondary rounded p-3 h-100">
+                                            <div class="d-flex align-items-center mb-3">
+                                                <div class="flex-shrink-0">
+                                                    <div class="avatar-sm rounded-circle bg-{{ source.color }} align-self-center">
+                                                        <span class="avatar-title">
+                                                            <i class="fa {{ source.icon }} font-size-18"></i>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div class="flex-grow-1 ms-3">
+                                                    <h6 class="mb-1">{{ source.name }}</h6>
+                                                    <p class="text-muted mb-0">{{ source.type_display }}</p>
+                                                </div>
+                                                <div class="flex-shrink-0">
+                                                    {% if source.is_active %}
+                                                        <span class="badge bg-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Inactive</span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- File Source Status -->
+                                            {% if source.type == 'file' and source.status %}
+                                            <div class="mb-2">
+                                                {% if source.status == 'ready' %}
+                                                    <span class="badge bg-success">
+                                                        <i class="fa fa-check-circle me-1"></i>Ready
+                                                    </span>
+                                                {% elif source.status == 'processing' %}
+                                                    <span class="badge bg-warning">
+                                                        <i class="fa fa-spinner fa-spin me-1"></i>Processing
+                                                    </span>
+                                                {% elif source.status == 'failed' %}
+                                                    <span class="badge bg-danger">
+                                                        <i class="fa fa-exclamation-triangle me-1"></i>Failed
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-info">
+                                                        <i class="fa fa-clock me-1"></i>Uploading
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
+                                            
+                                            <div class="mb-3">
+                                                <p class="text-muted mb-1">
+                                                    <i class="fa fa-info-circle me-1"></i>{{ source.info }}
+                                                </p>
+                                                {% if source.location %}
+                                                    <p class="text-muted mb-1">
+                                                        <i class="fa fa-map-marker me-1"></i>{{ source.location }}
+                                                    </p>
+                                                {% endif %}
+                                                {% if source.zone %}
+                                                    <p class="text-muted mb-1">
+                                                        <i class="fa fa-tag me-1"></i>{{ source.zone }}
+                                                    </p>
+                                                {% endif %}
+                                                
+                                                <!-- File Source Access Token -->
+                                                {% if source.type == 'file' and source.access_token and source.status == 'ready' %}
+                                                <p class="text-muted mb-1">
+                                                    <i class="fa fa-key me-1"></i>Token: <code>{{ source.access_token|truncatechars:12 }}</code>
+                                                </p>
+                                                {% endif %}
+                                            </div>
+                                            
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small class="text-muted">
+                                                    <i class="fa fa-clock me-1"></i>{{ source.created_at|date:"M d, Y" }}
+                                                </small>
+                                                <div class="btn-group" role="group">
+                                                    {% if source.type == 'file' and source.status == 'ready' %}
+                                                    <a href="{% url 'video_player:source_video_detail' source.source_id %}" class="btn btn-sm btn-success" title="Play Video">
+                                                        <i class="fa fa-play"></i>
+                                                    </a>
+                                                    {% elif source.type == 'camera' and source.is_active %}
+                                                    <a href="{% url 'video_player:source_video_detail' source.source_id %}" class="btn btn-sm btn-success" title="View Live Stream">
+                                                        <i class="fa fa-video"></i>
+                                                    </a>
+                                                    {% elif source.type == 'stream' %}
+                                                    <a href="{% url 'video_player:source_video_detail' source.source_id %}" class="btn btn-sm btn-success" title="View Stream">
+                                                        <i class="fa fa-broadcast-tower"></i>
+                                                    </a>
+                                                    {% endif %}
+                                                    <a href="{% url 'source_management:'|add:source.type|add:'_detail' source.source_id %}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fa fa-eye"></i>
+                                                    </a>
+                                                    <a href="{% url 'source_management:'|add:source.type|add:'_update' source.source_id %}" class="btn btn-sm btn-outline-secondary">
+                                                        <i class="fa fa-edit"></i>
+                                                    </a>
+                                                    <a href="{% url 'source_management:'|add:source.type|add:'_delete' source.source_id %}" class="btn btn-sm btn-outline-danger">
+                                                        <i class="fa fa-trash"></i>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-center py-5">
+                                    <i class="fa fa-video fa-3x text-muted mb-3"></i>
+                                    <h5 class="text-muted">No video sources found</h5>
+                                    <p class="text-muted">Get started by adding your first video source.</p>
+                                    <a href="{% url 'source_management:source_create' %}?type=file" class="btn btn-primary">
+                                        <i class="fa fa-plus me-2"></i>Add Your First Source
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

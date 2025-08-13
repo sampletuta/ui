@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<style>
+    .result-card {
+        background: rgba(0,0,0,0.1);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    .result-header {
+        display: flex;
+        justify-content-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .confidence-badge {
+        font-size: 0.8em;
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+    .map-container {
+        border-radius: 8px;
+        overflow: hidden;
+        margin-top: 15px;
+    }
+    .search-info {
+        background: rgba(0,0,0,0.1);
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">Search Results</h6>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'advanced_search' %}" class="btn btn-sm btn-outline-primary">New Search</a>
+                        <a href="{% url 'search_history' %}" class="btn btn-sm btn-outline-secondary">Search History</a>
+                    </div>
+                </div>
+
+                <!-- Search Information -->
+                <div class="search-info">
+                    <h6><i class="fa fa-search me-2"></i>{{ search_query.query_name }}</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <strong>Type:</strong> {{ search_query.get_search_type_display }}<br>
+                                <strong>Created:</strong> {{ search_query.created_at|date:"M d, Y H:i" }}<br>
+                                <strong>Confidence Threshold:</strong> {{ search_query.confidence_threshold }}
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                {% if search_query.latitude and search_query.longitude %}
+                                    <strong>Location:</strong> {{ search_query.latitude|floatformat:4 }}, {{ search_query.longitude|floatformat:4 }}<br>
+                                    <strong>Radius:</strong> {{ search_query.radius_km }}km<br>
+                                {% endif %}
+                                <strong>Results:</strong> {{ results.count }}
+                            </small>
+                        </div>
+                    </div>
+                    {% if search_query.description %}
+                        <div class="mt-2">
+                            <small class="text-muted">{{ search_query.description }}</small>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Results Map -->
+                {% if map %}
+                <div class="mb-4">
+                    <h6><i class="fa fa-map me-2"></i>Results Map</h6>
+                    <div class="map-container">
+                        {{ map|safe }}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Results List -->
+                <div class="mb-4">
+                    <h6><i class="fa fa-list me-2"></i>Search Results ({{ results.count }})</h6>
+                    
+                    {% if results %}
+                        {% for result in results %}
+                        <div class="result-card">
+                            <div class="result-header">
+                                <div>
+                                    <h6 class="mb-1">{{ result.target.target_name }}</h6>
+                                    <small class="text-muted">
+                                        Camera: {{ result.camera_name|default:"Unknown" }} | 
+                                        Time: {{ result.timestamp }}s | 
+                                        Created: {{ result.created_at|date:"M d, Y H:i" }}
+                                    </small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge confidence-badge 
+                                        {% if result.confidence >= 0.8 %}bg-success
+                                        {% elif result.confidence >= 0.6 %}bg-warning
+                                        {% else %}bg-danger{% endif %}">
+                                        {{ result.confidence|floatformat:2 }}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                {% if result.face_image %}
+                                <div class="col-md-3">
+                                    <img src="{{ result.face_image.url }}" alt="Detected face" 
+                                         class="img-fluid rounded" style="max-height: 100px;">
+                                </div>
+                                {% endif %}
+                                <div class="col">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <small class="text-muted">
+                                                <strong>Target:</strong> {{ result.target.target_name }}<br>
+                                                <strong>Case:</strong> {{ result.target.case.case_name }}<br>
+                                                <strong>Gender:</strong> {{ result.target.get_gender_display }}
+                                            </small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <small class="text-muted">
+                                                {% if result.latitude and result.longitude %}
+                                                    <strong>Location:</strong> {{ result.latitude|floatformat:4 }}, {{ result.longitude|floatformat:4 }}<br>
+                                                {% endif %}
+                                                <strong>Camera ID:</strong> {{ result.camera_id|default:"Unknown" }}<br>
+                                                <strong>Milvus Distance:</strong> {{ result.milvus_distance|floatformat:4|default:"N/A" }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if result.bounding_box %}
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            <strong>Bounding Box:</strong> 
+                                            x={{ result.bounding_box.x|default:0 }}, 
+                                            y={{ result.bounding_box.y|default:0 }}, 
+                                            w={{ result.bounding_box.w|default:0 }}, 
+                                            h={{ result.bounding_box.h|default:0 }}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <a href="{% url 'target_profile' result.target.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fa fa-user me-1"></i>View Target
+                                </a>
+                                {% if result.source_video_url %}
+                                <a href="{{ result.source_video_url }}" class="btn btn-sm btn-outline-info" target="_blank">
+                                    <i class="fa fa-video me-1"></i>View Video
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fa fa-search fa-3x text-muted mb-3"></i>
+                            <h6 class="text-muted">No results found</h6>
+                            <p class="text-muted small">Try adjusting your search criteria or confidence threshold.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Search Actions -->
+                <div class="d-flex gap-2">
+                    <a href="{% url 'advanced_search' %}" class="btn btn-primary">
+                        <i class="fa fa-search me-2"></i>New Search
+                    </a>
+                    <button class="btn btn-outline-secondary" onclick="window.print()">
+                        <i class="fa fa-print me-2"></i>Print Results
+                    </button>
+                    <button class="btn btn-outline-info" onclick="exportResults()">
+                        <i class="fa fa-download me-2"></i>Export
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function exportResults() {
+        // Export results to CSV or JSON
+        var results = [
+            {% for result in results %}
+            {
+                target_name: "{{ result.target.target_name }}",
+                confidence: {{ result.confidence }},
+                timestamp: {{ result.timestamp }},
+                camera: "{{ result.camera_name|default:'Unknown' }}",
+                location: "{{ result.latitude|default:'' }}, {{ result.longitude|default:'' }}",
+                created: "{{ result.created_at|date:'Y-m-d H:i:s' }}"
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+        
+        var csv = "Target Name,Confidence,Timestamp,Camera,Location,Created\n";
+        results.forEach(function(result) {
+            csv += `"${result.target_name}",${result.confidence},${result.timestamp},"${result.camera}","${result.location}","${result.created}"\n`;
+        });
+        
+        var blob = new Blob([csv], { type: 'text/csv' });
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'search_results_{{ search_query.id }}.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+</script>
+{% endblock %} 
