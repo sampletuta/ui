@@ -5,36 +5,102 @@
     <div class="row g-4">
         <div class="col-12 col-lg-8 mx-auto">
             <div class="bg-secondary rounded h-100 p-4">
-                <h3 class="mb-4">Milvus Face Search</h3>
-                <form method="post" enctype="multipart/form-data" action="">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="face_image" class="form-label">Upload a face image to search:</label>
-                        <input type="file" class="form-control" id="face_image" name="face_image" accept="image/*" {% if not requirements_met %}disabled{% endif %}>
-                    </div>
-                    <button class="btn btn-primary" type="submit" {% if not requirements_met %}disabled{% endif %}>Search</button>
-                </form>
-                {% if not requirements_met %}
-                    <div class="alert alert-warning mt-4">
-                        <strong>Milvus integration is not yet configured.</strong><br>
-                        This is a placeholder page for face search. If you need more things, then you are here then.
-                    </div>
-                {% else %}
-                    <div class="mt-4">
-                        <h5>Results</h5>
-                        <div class="row">
-                            <!-- Placeholder for video thumbnails -->
-                            <div class="col-6 col-md-4 col-lg-3 mb-3">
-                                <div class="card bg-dark">
-                                    <img src="https://via.placeholder.com/320x180?text=Video+Thumbnail" class="card-img-top" style="object-fit:cover;width:100%;height:180px;" alt="Video Thumbnail">
-                                    <div class="card-body text-center">
-                                        <button class="btn btn-success btn-sm">Play</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Repeat above block for each result -->
+                <h3 class="mb-4 text-white">Face Search</h3>
+                
+                <!-- Search Statistics -->
+                {% if stats.success %}
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="bg-dark rounded p-3 text-center">
+                            <h5 class="text-primary mb-2">{{ stats.milvus_stats.total_vectors }}</h5>
+                            <p class="text-light mb-0 small">Total Face Embeddings</p>
                         </div>
                     </div>
+                    <div class="col-md-6">
+                        <div class="bg-dark rounded p-3 text-center">
+                            <h5 class="text-primary mb-2">{{ stats.django_stats.total_targets }}</h5>
+                            <p class="text-light mb-0 small">Total Targets</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Search Form -->
+                <form method="post" enctype="multipart/form-data" action="">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.face_image.id_for_label }}" class="form-label text-white">
+                            {{ form.face_image.label }}
+                        </label>
+                        {{ form.face_image }}
+                        {% if form.face_image.help_text %}
+                            <div class="form-text text-light">{{ form.face_image.help_text }}</div>
+                        {% endif %}
+                        {% if form.face_image.errors %}
+                            <div class="text-danger">
+                                {% for error in form.face_image.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.top_k.id_for_label }}" class="form-label text-white">
+                                    {{ form.top_k.label }}
+                                </label>
+                                {{ form.top_k }}
+                                {% if form.top_k.help_text %}
+                                    <div class="form-text text-light">{{ form.top_k.help_text }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.confidence_threshold.id_for_label }}" class="form-label text-white">
+                                    {{ form.confidence_threshold.label }}
+                                </label>
+                                {{ form.confidence_threshold }}
+                                {% if form.confidence_threshold.help_text %}
+                                    <div class="form-text text-light">{{ form.confidence_threshold.help_text }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary" type="submit">
+                        <i class="fa fa-search me-2"></i>Search for Similar Faces
+                    </button>
+                </form>
+                
+                <!-- Instructions -->
+                <div class="mt-4 p-3 bg-dark rounded">
+                    <h6 class="text-primary mb-3">How to use Face Search:</h6>
+                    <ol class="text-light small">
+                        <li>Upload an image containing a clear face</li>
+                        <li>Set the number of results you want (1-20)</li>
+                        <li>Adjust the confidence threshold (0.0-1.0)</li>
+                        <li>Click "Search for Similar Faces"</li>
+                        <li>View the top matching faces from your watchlist</li>
+                    </ol>
+                    <p class="text-light small mb-0">
+                        <strong>Note:</strong> Higher confidence thresholds will return more similar matches, 
+                        while lower thresholds will return more potential matches.
+                    </p>
+                </div>
+                
+                {% if not stats.success %}
+                <div class="alert alert-warning mt-4">
+                    <strong>Service Status:</strong><br>
+                    {% if stats.error %}
+                        {{ stats.error }}
+                    {% else %}
+                        Face search service is not available. Please check your configuration.
+                    {% endif %}
+                </div>
                 {% endif %}
             </div>
         </div>

@@ -27,11 +27,12 @@ class CameraSourceAdmin(admin.ModelAdmin):
 
 @admin.register(FileSource)
 class FileSourceAdmin(admin.ModelAdmin):
-    list_display = ['name', 'status', 'file_size', 'duration', 'created_at']
-    list_filter = ['status', 'file_format', 'created_at']
+    list_display = ['name', 'status', 'file_size', 'ingestion_notified', 'created_at']
+    list_filter = ['status', 'file_format', 'ingestion_notified', 'created_at']
     search_fields = ['name', 'description', 'location']
     readonly_fields = ['source_id', 'access_token', 'api_endpoint', 'stream_url', 'thumbnail_url', 
-                      'created_at', 'updated_at', 'processing_started_at', 'processing_completed_at']
+                      'created_at', 'updated_at', 'processing_started_at', 'processing_completed_at',
+                      'ingestion_notified', 'ingestion_notified_at', 'ingestion_response']
     
     fieldsets = (
         ('Basic Information', {
@@ -46,6 +47,10 @@ class FileSourceAdmin(admin.ModelAdmin):
         }),
         ('Access & URLs', {
             'fields': ('access_token', 'api_endpoint', 'stream_url', 'thumbnail_url'),
+            'classes': ('collapse',)
+        }),
+        ('Data Ingestion', {
+            'fields': ('ingestion_notified', 'ingestion_notified_at', 'ingestion_response'),
             'classes': ('collapse',)
         }),
         ('Processing', {

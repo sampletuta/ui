@@ -34,12 +34,62 @@ class CustomUserCreationForm(UserCreationForm):
 class CustomUserChangeForm(UserChangeForm):
     class Meta:
         model = User
-        fields = ('email', 'first_name', 'last_name', 'role')
+        fields = ('email', 'first_name', 'last_name', 'role', 'avatar', 'is_active', 'is_staff', 'is_superuser')
         widgets = {
-            'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'role': forms.Select(attrs={'class': 'form-select'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'Email address'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'First name'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'Last name'}),
+            'role': forms.Select(attrs={'class': 'form-select bg-dark text-white border-0'}),
+        }
+
+class AdminUserCreationForm(UserCreationForm):
+    email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={'class': 'form-control'}))
+    first_name = forms.CharField(max_length=30, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    last_name = forms.CharField(max_length=30, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+
+    class Meta:
+        model = User
+        fields = (
+            'email', 'first_name', 'last_name', 'role', 'avatar',
+            'password1', 'password2',
+            'is_active', 'is_staff', 'is_superuser',
+        )
+        widgets = {
+            'email': forms.EmailInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'Email address'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'First name'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'Last name'}),
+            'role': forms.Select(attrs={'class': 'form-select bg-dark text-white border-0'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['password1'].widget.attrs.update({'class': 'form-control'})
+        self.fields['password2'].widget.attrs.update({'class': 'form-control'})
+
+class AdminUserChangeForm(UserChangeForm):
+    class Meta:
+        model = User
+        fields = (
+            'email', 'first_name', 'last_name', 'role', 'avatar',
+            'is_active', 'is_staff', 'is_superuser',
+        )
+        widgets = {
+            'email': forms.EmailInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'Email address'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'First name'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'Last name'}),
+            'role': forms.Select(attrs={'class': 'form-select bg-dark text-white border-0'}),
+        }
+
+class SelfUserChangeForm(UserChangeForm):
+    class Meta:
+        model = User
+        fields = (
+            'email', 'first_name', 'last_name', 'avatar',
+        )
+        widgets = {
+            'email': forms.EmailInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'Email address'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'First name'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control bg-dark text-white border-0', 'placeholder': 'Last name'}),
         }
 
 class CustomPasswordChangeForm(PasswordChangeForm):
@@ -236,45 +286,42 @@ class QuickSearchForm(forms.Form):
     )
 
 class MilvusSearchForm(forms.Form):
-    collection_name = forms.CharField(
-        max_length=100,
-        widget=forms.TextInput(attrs={
+    face_image = forms.ImageField(
+        label="Upload Face Image",
+        help_text="Upload an image containing a face to search for similar faces",
+        widget=forms.FileInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Milvus collection name'
-        })
-    )
-    
-    partition_name = forms.CharField(
-        max_length=100,
-        required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Partition name (optional)'
+            'accept': 'image/*',
+            'id': 'face_image'
         })
     )
     
     top_k = forms.IntegerField(
-        initial=10,
+        label="Number of Results",
+        initial=5,
         min_value=1,
-        max_value=1000,
+        max_value=20,
+        help_text="Maximum number of similar faces to return",
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'min': '1',
-            'max': '1000'
+            'max': '20'
         })
     )
     
-    distance_threshold = forms.FloatField(
-        initial=0.8,
+    confidence_threshold = forms.FloatField(
+        label="Confidence Threshold",
+        initial=0.6,
         min_value=0.0,
         max_value=1.0,
+        help_text="Minimum similarity score to include in results",
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'min': '0.0',
             'max': '1.0',
-            'step': '0.01'
+            'step': '0.1'
         })
-    ) 
+    )
 
 class CaseForm(forms.ModelForm):
     class Meta:

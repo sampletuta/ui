@@ -26,6 +26,7 @@ urlpatterns = [
     path('video/', include('video_player.urls', namespace='video_player')),
     path('source-management/', include('source_management.urls', namespace="source_management")),
     path('inbox/notifications/', include('notifications.urls', namespace='notifications')),
+    path('face-ai/', include('face_ai.urls', namespace='face_ai')),
 ]
 
 if settings.DEBUG:

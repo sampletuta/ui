@@ -1,11 +1,31 @@
-Django>=4.2.0,<5.0.0
-requests>=2.31.0
-asgiref>=3.7.2
-Pillow>=10.0.0
-python-magic>=0.4.27
-opencv-python>=4.8.0
-numpy>=1.24.0
-gunicorn>=21.2.0
-whitenoise>=6.5.0
-folium>=0.14.0
-django-notifications-hq>=1.8.3
+# Django and Core Dependencies
+Django #>=5.2.4
+django-environ #>=0.11.2
+whitenoise #>=6.5.0
+django-notifications-hq #>=1.8.3
+
+# ASGI and Async Support
+uvicorn[standard] #>=0.24.0
+asgiref #>=3.7.0
+channels #>=4.0.0
+
+# Face Recognition and AI
+opencv-python #>=4.8.0
+insightface #>=0.7.3
+onnxruntime #>=1.15.0
+numpy #>=1.24.0
+Pillow #>=10.0.0
+
+# Vector Database
+pymilvus #>=2.3.0
+
+# Parallel Processing
+# concurrent-futures is part of Python standard library (Python 3.2+)
+
+# Performance and Monitoring
+psutil #>=5.9.0
+
+# Development and Testing
+pytest #>=7.0.0
+pytest-asyncio #>=0.21.0
+pytest-django #>=4.5.0

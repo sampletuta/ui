@@ -21,6 +21,12 @@
                                 <i class="fa fa-exclamation-triangle me-2"></i>
                                 <strong>Warning:</strong> This target has no images. Add images for better face recognition.
                             </div>
+                        {% elif target.images.count == 1 %}
+                            <div class="alert alert-info alert-sm mt-2 mb-0">
+                                <i class="fa fa-info-circle me-2"></i>
+                                <strong>Info:</strong> This target has only one image. You cannot delete it as each target must have at least one image. 
+                                <a href="{% url 'add_images' target.pk %}" class="alert-link">Add more images</a> to enable deletion.
+                            </div>
                         {% endif %}
                         <div class="mt-2">
                             <a href="{% url 'edit_target' target.pk %}" class="btn btn-warning btn-sm">Edit</a>
@@ -70,23 +76,29 @@
                                             <i class="fa fa-calendar me-1"></i>{{ img.uploaded_at|date:'M d, Y' }}
                                         </small>
                                         <div class="mt-2">
-                                            <a href="{% url 'delete_image' target.pk img.pk %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this image?');">
-                                                <i class="fa fa-trash me-1"></i>Delete
-                                            </a>
+                                            {% if target.images.count > 1 %}
+                                                <a href="{% url 'delete_image' target.pk img.pk %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this image?');">
+                                                    <i class="fa fa-trash me-1"></i>Delete
+                                                </a>
+                                            {% else %}
+                                                <button class="btn btn-sm btn-outline-secondary" disabled title="Cannot delete the last image. Each target must have at least one image.">
+                                                    <i class="fa fa-lock me-1"></i>Last Image
+                                                </button>
+                                                <small class="d-block text-muted mt-1">
+                                                    <i class="fa fa-info-circle me-1"></i>Cannot delete
+                                                </small>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         {% endfor %}
                     {% else %}
-                        <div class="col-12 text-center">
-                            <div class="bg-dark rounded p-4">
-                                <i class="fa fa-images fa-3x text-muted mb-3"></i>
-                                <h6 class="text-muted">No images available</h6>
-                                <p class="text-muted mb-3">This target doesn't have any images yet. Add images for better face recognition.</p>
-                                <a href="{% url 'add_images' target.pk %}" class="btn btn-primary">
-                                    <i class="fa fa-camera me-2"></i>Add Images
-                                </a>
+                        <div class="col-12">
+                            <div class="alert alert-warning text-center">
+                                <i class="fa fa-exclamation-triangle me-2"></i>
+                                <strong>No Images Found:</strong> This target has no images. 
+                                <a href="{% url 'add_images' target.pk %}" class="alert-link">Add images</a> for better face recognition.
                             </div>
                         </div>
                     {% endif %}

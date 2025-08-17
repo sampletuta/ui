@@ -82,7 +82,7 @@
                                 <td>{{ target.created_at|date:'Y-m-d H:i' }}</td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="4" class="text-center">No recent targets.</td></tr>
+                            <tr><td colspan="4" class="text-center text-light">No recent targets.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -91,13 +91,66 @@
         </div>
     </div>
 
-
+    <!-- AI Services Section -->
+    <div class="row g-4 pt-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded p-4">
+                <h5 class="mb-4 text-white">
+                    <i class="fa fa-robot me-2 text-primary"></i>AI-Powered Services
+                </h5>
+                <div class="row g-4">
+                    <div class="col-sm-12 col-md-6 col-xl-4">
+                        <a href="{% url 'face_verification' %}" class="text-decoration-none">
+                            <div class="h-100 bg-secondary rounded p-4 text-center">
+                                <i class="fa fa-user-check fa-3x text-primary mb-3"></i>
+                                <h6 class="text-white mb-2">Face Verification</h6>
+                                <p class="text-light mb-0 small">Compare two images and analyze facial similarity with AI</p>
+                                <div class="mt-3">
+                                    <span class="badge bg-primary">New</span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-sm-12 col-md-6 col-xl-4">
+                        <a href="{% url 'face_verification_watchlist' %}" class="text-decoration-none">
+                            <div class="h-100 bg-secondary rounded p-4 text-center">
+                                <i class="fa fa-search-plus fa-3x text-primary mb-3"></i>
+                                <h6 class="text-white mb-2">Watchlist Verification</h6>
+                                <p class="text-light mb-0 small">Advanced verification between watchlist targets and images</p>
+                                <div class="mt-3">
+                                    <span class="badge bg-primary">New</span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-sm-12 col-md-6 col-xl-4">
+                        <a href="{% url 'milvus_search' %}" class="text-decoration-none">
+                            <div class="h-100 bg-secondary rounded p-4 text-center">
+                                <i class="fa fa-search fa-3x text-primary mb-3"></i>
+                                <h6 class="text-white mb-2">Face Search</h6>
+                                <p class="text-light mb-0 small">Search for similar faces in your watchlist database</p>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-sm-12 col-md-6 col-xl-4">
+                        <a href="{% url 'video_face_search' %}" class="text-decoration-none">
+                            <div class="h-100 bg-secondary rounded p-4 text-center">
+                                <i class="fa fa-video fa-3x text-primary mb-3"></i>
+                                <h6 class="text-white mb-2">Video Analysis</h6>
+                                <p class="text-light mb-0 small">Extract and search faces from video content</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="row g-4 pt-4">
         <div class="col-sm-12 col-lg-6 col-xl-6">
             <div class="h-100 bg-secondary rounded p-4">
                 <div class="d-flex align-items-center justify-content-between mb-2">
-                    <h6 class="mb-0">Recent Cases</h6>
+                    <h6 class="mb-0 text-white">Recent Cases</h6>
                     <a href="{% url 'case_list' %}">Show All</a>
                 </div>
                 {% for c in recent_cases %}
@@ -105,27 +158,27 @@
                     <i class="fa fa-briefcase text-primary fa-lg flex-shrink-0" aria-hidden="true"></i>
                     <div class="w-100 ms-3">
                         <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-0">{{ c.case_name }}</h6>
-                            <small class="text-muted">{{ c.created_at|naturaltime }}</small>
+                            <h6 class="mb-0 text-white">{{ c.case_name }}</h6>
+                            <small class="text-light">{{ c.created_at|naturaltime }}</small>
                         </div>
-                        <span>By {{ c.created_by.get_full_name|default:c.created_by.email }}</span>
+                        <span class="text-light">By {{ c.created_by.get_full_name|default:c.created_by.email }}</span>
                     </div>
                 </div>
                 {% empty %}
-                <p class="mb-0 text-muted">No recent cases.</p>
+                <p class="mb-0 text-light">No recent cases.</p>
                 {% endfor %}
             </div>
         </div>
         <div class="col-sm-12 col-lg-6 col-xl-6">
             <div class="h-100 bg-secondary rounded p-4">
                 <div class="d-flex align-items-center justify-content-between mb-4">
-                    <h6 class="mb-0">Quick Actions</h6>
+                    <h6 class="mb-0 text-white">Quick Actions</h6>
                 </div>
                 <div class="d-flex flex-column gap-2">
                     <a href="{% url 'backend' %}" class="btn btn-primary">Add Target</a>
-                    <a href="{% url 'case_create' %}" class="btn btn-outline-light">Create Case</a>
-                    <a href="{% url 'video_player:source_video_list' %}" class="btn btn-outline-light">Video Player</a>
-                    <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-light">Video Sources</a>
+                    <a href="{% url 'case_create' %}" class="btn btn-outline-primary">Create Case</a>
+                    <a href="{% url 'video_player:source_video_list' %}" class="btn btn-outline-primary">Video Player</a>
+                    <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-primary">Video Sources</a>
                 </div>
             </div>
         </div>
@@ -149,12 +202,12 @@
                     datasets: [{
                         label: 'Targets',
                         data: targetsData,
-                        backgroundColor: 'rgba(235, 22, 22, .7)',
+                        backgroundColor: 'rgba(220, 53, 69, .7)',
                         fill: true
                     },{
                         label: 'Cases',
                         data: casesData,
-                        backgroundColor: 'rgba(235, 22, 22, .5)',
+                        backgroundColor: 'rgba(220, 53, 69, .5)',
                         fill: true
                     }]
                 },

@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <!-- Header Section -->
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <div>
+                        <h4 class="mb-1">
+                            <i class="fa fa-eye me-2"></i>Image Preview & Validation
+                        </h4>
+                        <p class="mb-0 text-muted">Review your uploaded images and face detection results before proceeding with verification</p>
+                    </div>
+                    <div class="text-end">
+                        <a href="{% url 'face_verification' %}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fa fa-arrow-left me-1"></i>Back to Upload
+                        </a>
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-info btn-sm ms-2">
+                            <i class="fa fa-home me-1"></i>Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Validation Status Summary -->
+        
+
+        <!-- Image Preview Section - Simplified -->
+        <div class="row g-4">
+            <!-- Image 1 Preview -->
+            <div class="col-12 col-md-6">
+                <div class="bg-secondary rounded h-100 p-4">
+                    <h5 class="mb-4 text-center">
+                        <i class="fa fa-crosshairs me-2"></i>Reference Image
+                    </h5>
+                    
+                    <!-- Image Display -->
+                    <div class="text-center mb-3">
+                        <div class="position-relative">
+                            <img src="data:image/jpeg;base64,{{ image1.base64 }}" 
+                                 class="img-fluid rounded" style="max-height: 250px; object-fit: contain;" 
+                                 alt="Reference Image">
+                            
+                            <!-- Face Detection Box -->
+                            {% if image1.validation.success and image1.validation.faces_detected > 0 %}
+                                {% with face=image1.validation.faces.0 %}
+                                <div class="position-absolute" style="
+                                    left: {{ face.bbox.0 }}%; 
+                                    top: {{ face.bbox.1 }}%; 
+                                    width: {{ face.bbox.2|add:'-'|add:face.bbox.0 }}%; 
+                                    height: {{ face.bbox.3|add:'-'|add:face.bbox.1 }}%;
+                                    border: 2px solid #ffc107;
+                                    border-radius: 3px;
+                                    pointer-events: none;
+                                "></div>
+                                {% endwith %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Status & Validation - Simplified -->
+                    <div class="text-center">
+                        <div class="mb-3">
+                            <h6 class="text-white mb-2">{{ image1.name }}</h6>
+                            <span class="badge {% if image1.status == 'valid' %}bg-success{% else %}bg-danger{% endif %} fs-6">
+                                {% if image1.status == 'valid' %}✅ Valid{% else %}❌ Invalid{% endif %}
+                            </span>
+                        </div>
+                        
+                        <!-- Face Count -->
+                        <div class="bg-dark rounded p-3 mb-3">
+                            <small class="text-muted d-block">Faces Detected</small>
+                            <span class="h4 text-white">{{ image1.validation.faces_detected }}</span>
+                        </div>
+                        
+                        <!-- Validation Result - Simplified -->
+                        {% if image1.validation.success %}
+                            {% if image1.validation.faces_detected == 1 %}
+                                {% with face=image1.validation.faces.0 %}
+                                <div class="bg-success rounded p-3">
+                                    <small class="text-white d-block">Confidence</small>
+                                    <span class="h5 text-white">{{ face.confidence|floatformat:1 }}%</span>
+                                </div>
+                                {% endwith %}
+                            {% elif image1.validation.faces_detected == 0 %}
+                                <div class="bg-danger rounded p-3">
+                                    <small class="text-white">No faces detected</small>
+                                </div>
+                            {% else %}
+                                <div class="bg-warning rounded p-3">
+                                    <small class="text-white">{{ image1.validation.faces_detected }} faces detected</small>
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="bg-danger rounded p-3">
+                                <small class="text-white">Detection failed</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Image 2 Preview -->
+            <div class="col-12 col-md-6">
+                <div class="bg-secondary rounded h-100 p-4">
+                    <h5 class="mb-4 text-center">
+                        <i class="fa fa-search me-2"></i>Query Image
+                    </h5>
+                    
+                    <!-- Image Display -->
+                    <div class="text-center mb-3">
+                        <div class="position-relative">
+                            <img src="data:image/jpeg;base64,{{ image2.base64 }}" 
+                                 class="img-fluid rounded" style="max-height: 250px; object-fit: contain;" 
+                                 alt="Query Image">
+                            
+                            <!-- Face Detection Box -->
+                            {% if image2.validation.success and image2.validation.faces_detected > 0 %}
+                                {% with face=image2.validation.faces.0 %}
+                                <div class="position-absolute" style="
+                                    left: {{ face.bbox.0 }}%; 
+                                    top: {{ face.bbox.1 }}%; 
+                                    width: {{ face.bbox.2|add:'-'|add:face.bbox.0 }}%; 
+                                    height: {{ face.bbox.3|add:'-'|add:face.bbox.1 }}%;
+                                    border: 2px solid #17a2b8;
+                                    border-radius: 3px;
+                                    pointer-events: none;
+                                "></div>
+                                {% endwith %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Status & Validation - Simplified -->
+                    <div class="text-center">
+                        <div class="mb-3">
+                            <h6 class="text-white mb-2">{{ image2.name }}</h6>
+                            <span class="badge {% if image2.status == 'valid' %}bg-success{% else %}bg-danger{% endif %} fs-6">
+                                {% if image2.status == 'valid' %}✅ Valid{% else %}❌ Invalid{% endif %}
+                            </span>
+                        </div>
+                        
+                        <!-- Face Count -->
+                        <div class="bg-dark rounded p-3 mb-3">
+                            <small class="text-muted d-block">Faces Detected</small>
+                            <span class="h4 text-white">{{ image2.validation.faces_detected }}</span>
+                        </div>
+                        
+                        <!-- Validation Result - Simplified -->
+                        {% if image2.validation.success %}
+                            {% if image2.validation.faces_detected == 1 %}
+                                {% with face=image2.validation.faces.0 %}
+                                <div class="bg-success rounded p-3">
+                                    <small class="text-white d-block">Confidence</small>
+                                    <span class="h5 text-white">{{ face.confidence|floatformat:1 }}%</span>
+                                </div>
+                                {% endwith %}
+                            {% elif image2.validation.faces_detected == 0 %}
+                                <div class="bg-danger rounded p-3">
+                                    <small class="text-white">No faces detected</small>
+                                </div>
+                            {% else %}
+                                <div class="bg-warning rounded p-3">
+                                    <small class="text-white">{{ image2.validation.faces_detected }} faces detected</small>
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="bg-danger rounded p-3">
+                                <small class="text-white">Detection failed</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons - Simplified -->
+        <div class="col-12">
+            <div class="bg-secondary rounded p-4 text-center">
+                {% if overall_status == 'ready' %}
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <a href="{% url 'face_verification' %}" class="btn btn-danger btn-lg w-100">
+                            <i class="fa fa-arrow-left me-2"></i>Upload Different Images
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <form method="post" action="{% url 'face_verification' %}" style="display: inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="image1_base64" value="{{ image1.base64 }}">
+                            <input type="hidden" name="image2_base64" value="{{ image2.base64 }}">
+                            <input type="hidden" name="image1_name" value="{{ image1.name }}">
+                            <input type="hidden" name="image2_name" value="{{ image2.name }}">
+                            <input type="hidden" name="threshold" value="{{ threshold }}">
+                            <button type="submit" class="btn btn-success btn-lg w-100">
+                                <i class="fa fa-rocket me-2"></i>Proceed with Verification
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% else %}
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <a href="{% url 'face_verification' %}" class="btn btn-warning btn-lg w-100">
+                            <i class="fa fa-edit me-2"></i>Fix Issues & Re-upload
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="{% url 'face_verification_watchlist' %}" class="btn btn-success btn-lg w-100">
+                            <i class="fa fa-search-plus me-2"></i>Search Watchlist
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced CSS for Preview -->
+<style>
+.alert {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.btn {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.bg-secondary, .bg-dark {
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.bg-secondary:hover, .bg-dark:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+</style>
+{% endblock %}

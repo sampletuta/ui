@@ -93,12 +93,12 @@
                 {% if user.is_authenticated %}
                 <div class="d-flex align-items-center ms-4 mb-4">
                     <div class="position-relative">
-                        <img class="rounded-circle" src="{% static 'img/user.jpg' %}" alt="" style="width: 40px; height: 40px;">
+                        <img class="rounded-circle" src="{% if user.avatar %}{{ user.avatar.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
                         <div class="bg-success rounded-circle border border-2 border-white position-absolute end-0 bottom-0 p-1"></div>
                     </div>
                     <div class="ms-3">
                         <h6 class="mb-0">{{ user.get_full_name|default:user.email|default:"User" }}</h6>
-                        <span>{{ user.role|default:"User"|title }}</span>
+                        <span>{{ user.get_role_display|default:"User" }}</span>
                     </div>
                 </div>
                 {% endif %}
@@ -139,6 +139,12 @@
                             <a href="{% url 'search_history' %}" class="dropdown-item">Search History</a>
                             <hr class="dropdown-divider">
                             <a href="{% url 'video_face_search' %}" class="dropdown-item">Video Face Search</a>
+                            <a href="{% url 'face_verification' %}" class="dropdown-item">
+                                <i class="fa fa-user-check me-2"></i>Face Verification
+                            </a>
+                            <a href="{% url 'face_verification_watchlist' %}" class="dropdown-item">
+                                <i class="fa fa-search-plus me-2"></i>Watchlist Verification
+                            </a>
                         </div>
                     </div>
                     <div class="nav-item dropdown">
@@ -245,17 +251,17 @@
                         <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
                             <a href="{% url 'profile' %}" class="dropdown-item">
                                 <div class="d-flex align-items-center">
-                                    <img class="rounded-circle" src="{% static 'img/user.jpg' %}" alt="" style="width: 40px; height: 40px;">
+                                    <img class="rounded-circle" src="{% if user.avatar %}{{ user.avatar.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
                                     <div class="ms-2">
                                         <h6 class="fw-normal mb-0">My Profile</h6>
-                                        <small>{{ user.role|default:"User"|title }}</small>
+                                        <small>{{ user.get_role_display|default:"User" }}</small>
                                     </div>
                                 </div>
                             </a>
                             <hr class="dropdown-divider">
                             <a href="{% url 'settings' %}" class="dropdown-item">
                                 <div class="d-flex align-items-center">
-                                    <img class="rounded-circle" src="{% static 'img/user.jpg' %}" alt="" style="width: 40px; height: 40px;">
+                                    <img class="rounded-circle" src="{% if user.avatar %}{{ user.avatar.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
                                     <div class="ms-2">
                                         <h6 class="fw-normal mb-0">Settings</h6>
                                         <small>Account preferences</small>
@@ -265,7 +271,7 @@
                             <hr class="dropdown-divider">
                             <a href="{% url 'logout' %}" class="dropdown-item">
                                 <div class="d-flex align-items-center">
-                                    <img class="rounded-circle" src="{% static 'img/user.jpg' %}" alt="" style="width: 40px; height: 40px;">
+                                    <img class="rounded-circle" src="{% if user.avatar %}{{ user.avatar.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
                                     <div class="ms-2">
                                         <h6 class="fw-normal mb-0">Log Out</h6>
                                         <small>Sign out of system</small>

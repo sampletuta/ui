@@ -82,11 +82,11 @@
                                         <td>
                                             <div class="d-flex align-items-center">
                                                 <div class="avatar-sm rounded-circle bg-primary me-3 d-flex align-items-center justify-content-center">
-                                                    <span class="text-white fw-bold">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</span>
+                                                    <span class="text-white fw-bold">{{ user.first_name|default:user.email|slice:":1"|upper }}{{ user.last_name|slice:":1"|upper }}</span>
                                                 </div>
                                                 <div>
-                                                    <h6 class="mb-0">{{ user.get_full_name|default:user.username }}</h6>
-                                                    <small class="text-muted">@{{ user.username }}</small>
+                                                    <h6 class="mb-0">{{ user.get_full_name|default:user.email }}</h6>
+                                                    <small class="text-muted">{{ user.email }}</small>
                                                 </div>
                                             </div>
                                         </td>
@@ -94,6 +94,8 @@
                                         <td>
                                             {% if user.is_superuser %}
                                                 <span class="badge bg-danger">Super Admin</span>
+                                            {% elif user.role %}
+                                                <span class="badge bg-secondary">{{ user.get_role_display }}</span>
                                             {% elif user.is_staff %}
                                                 <span class="badge bg-warning">Staff</span>
                                             {% else %}

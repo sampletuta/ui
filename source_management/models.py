@@ -131,11 +131,10 @@ class FileSource(BaseSource):
     
     STATUS_CHOICES = [
         ('uploading', 'Uploading'),
-        ('processing', 'Processing'),
         ('ready', 'Ready'),
         ('failed', 'Failed'),
     ]
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploading') # no status we only register to future inreach there is another servie which monitor so keep your hands
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploading')
     
     # Video metadata (auto-extracted)
     duration = models.FloatField(null=True, blank=True, help_text="Video duration in seconds")
@@ -163,6 +162,11 @@ class FileSource(BaseSource):
     recording_date = models.DateTimeField(null=True, blank=True, help_text="Date when video was recorded")
     camera_info = models.JSONField(default=dict, blank=True, help_text="Camera information if available")
     scene_info = models.JSONField(default=dict, blank=True, help_text="Scene analysis information")
+    
+    # Data ingestion notification tracking
+    ingestion_notified = models.BooleanField(default=False, help_text="Whether data ingestion service was notified")
+    ingestion_notified_at = models.DateTimeField(null=True, blank=True, help_text="When data ingestion service was notified")
+    ingestion_response = models.JSONField(default=dict, blank=True, help_text="Response from data ingestion service")
 
     class Meta:
         verbose_name = "File Source"

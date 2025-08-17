@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <!-- Search Results Header -->
+            <div class="bg-secondary rounded p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h3 class="text-white mb-2">Face Search Results</h3>
+                        <p class="text-light mb-0">
+                            Found {{ search_result.total_results }} similar faces 
+                            (Threshold: {{ search_result.search_metadata.confidence_threshold }})
+                        </p>
+                    </div>
+                    <a href="{% url 'milvus_search' %}" class="btn btn-outline-primary">
+                        <i class="fa fa-arrow-left me-2"></i>New Search
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Query Image and Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="bg-secondary rounded p-4">
+                        <h6 class="text-white mb-3">Query Image</h6>
+                        {% if uploaded_image %}
+                        <div class="text-center">
+                            <img src="{{ uploaded_image.url }}" alt="Query Image" 
+                                 class="img-fluid rounded" style="max-height: 200px;">
+                        </div>
+                        {% endif %}
+                        <div class="mt-3">
+                            <small class="text-light">
+                                <strong>Face Detection:</strong> {{ search_result.query_face_info.confidence|floatformat:3 }}<br>
+                                <strong>Face Area:</strong> {{ search_result.query_face_info.face_area }} pixels
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-8">
+                    <div class="bg-secondary rounded p-4">
+                        <h6 class="text-white mb-3">Search Statistics</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="bg-dark rounded p-3 text-center mb-3">
+                                    <h5 class="text-primary mb-1">{{ stats.milvus_stats.total_vectors }}</h5>
+                                    <small class="text-light">Total Embeddings</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="bg-dark rounded p-3 text-center mb-3">
+                                    <h5 class="text-primary mb-1">{{ stats.django_stats.total_targets }}</h5>
+                                    <small class="text-light">Total Targets</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="bg-dark rounded p-3 text-center">
+                                    <h5 class="text-info mb-1">{{ search_result.search_metadata.top_k }}</h5>
+                                    <small class="text-light">Results Requested</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="bg-dark rounded p-3 text-center">
+                                    <h5 class="text-success mb-1">{{ search_result.total_results }}</h5>
+                                    <small class="text-light">Results Found</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Search Results -->
+            {% if search_result.results %}
+            <div class="row g-4">
+                {% for result in search_result.results %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="bg-secondary rounded h-100">
+                        <!-- Result Image -->
+                        <div class="position-relative">
+                            {% if result.photo.image_url %}
+                            <img src="{{ result.photo.image_url }}" alt="Result Image" 
+                                 class="img-fluid rounded-top" style="width: 100%; height: 200px; object-fit: cover;">
+                            {% else %}
+                            <div class="bg-dark rounded-top d-flex align-items-center justify-content-center" 
+                                 style="height: 200px;">
+                                <i class="fa fa-image fa-3x text-muted"></i>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Similarity Score Badge -->
+                            <div class="position-absolute top-0 end-0 m-2">
+                                <span class="badge bg-primary fs-6">
+                                    {{ result.similarity_score|floatformat:3 }}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Result Details -->
+                        <div class="p-3">
+                            <h6 class="text-white mb-2">{{ result.target.name }}</h6>
+                            
+                            <div class="row mb-2">
+                                <div class="col-6">
+                                    <small class="text-light">
+                                        <i class="fa fa-user me-1"></i>
+                                        {% if result.target.gender %}{{ result.target.gender|title }}{% else %}Unknown{% endif %}
+                                    </small>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-light">
+                                        <i class="fa fa-calendar me-1"></i>
+                                        {% if result.target.age %}{{ result.target.age }}{% else %}Unknown{% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            {% if result.target.case %}
+                            <div class="mb-2">
+                                <small class="text-light">
+                                    <i class="fa fa-briefcase me-1"></i>
+                                    {{ result.target.case }}
+                                </small>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    ID: {{ result.target.id|truncatechars:8 }}
+                                </small>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'target_profile' result.target.id %}" 
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="fa fa-eye"></i>
+                                    </a>
+                                    <button class="btn btn-outline-info btn-sm" 
+                                            onclick="showPhotoDetails('{{ result.photo.id }}')">
+                                        <i class="fa fa-info"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- No Results Message -->
+            {% else %}
+            <div class="bg-secondary rounded p-5 text-center">
+                <i class="fa fa-search fa-3x text-muted mb-3"></i>
+                <h5 class="text-white mb-3">No Similar Faces Found</h5>
+                <p class="text-light mb-4">
+                    No faces in your watchlist matched the uploaded image with the current confidence threshold.
+                    Try lowering the confidence threshold or uploading a different image.
+                </p>
+                <a href="{% url 'milvus_search' %}" class="btn btn-primary">
+                    <i class="fa fa-search me-2"></i>Try Another Search
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Photo Details Modal -->
+<div class="modal fade" id="photoDetailsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title text-white">Photo Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="photoDetailsContent">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showPhotoDetails(photoId) {
+    // This function can be expanded to show more photo details
+    // For now, just show a simple message
+    document.getElementById('photoDetailsContent').innerHTML = `
+        <p class="text-light">Photo ID: ${photoId}</p>
+        <p class="text-light">Additional photo details can be displayed here.</p>
+    `;
+    
+    var modal = new bootstrap.Modal(document.getElementById('photoDetailsModal'));
+    modal.show();
+}
+</script>
+{% endblock %}
+
+

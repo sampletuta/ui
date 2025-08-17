@@ -35,7 +35,13 @@ urlpatterns = [
     path('cases/<uuid:pk>/', views.case_detail, name='case_detail'),
     path('cases/<uuid:pk>/edit/', views.case_edit, name='case_edit'),
     path('cases/<uuid:pk>/delete/', views.case_delete, name='case_delete'),
-    path('cases/<uuid:case_pk>/add-target/', views.add_target_to_case, name='add_target_to_case'),
+    path('cases/<uuid:case_pk>/add-target/', views.add_target_to_case,
+         name='add_target_to_case'),
+    
+    # Face Verification Service
+    path('face-verification/', views.face_verification, name='face_verification'),
+    path('face-verification/preview/', views.face_verification_preview, name='face_verification_preview'),
+    path('face-verification/watchlist/', views.face_verification_watchlist, name='face_verification_watchlist'),
     
     # Advanced Search URLs
     path('search/advanced/', views.advanced_search, name='advanced_search'),

@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "notifications",
     "video_player",
     "source_management",  # Added for video source management
+    "face_ai"
 ]
 
 MIDDLEWARE = [
@@ -76,6 +77,9 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "backend.wsgi.application"
+
+# ASGI Application for async support
+ASGI_APPLICATION = "backend.asgi.application"
 
 
 # Database
@@ -169,32 +173,67 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_SAVE_EVERY_REQUEST = False
 SESSION_COOKIE_NAME = 'sessionid'
 
-# Milvus Configuration (for future integration)
+# Milvus Configuration (for face AI integration)
 MILVUS_CONFIG = {
     'HOST': os.environ.get('MILVUS_HOST', 'localhost'),
-    'PORT': int(os.environ.get('MILVUS_PORT', '19530')),
-    'COLLECTION_PREFIX': 'surveillance_',
-    'DIMENSION': 512,  # Face embedding dimension
-    'METRIC_TYPE': 'L2',
+    'PORT': int(os.environ.get('MILVUS_PORT', '19530')),  # Updated to 19530 (your actual Milvus port)
+    'COLLECTION_NAME': os.environ.get('MILVUS_COLLECTION_NAME', 'watchlist'),
+    'COLLECTION_PREFIX': os.environ.get('MILVUS_COLLECTION_PREFIX', 'surveillance_'),
+    'DIMENSION': int(os.environ.get('MILVUS_DIMENSION', '512')),  # Face embedding dimension
+    'METRIC_TYPE': os.environ.get('MILVUS_METRIC_TYPE', 'COSINE'),  # Updated to COSINE for face similarity
+    'INDEX_TYPE': os.environ.get('MILVUS_INDEX_TYPE', 'IVF_FLAT'),
+    'INDEX_PARAMS': {
+        'nlist': int(os.environ.get('MILVUS_INDEX_NLIST', '1024'))
+    },
+    'SEARCH_PARAMS': {
+        'nprobe': int(os.environ.get('MILVUS_SEARCH_NPROBE', '10'))
+    },
+    'CONNECTION_ALIAS': os.environ.get('MILVUS_CONNECTION_ALIAS', 'default'),
+    'AUTO_CREATE_COLLECTION': os.environ.get('MILVUS_AUTO_CREATE', 'True').lower() == 'true',
+    'AUTO_LOAD_COLLECTION': os.environ.get('MILVUS_AUTO_LOAD', 'True').lower() == 'true',
 }
 
 # Face Detection Service Configuration
 FACE_DETECTION_SERVICE_URL = os.environ.get('FACE_DETECTION_SERVICE_URL', 'http://localhost:5000/api/face-detection/')
+
+# ASGI and Parallel Processing Configuration
+ASGI_CONFIG = {
+    'ENABLE_ASYNC': True,
+    'MAX_WORKERS': int(os.environ.get('FACE_AI_MAX_WORKERS', 4)),
+    'BATCH_SIZE': int(os.environ.get('FACE_AI_BATCH_SIZE', 10)),
+    'THREAD_POOL_SIZE': int(os.environ.get('FACE_AI_THREAD_POOL_SIZE', 8)),
+    'ENABLE_PARALLEL_PROCESSING': True,
+    'ASYNC_TIMEOUT': 30,  # seconds
+    'MAX_CONCURRENT_REQUESTS': 100,
+}
+
+# Face AI Parallel Processing Configuration
+FACE_AI_PARALLEL_CONFIG = {
+    'ENABLE_BATCH_PROCESSING': True,
+    'ENABLE_REALTIME_PROCESSING': True,
+    'ENABLE_STREAMING': True,
+    'MAX_BATCH_SIZE': 50,
+    'WORKER_POOL_SIZE': 4,
+    'ENABLE_GPU_ACCELERATION': os.environ.get('FACE_AI_ENABLE_GPU', 'false').lower() == 'true',
+    'GPU_MEMORY_LIMIT': os.environ.get('FACE_AI_GPU_MEMORY_LIMIT', '4GB'),
+}
 
 # Base URL for generating callback URLs
 BASE_URL = os.environ.get('BASE_URL', 'http://localhost:8000')
 
 # External Video Processing Service Configuration (FastPublisher)
 # Refer to source_management/API_DOCUMENTATION.md
-VIDEO_PROCESSING_SERVICE = {
-    'BASE_URL': os.environ.get('VIDEO_PROCESSING_SERVICE_URL', 'http://localhost:5665'),
-    # Endpoints aligned with source_management/API_DOCUMENTATION.md
-    'SUBMIT_JOB_ENDPOINT': '/process_video',
-    'STATUS_ENDPOINT': '/job/{source_id}/status',
-    'HEALTH_ENDPOINT': '/health',
-    # No auth required; API_KEY kept for compatibility but not used
-    'API_KEY': os.environ.get('VIDEO_PROCESSING_API_KEY', ''),
-    'TIMEOUT': 30,  # seconds
+
+
+# Data Ingestion Service Configuration
+# Service for ingesting video sources and publishing frames to Kafka
+DATA_INGESTION_SERVICE = {
+    'BASE_URL': os.environ.get('DATA_INGESTION_SERVICE_URL', 'http://0.0.0.0:8001'),
+    'NOTIFY_ENDPOINT': '/api/sources',  # Endpoint to notify about new sources
+    'HEALTH_ENDPOINT': '/health',  # Health check endpoint
+    'STATUS_ENDPOINT': '/api/sources/{source_id}/status',  # Status check endpoint
+    'API_KEY': os.environ.get('DATA_INGESTION_SERVICE_API_KEY', ''),  # Optional API key
+    'TIMEOUT': 30,  # Request timeout in seconds
 }
 
 # File Upload Settings

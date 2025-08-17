@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <!-- Header Section -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <div>
+                        <h4 class="mb-1 text-white">
+                            <i class="fa fa-search-plus me-2 text-danger"></i>Watchlist Verification
+                        </h4>
+                        <p class="mb-0 text-light">Advanced face verification between watchlist targets and images</p>
+                        <ul class="mb-0 small mt-2 text-light">
+                            <li>✅ <strong>Mode 1:</strong> Verify selected watchlist targets against one image</li>
+                            <li>✅ <strong>Mode 2:</strong> Compare targets using stored Milvus embeddings</li>
+                            <li>✅ <strong>Efficient Processing:</strong> No re-processing of existing embeddings</li>
+                        </ul>
+                    </div>
+                    <div class="text-end">
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fa fa-home me-1"></i>Dashboard
+                        </a>
+                        <a href="{% url 'list_watchlist' %}" class="btn btn-outline-danger btn-sm ms-2">
+                            <i class="fa fa-users me-1"></i>View Watchlist
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Verification Mode Selection -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <h5 class="mb-4 text-white">
+                    <i class="fa fa-cogs me-2 text-danger"></i>Face Verification Mode
+                </h5>
+                
+                <div class="row g-3">
+                    <!-- Mode 1: Watchlist vs Image -->
+                    <div class="col-12">
+                        <div class="bg-black rounded p-4 h-100 border border-danger">
+                            <div class="text-center mb-3">
+                                <i class="fa fa-user-check fa-3x text-danger mb-3"></i>
+                                <h6 class="text-white">Watchlist vs Image Verification</h6>
+                                <p class="text-light small">Compare selected watchlist targets against a single image</p>
+                            </div>
+                            <button type="button" class="btn btn-danger w-100" onclick="showMode1()">
+                                <i class="fa fa-play me-2"></i>Start Verification
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mode 1: Watchlist vs Image Form -->
+        <div class="col-12" id="mode1Form" style="display: none;">
+            <div class="bg-dark rounded h-100 p-4">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <h5 class="mb-0 text-white">
+                        <i class="fa fa-user-check me-2 text-danger"></i>Mode 1: Watchlist vs Image
+                    </h5>
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="hideAllModes()">
+                        <i class="fa fa-times me-1"></i>Close
+                    </button>
+                </div>
+                
+                <form method="post" enctype="multipart/form-data" id="mode1FormSubmit">
+                    {% csrf_token %}
+                    <input type="hidden" name="verification_mode" value="mode1">
+                    
+                    <div class="row g-4">
+                        <!-- Image Upload -->
+                        <div class="col-12 col-md-6">
+                            <div class="form-group">
+                                <label for="query_image" class="form-label text-white">
+                                    <i class="fa fa-image me-1 text-danger"></i>Query Image
+                                </label>
+                                <input type="file" class="form-control bg-black border-danger text-white" id="query_image" name="query_image" 
+                                       accept="image/*" required>
+                                <div class="form-text text-light">Upload an image to compare against selected watchlist targets</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Watchlist Target Selection -->
+                        <div class="col-12 col-md-6">
+                            <div class="form-group">
+                                <label for="target_selection" class="form-label text-white">
+                                    <i class="fa fa-users me-1 text-danger"></i>Select Watchlist Targets
+                                </label>
+                                <select class="form-select bg-black border-danger text-white" id="target_selection" name="target_ids" multiple required>
+                                    {% for target in watchlist_targets %}
+                                    <option value="{{ target.id }}">{{ target.target_name }} ({{ target.case.case_name }})</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-light">Hold Ctrl/Cmd to select multiple targets</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Settings -->
+                        <div class="col-12">
+                            <div class="bg-black rounded p-3 border border-danger">
+                                <h6 class="text-white mb-3">
+                                    <i class="fa fa-cogs me-2 text-danger"></i>Verification Settings
+                                </h6>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="threshold" class="form-label text-white">
+                                            <i class="fa fa-sliders-h me-1 text-danger"></i>Similarity Threshold: 
+                                            <span id="thresholdValue1" class="badge bg-danger text-dark">60</span>%
+                                        </label>
+                                        <input type="range" class="form-range" id="threshold1" name="threshold" 
+                                               min="30" max="95" value="60" step="5">
+                                        <div class="d-flex justify-content-between text-light small">
+                                            <span>Lenient (30%)</span>
+                                            <span>Balanced (60%)</span>
+                                            <span>Strict (95%)</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="max_results" class="form-label text-white">
+                                            <i class="fa fa-list me-1 text-danger"></i>Maximum Results per Target
+                                        </label>
+                                        <select class="form-select bg-black border-danger text-white" id="max_results1" name="max_results">
+                                            <option value="3">3 results</option>
+                                            <option value="5" selected>5 results</option>
+                                            <option value="10">10 results</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Button -->
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-danger btn-lg w-100" id="mode1SubmitBtn">
+                                <i class="fa fa-search me-2"></i>Verify Selected Targets
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        {% if verification_results %}
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <h5 class="mb-4 text-white">
+                    <i class="fa fa-chart-line me-2 text-danger"></i>Verification Results
+                </h5>
+                
+                <!-- Mode Info -->
+                <div class="mb-4">
+                    {% if error_message %}
+                    <div class="alert alert-danger text-center border border-danger">
+                        <h6 class="mb-2 text-white">
+                            <i class="fa fa-exclamation-triangle me-2 text-danger"></i>Verification Error
+                        </h6>
+                        <p class="mb-0 text-white">{{ error_message }}</p>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-danger text-center border border-danger">
+                        <h6 class="mb-2 text-dark">
+                            <i class="fa fa-info-circle me-2 text-danger"></i>Verification Summary
+                        </h6>
+                        <p class="mb-0 text-dark">
+                            Compared <strong>{{ query_image_name }}</strong> against 
+                            <strong>{{ total_targets }}</strong> selected watchlist targets
+                            <br>
+                            Found <strong>{{ total_matches }}</strong> potential matches above 
+                            <strong>{{ threshold }}%</strong> similarity threshold
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Query Image Display -->
+                {% if query_image_base64 %}
+                <div class="row g-4 mb-4">
+                    <div class="col-12">
+                        <div class="bg-black rounded p-3 text-center border border-danger">
+                            <h6 class="text-danger mb-3">Query Image</h6>
+                            <div class="position-relative d-inline-block">
+                                <img src="data:image/jpeg;base64,{{ query_image_base64 }}" 
+                                     class="img-fluid rounded" style="max-height: 200px; object-fit: contain;" 
+                                     alt="Query Image">
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-light d-block">{{ query_image_name }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Results List -->
+                {% if verification_results %}
+                <div class="row g-3">
+                    {% for result in verification_results %}
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <div class="bg-black rounded p-3 border border-danger">
+                            <div class="d-flex align-items-start">
+                                <!-- Target Photo -->
+                                <div class="me-3">
+                                    {% if result.photo and result.photo.image %}
+                                    <img src="{{ result.photo.image.url }}" 
+                                         class="rounded" style="width: 80px; height: 80px; object-fit: cover;" 
+                                         alt="Target Photo">
+                                    {% else %}
+                                    <div class="bg-dark rounded d-flex align-items-center justify-content-center border border-danger" 
+                                         style="width: 80px; height: 80px;">
+                                        <i class="fa fa-user text-danger fa-2x"></i>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Target Info -->
+                                <div class="flex-grow-1">
+                                    <h6 class="text-white mb-1">{{ result.target.target_name }}</h6>
+                                    <p class="text-light small mb-2">
+                                        Case: {{ result.target.case.case_name|default:"N/A" }}
+                                    </p>
+                                    
+                                    <!-- Similarity Score -->
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-light">Similarity</small>
+                                            <span class="text-{% if result.similarity >= 80 %}danger{% elif result.similarity >= 60 %}danger{% else %}danger{% endif %}">
+                                                {{ result.similarity|floatformat:1 }}%
+                                            </span>
+                                        </div>
+                                        <div class="progress bg-dark" style="height: 6px;">
+                                            <div class="progress-bar bg-danger" 
+                                                 style="width: {{ result.similarity }}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Action Buttons -->
+                                    <div class="d-flex gap-2">
+                                        <a href="{% url 'target_profile' result.target.id %}" class="btn btn-outline-danger btn-sm">
+                                            <i class="fa fa-eye me-1"></i>View Profile
+                                        </a>
+                                        <a href="{% url 'case_detail' result.target.case.id %}" class="btn btn-outline-danger btn-sm">
+                                            <i class="fa fa-briefcase me-1"></i>View Case
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fa fa-search fa-3x text-danger mb-3"></i>
+                    <h5 class="text-danger">No Matches Found</h5>
+                    <p class="text-light">Try lowering the similarity threshold or selecting different targets.</p>
+                </div>
+                {% endif %}
+                
+                <!-- Action Buttons -->
+                <div class="mt-4 text-center">
+                    <button type="button" class="btn btn-outline-danger" onclick="hideAllModes(); showModeSelection()">
+                        <i class="fa fa-arrow-left me-1"></i>New Verification
+                    </button>
+                    <a href="{% url 'list_watchlist' %}" class="btn btn-outline-danger ms-2">
+                        <i class="fa fa-users me-1"></i>View Watchlist
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- JavaScript for Enhanced Functionality -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize threshold sliders
+    initializeThresholdSliders();
+    
+    // Initialize form validation
+    initializeFormValidation();
+});
+
+function showMode1() {
+    document.getElementById('mode1Form').style.display = 'block';
+}
+
+function hideAllModes() {
+    document.getElementById('mode1Form').style.display = 'none';
+}
+
+function showModeSelection() {
+    hideAllModes();
+    // The mode selection is always visible by default
+}
+
+function initializeThresholdSliders() {
+    // Mode 1 threshold slider
+    const thresholdSlider1 = document.getElementById('threshold1');
+    const thresholdValue1 = document.getElementById('thresholdValue1');
+    
+    if (thresholdSlider1 && thresholdValue1) {
+        thresholdSlider1.addEventListener('input', function() {
+            const value = this.value;
+            thresholdValue1.textContent = value;
+            updateThresholdBadge(thresholdValue1, value);
+        });
+    }
+}
+
+function updateThresholdBadge(element, value) {
+    // All threshold values use the same danger badge style
+    element.className = 'badge bg-danger text-dark';
+}
+
+function initializeFormValidation() {
+    // Mode 1 form validation
+    const mode1Form = document.getElementById('mode1FormSubmit');
+    const mode1SubmitBtn = document.getElementById('mode1SubmitBtn');
+    
+    if (mode1Form && mode1SubmitBtn) {
+        mode1Form.addEventListener('submit', function() {
+            const queryImage = document.getElementById('query_image').files[0];
+            const targetSelection = document.getElementById('target_selection');
+            
+            if (!queryImage) {
+                alert('Please select a query image.');
+                return false;
+            }
+            
+            if (targetSelection.selectedOptions.length === 0) {
+                alert('Please select at least one watchlist target.');
+                return false;
+            }
+            
+            // Show loading state
+            mode1SubmitBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Processing...';
+            mode1SubmitBtn.disabled = true;
+            
+            return true;
+        });
+    }
+    
+    // File input validation
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    fileInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                // Validate file size
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('File size must be under 5MB.');
+                    this.value = '';
+                    return;
+                }
+                
+                // Validate file type
+                if (!file.type.startsWith('image/')) {
+                    alert('Please select an image file.');
+                    this.value = '';
+                    return;
+                }
+            }
+        });
+    });
+}
+</script>
+
+<!-- Enhanced CSS -->
+<style>
+.progress-bar {
+    transition: width 0.6s ease;
+}
+
+.badge {
+    transition: all 0.3s ease;
+}
+
+.btn {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.bg-dark, .bg-black {
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.bg-dark:hover, .bg-black:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.form-select[multiple] {
+    min-height: 120px;
+}
+
+.alert {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* Custom color overrides */
+</style>
+{% endblock %}

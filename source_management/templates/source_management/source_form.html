@@ -242,20 +242,68 @@
                                 {% endif %}
 
                                 {% if source_type == 'file' %}
-                                <div class="mb-3">
-                                    <label for="{{ form.video_file.id_for_label }}" class="form-label">
-                                        Video File <span class="text-danger">*</span>
+                                <div class="mb-4">
+                                    <label for="{{ form.video_file.id_for_label }}" class="form-label fw-bold">
+                                        <i class="fa fa-video me-2"></i>Video File <span class="text-danger">*</span>
                                     </label>
-                                    {{ form.video_file }}
-                                    {% if form.video_file.errors %}
-                                        <div class="text-danger small">
+                                    
+                                    <!-- Enhanced File Upload Area -->
+                                    <div class="upload-area" id="uploadArea">
+                                        <div class="upload-content" id="uploadContent">
+                                            <i class="fa fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                            <h5 class="mb-2">Drag & Drop Video File Here</h5>
+                                            <p class="text-muted mb-3">or click to browse</p>
+                                            <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('{{ form.video_file.id_for_label }}').click()">
+                                                <i class="fa fa-folder-open me-2"></i>Choose File
+                                            </button>
+                                            {{ form.video_file }}
+                                        </div>
+                                        
+                                        <!-- File Preview -->
+                                        <div class="file-preview" id="filePreview" style="display: none;">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fa fa-video fa-2x text-success me-3"></i>
+                                                <div class="flex-grow-1">
+                                                    <h6 class="mb-1" id="fileName"></h6>
+                                                    <small class="text-muted" id="fileSize"></small>
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile()">
+                                                    <i class="fa fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Upload Progress -->
+                                    <div class="upload-progress mt-3" id="uploadProgress" style="display: none;">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="fw-bold">Upload Progress</span>
+                                            <span class="text-muted" id="progressText">0%</span>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 role="progressbar" id="progressBar" 
+                                                 style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <small class="text-muted mt-1 d-block" id="uploadStatus">Preparing upload...</small>
+                                    </div>
+                                    
+                                                                          
+                                      {% if form.video_file.errors %}
+                                        <div class="alert alert-danger mt-2">
+                                            <i class="fa fa-exclamation-triangle me-2"></i>
                                             {{ form.video_file.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.video_file.help_text }}</small>
+                                    
+                                    <small class="form-text text-muted">
+                                        <i class="fa fa-info-circle me-1"></i>
+                                        Supported formats: MP4, AVI, MOV, MKV, WMV, FLV, WebM. Max size: 500MB
+                                    </small>
+                                    
                                     <input type="hidden" name="chunked_upload_id" id="chunked_upload_id" />
                                     <input type="hidden" name="chunked_original_filename" id="chunked_original_filename" />
-                                    <div id="chunked-status" class="small text-info mt-2" style="display:none;"></div>
                                 </div>
                                 {% endif %}
 
@@ -328,88 +376,367 @@
                 </form>
 
                 {% if source_type == 'file' %}
+                
+                <style>
+                .upload-area {
+                    border: 2px dashed #6c757d;
+                    border-radius: 10px;
+                    padding: 2rem;
+                    text-align: center;
+                    transition: all 0.3s ease;
+                    background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .upload-area:hover {
+                    border-color: #0d6efd;
+                    background: linear-gradient(145deg, #e3f2fd, #f3e5f5);
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }
+                
+                .upload-area.dragover {
+                    border-color: #0d6efd;
+                    background: linear-gradient(145deg, #e8f5e8, #f3e5f5);
+                    transform: scale(1.02);
+                }
+                
+                .upload-content {
+                    pointer-events: none;
+                }
+                
+                .upload-area input[type="file"] {
+                    position: absolute;
+                    width: 100%;
+                    height: 100%;
+                    opacity: 0;
+                    cursor: pointer;
+                    pointer-events: auto;
+                }
+                
+                .file-preview {
+                    background: rgba(40, 167, 69, 0.1);
+                    border: 1px solid #28a745;
+                    border-radius: 8px;
+                    padding: 1rem;
+                    margin-top: 1rem;
+                }
+                
+                .upload-progress {
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    padding: 1rem;
+                    border: 1px solid #dee2e6;
+                }
+                
+                .progress {
+                    background-color: #ff0000;
+                    border-radius: 10px;
+                    overflow: hidden;
+                }
+                
+                .progress-bar {
+                    background: linear-gradient(90deg, #0d6efd, #0dcaf0);
+                    border-radius: 10px;
+                }
+                
+                .chunked-status {
+                    border-radius: 8px;
+                }
+                
+                .alert {
+                    border-radius: 8px;
+                    border: none;
+                }
+                
+                .btn {
+                    border-radius: 6px;
+                    font-weight: 500;
+                    transition: all 0.3s ease;
+                }
+                
+                .btn:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                }
+                
+                /* Enhanced form styling */
+                .form-control, .form-select {
+                    border-radius: 8px;
+                    border: 2px solid #e9ecef;
+                    transition: all 0.3s ease;
+                    background-color: #f8f9fa;
+                }
+                
+                .form-control:focus, .form-select:focus {
+                    border-color: #0d6efd;
+                    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+                    background-color: #fff;
+                }
+                
+                .form-label {
+                    font-weight: 600;
+                    color: #495057;
+                    margin-bottom: 0.5rem;
+                }
+                
+                .form-text {
+                    color: #6c757d;
+                    font-size: 0.875rem;
+                }
+                
+                .bg-secondary {
+                    background: linear-gradient(145deg, #f8f9fa, #e9ecef) !important;
+                }
+                
+                .bg-dark {
+                    background: linear-gradient(145deg, #343a40, #495057) !important;
+                }
+                
+                .card, .bg-secondary, .bg-dark {
+                    border-radius: 15px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                    border: none;
+                }
+                
+                .text-primary {
+                    color: #0d6efd !important;
+                }
+                
+                .text-success {
+                    color: #198754 !important;
+                }
+                
+                .text-warning {
+                    color: #ffc107 !important;
+                }
+                
+                .text-danger {
+                    color: #dc3545 !important;
+                }
+                </style>
+                
                 <script>
                 (function() {
                   const form = document.getElementById('source-form');
+                  if (!form) {
+                    console.warn('Source form not found');
+                    return;
+                  }
+                  
                   const fileInput = form.querySelector('input[type="file"][name="video_file"]');
-                  if (!fileInput) return;
+                  if (!fileInput) {
+                    console.warn('File input not found');
+                    return;
+                  }
+                  
                   const threshold = {{ chunk_threshold|default:104857600 }}; // 100MB default
                   const chunkSize = {{ chunk_size|default:1048576 }}; // 1MB
-                  const statusEl = document.getElementById('chunked-status');
+                  
+                  // Enhanced UI elements
+                  const uploadArea = document.getElementById('uploadArea');
+                  const uploadContent = document.getElementById('uploadContent');
+                  const filePreview = document.getElementById('filePreview');
+                  const fileName = document.getElementById('fileName');
+                  const fileSize = document.getElementById('fileSize');
+                  const uploadProgress = document.getElementById('uploadProgress');
+                  const progressBar = document.getElementById('progressBar');
+                  const progressText = document.getElementById('progressText');
+                  const uploadStatus = document.getElementById('uploadStatus');
+                  const chunkedStatus = document.getElementById('chunkedStatus');
+                  const chunkedStatusText = document.getElementById('chunkedStatusText');
                   const hidId = document.getElementById('chunked_upload_id');
                   const hidName = document.getElementById('chunked_original_filename');
+                  
+                  // Check if required elements exist
+                  if (!uploadArea || !uploadContent || !filePreview || !fileName || !fileSize || 
+                      !uploadProgress || !progressBar || !progressText || !uploadStatus || 
+                      !chunkedStatus || !chunkedStatusText || !hidId || !hidName) {
+                    console.warn('Some required DOM elements not found, enhanced upload features disabled');
+                    console.log('Missing elements:', {
+                      uploadArea: !!uploadArea,
+                      uploadContent: !!uploadContent,
+                      filePreview: !!filePreview,
+                      fileName: !!fileName,
+                      fileSize: !!fileSize,
+                      uploadProgress: !!uploadProgress,
+                      progressBar: !!progressBar,
+                      progressText: !!progressText,
+                      uploadStatus: !!uploadStatus,
+                      chunkedStatus: !!chunkedStatus,
+                      chunkedStatusText: !!chunkedStatusText,
+                      hidId: !!hidId,
+                      hidName: !!hidName
+                    });
+                    return;
+                  }
+                  
+                  // File handling functions
+                  function showFilePreview(file) {
+                    if (fileName) fileName.textContent = file.name;
+                    if (fileSize) fileSize.textContent = formatFileSize(file.size);
+                    if (uploadContent) uploadContent.style.display = 'none';
+                    if (filePreview) filePreview.style.display = 'block';
+                  }
+                  
+                  function removeFile() {
+                    if (fileInput) fileInput.value = '';
+                    if (uploadContent) uploadContent.style.display = 'block';
+                    if (filePreview) filePreview.style.display = 'none';
+                    if (uploadProgress) uploadProgress.style.display = 'none';
+                    if (chunkedStatus) chunkedStatus.style.display = 'none';
+                  }
+                  
+                  function formatFileSize(bytes) {
+                    if (bytes === 0) return '0 Bytes';
+                    const k = 1024;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                  }
+                  
+                  function updateProgress(percent, status) {
+                    if (progressBar) progressBar.style.width = percent + '%';
+                    if (progressBar) progressBar.setAttribute('aria-valuenow', percent);
+                    if (progressText) progressText.textContent = percent + '%';
+                    if (uploadStatus) uploadStatus.textContent = status;
+                  }
+                  
+                  function showUploadProgress() {
+                    if (uploadProgress) uploadProgress.style.display = 'block';
+                    updateProgress(0, 'Preparing upload...');
+                  }
+                  
+                  function showChunkedStatus() {
+                    if (chunkedStatus) chunkedStatus.style.display = 'block';
+                    if (chunkedStatusText) chunkedStatusText.textContent = 'Preparing chunked upload...';
+                  }
 
                   async function uploadInChunks(file) {
-                    statusEl.style.display = 'block';
-                    statusEl.textContent = 'Preparing chunked upload...';
+                    showChunkedStatus();
+                    showUploadProgress();
+                    
                     const uploadId = self.crypto.randomUUID ? self.crypto.randomUUID() : Math.random().toString(36).slice(2);
                     const totalChunks = Math.ceil(file.size / chunkSize);
+                    
                     for (let i = 0; i < totalChunks; i++) {
                       const start = i * chunkSize;
                       const end = Math.min(file.size, start + chunkSize);
                       const chunk = file.slice(start, end);
+                      
                       const formData = new FormData();
                       formData.append('upload_id', uploadId);
                       formData.append('chunk_index', i.toString());
                       formData.append('total_chunks', totalChunks.toString());
                       formData.append('original_filename', file.name);
                       formData.append('chunk', chunk, file.name + '.part');
-                      const resp = await fetch('{% url "upload_chunk" %}', { method: 'POST', body: formData, credentials: 'same-origin' });
-                      const ct = resp.headers.get('content-type') || '';
-                      if (!resp.ok) {
-                        const t = await resp.text();
-                        throw new Error('Chunk upload failed: ' + t);
+                      
+                      try {
+                        const resp = await fetch('{% url "upload_chunk" %}', { 
+                          method: 'POST', 
+                          body: formData, 
+                          credentials: 'same-origin' 
+                        });
+                        
+                        if (!resp.ok) {
+                          const errorText = await resp.text();
+                          throw new Error('Chunk upload failed: ' + errorText);
+                        }
+                        
+                        const data = await resp.json();
+                        if (!data.success) {
+                          throw new Error('Chunk upload failed: ' + (data.error || 'unknown error'));
+                        }
+                        
+                        // Update progress
+                        const progress = Math.round(((i + 1) / totalChunks) * 100);
+                        updateProgress(progress, `Uploading chunk ${i + 1} of ${totalChunks}`);
+                        if (chunkedStatusText) chunkedStatusText.textContent = `Uploading chunk ${i + 1} of ${totalChunks}`;
+                        
+                      } catch (error) {
+                        throw new Error(`Chunk ${i + 1} upload failed: ${error.message}`);
                       }
-                      if (ct.includes('text/html')) {
-                        const t = await resp.text();
-                        throw new Error('Chunk upload failed: ' + t);
-                      }
-                      const data = await resp.json();
-                      if (!data.success) {
-                        throw new Error('Chunk upload failed: ' + (data.error || 'unknown error'));
-                      }
-                      if (!resp.ok) {
-                        const t = await resp.text();
-                        throw new Error('Chunk upload failed: ' + t);
-                      }
-                      statusEl.textContent = `Uploading... ${i+1}/${totalChunks}`;
                     }
+                    
                     // Mark hidden fields
                     hidId.value = uploadId;
                     hidName.value = file.name;
-                    statusEl.textContent = 'Upload complete. Submitting metadata...';
+                    
+                    updateProgress(100, 'Upload complete. Submitting metadata...');
+                    if (chunkedStatusText) chunkedStatusText.textContent = 'Upload complete. Submitting metadata...';
                   }
 
-                  form.addEventListener('submit', function(e) {
-                    const file = fileInput.files && fileInput.files[0];
-                    if (!file) return; // normal submit blocked in form clean
-                    if (file.size > threshold) {
-                      e.preventDefault();
-                      // Basic extension validation to fail fast on client
+                  // File input change handler
+                  fileInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                      showFilePreview(file);
+                      
+                      // Validate file type
                       const allowed = {{ settings.ALLOWED_VIDEO_EXTENSIONS|default:"['.mp4','.avi','.mov','.mkv','.wmv','.flv','.webm']"|safe }};
                       const ext = (file.name.split('.').pop() || '').toLowerCase();
                       if (allowed.indexOf('.' + ext) === -1) {
-                        statusEl.style.display = 'block';
-                        statusEl.classList.add('text-danger');
-                        statusEl.textContent = 'Unsupported file type.';
+                        alert('Unsupported file type. Please use: ' + allowed.join(', '));
+                        removeFile();
                         return;
                       }
+                    }
+                  });
+                  
+                  // Drag and drop functionality
+                  uploadArea.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    uploadArea.classList.add('dragover');
+                  });
+                  
+                  uploadArea.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    uploadArea.classList.remove('dragover');
+                  });
+                  
+                  uploadArea.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    uploadArea.classList.remove('dragover');
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                      const file = files[0];
+                      fileInput.files = files;
+                      showFilePreview(file);
+                      
+                      // Validate file type
+                      const allowed = {{ settings.ALLOWED_VIDEO_EXTENSIONS|default:"['.mp4','.avi','.mov','.mkv','.wmv','.flv','.webm']"|safe }};
+                      const ext = (file.name.split('.').pop() || '').toLowerCase();
+                      if (allowed.indexOf('.' + ext) === -1) {
+                        alert('Unsupported file type. Please use: ' + allowed.join(', '));
+                        removeFile();
+                        return;
+                      }
+                    }
+                  });
+                  
+                  // Form submission handler
+                  form.addEventListener('submit', function(e) {
+                    const file = fileInput.files && fileInput.files[0];
+                    if (!file) return; // normal submit blocked in form clean
+                    
+                    if (file.size > threshold) {
+                      e.preventDefault();
                       uploadInChunks(file)
                         .then(() => {
                           // Remove the file from form so we don't resend bytes
                           fileInput.value = '';
                           // Ensure hidden fields exist before submit
                           if (!hidId.value || !hidName.value) {
-                            statusEl.classList.add('text-danger');
-                            statusEl.textContent = 'Upload metadata missing; please retry.';
+                            alert('Upload metadata missing; please retry.');
                             return;
                           }
                           form.submit();
                         })
                         .catch(err => {
-                          statusEl.classList.remove('text-info');
-                          statusEl.classList.add('text-danger');
-                          statusEl.textContent = err.message || 'Chunked upload error';
+                          alert('Upload failed: ' + err.message);
+                          console.error('Upload error:', err);
                         });
                     }
                   });

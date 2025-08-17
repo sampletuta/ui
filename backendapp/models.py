@@ -38,12 +38,14 @@ class CustomUserManager(BaseUserManager):
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLES = [
         ('admin', 'Admin'),
-        ('user', 'User'),
+        ('case_manager', 'Case Manager'),
+        ('operator', 'Operator'),
     ]
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
     email = models.EmailField(unique=True)
-    role = models.CharField(max_length=10, choices=ROLES, default='user')
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    role = models.CharField(max_length=20, choices=ROLES, default='operator')
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     date_joined = models.DateTimeField(auto_now_add=True)
@@ -131,6 +133,9 @@ class Targets_watchlist(models.Model):
     def get_image_count(self):
         """Get the total number of images"""
         return self.images.count()
+    
+    # Note: Delete method is handled manually in the view to avoid conflicts
+    # The view manually deletes related objects and then removes the target
 
     def get_absolute_url(self):
         return reverse('target_profile', kwargs={'pk': self.id})
@@ -185,7 +190,29 @@ class TargetPhoto(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-
+    
+    def delete(self, *args, **kwargs):
+        """
+        Prevent deletion of the last image in a target.
+        Use this for normal photo deletion by users.
+        """
+        # Check if this is the last image for the target
+        if self.person.images.count() <= 1:
+            raise ValidationError(
+                f"Cannot delete the last image for target '{self.person.target_name}'. "
+                "Each target must have at least one image."
+            )
+        
+        # Proceed with deletion
+        super().delete(*args, **kwargs)
+    
+    def force_delete(self, *args, **kwargs):
+        """
+        Force delete without validation.
+        Use this when deleting the entire target (bypasses "last image" check).
+        """
+        super().delete(*args, **kwargs)
+    
     def get_url_for_notifications(self, notification, request):
         from django.urls import reverse
         return reverse('target_profile', kwargs={'pk': self.person.id})
@@ -321,4 +348,4 @@ class SearchHistory(models.Model):
     def __str__(self):
         return f"Search {self.id} by {self.user} on {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
         
-    
+        
