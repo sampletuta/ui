@@ -1,0 +1,232 @@
+version: '3.8'
+
+services:
+  # Django Web Application (Production)
+  web:
+    build: 
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: django_face_ai_prod
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - MILVUS_HOST=${MILVUS_HOST}
+      - MILVUS_PORT=${MILVUS_PORT}
+      - MILVUS_COLLECTION_NAME=${MILVUS_COLLECTION_NAME}
+      - MILVUS_COLLECTION_PREFIX=${MILVUS_COLLECTION_PREFIX}
+      - MILVUS_DIMENSION=${MILVUS_DIMENSION}
+      - MILVUS_METRIC_TYPE=${MILVUS_METRIC_TYPE}
+      - MILVUS_INDEX_TYPE=${MILVUS_INDEX_TYPE}
+      - MILVUS_INDEX_NLIST=${MILVUS_INDEX_NLIST}
+      - MILVUS_SEARCH_NPROBE=${MILVUS_SEARCH_NPROBE}
+      - MILVUS_AUTO_CREATE_COLLECTION=${MILVUS_AUTO_CREATE_COLLECTION}
+      - MILVUS_AUTO_LOAD_COLLECTION=${MILVUS_AUTO_LOAD_COLLECTION}
+      - FACE_DETECTION_SERVICE_URL=${FACE_DETECTION_SERVICE_URL}
+      - FACE_AI_MAX_WORKERS=${FACE_AI_MAX_WORKERS}
+      - FACE_AI_BATCH_SIZE=${FACE_AI_BATCH_SIZE}
+      - FACE_AI_THREAD_POOL_SIZE=${FACE_AI_THREAD_POOL_SIZE}
+      - FACE_AI_ENABLE_GPU=${FACE_AI_ENABLE_GPU}
+      - FACE_AI_GPU_MEMORY_LIMIT=${FACE_AI_GPU_MEMORY_LIMIT}
+      - DATA_INGESTION_SERVICE_URL=${DATA_INGESTION_SERVICE_URL}
+      - DATA_INGESTION_TIMEOUT=${DATA_INGESTION_TIMEOUT}
+      - CHUNKED_UPLOAD_THRESHOLD=${CHUNKED_UPLOAD_THRESHOLD}
+      - BASE_URL=${BASE_URL}
+    volumes:
+      - ./media:/app/media:ro
+      - ./staticfiles:/app/staticfiles:ro
+      - ./temp_uploads:/app/temp_uploads:ro
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - face_ai_network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database (Production)
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_face_ai_prod
+    restart: unless-stopped
+    environment:   
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "127.0.0.1:5432:5432"  # Only allow local connections
+    networks:
+      - face_ai_network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and sessions (Production)
+  redis:
+    image: redis:7-alpine
+    container_name: redis_face_ai_prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"  # Only allow local connections
+    volumes:
+      - redis_data:/data
+    networks:
+      - face_ai_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nginx for static files and reverse proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_face_ai_prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./staticfiles:/var/www/static:ro
+      - ./media:/var/www/media:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - web
+    networks:
+      - face_ai_network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery worker for background tasks (Production)
+  celery:
+    build: 
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: celery_face_ai_prod
+    restart: unless-stopped
+    command: celery -A backend worker --loglevel=info --concurrency=4
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - MILVUS_HOST=${MILVUS_HOST}
+      - MILVUS_PORT=${MILVUS_PORT}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./media:/app/media:ro
+      - ./staticfiles:/app/staticfiles:ro
+      - ./temp_uploads:/app/temp_uploads:ro
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - face_ai_network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+
+  # Celery beat for scheduled tasks (Production)
+  celery-beat:
+    build: 
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: celery_beat_face_ai_prod
+    restart: unless-stopped
+    command: celery -A backend beat --loglevel=info
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - MILVUS_HOST=${MILVUS_HOST}
+      - MILVUS_PORT=${MILVUS_PORT}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./media:/app/media:ro
+      - ./temp_uploads:/app/temp_uploads:ro
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - face_ai_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/face_ai/postgres_data
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/face_ai/redis_data
+
+networks:
+  face_ai_network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: face_ai_br0

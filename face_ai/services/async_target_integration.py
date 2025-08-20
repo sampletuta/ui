@@ -11,6 +11,7 @@ import asyncio
 from typing import List, Dict, Optional
 from django.conf import settings
 from django.core.files.storage import default_storage
+from asgiref.sync import sync_to_async
 
 from .async_face_detection import AsyncFaceDetectionService
 from .async_milvus_service import AsyncMilvusService
@@ -35,7 +36,13 @@ class AsyncTargetIntegrationService:
         except Exception as e:
             logger.error(f"Failed to ensure Milvus collection: {e}")
             raise
-    
+
+    @sync_to_async
+    def _get_target_photos_sync(self, target_id: str):
+        """Get target photos synchronously (wrapped for async context)"""
+        from backendapp.models import TargetPhoto
+        return list(TargetPhoto.objects.filter(person_id=target_id))
+
     async def process_target_photo_async(self, target_photo, target_id: str) -> Dict:
         """
         Process a single target photo asynchronously and update the target's normalized embedding
@@ -313,12 +320,10 @@ class AsyncTargetIntegrationService:
             Update results dictionary
         """
         try:
-            from backendapp.models import TargetPhoto
+            # Get all photos for this target using sync_to_async wrapper
+            target_photos = await self._get_target_photos_sync(target_id)
             
-            # Get all photos for this target
-            target_photos = TargetPhoto.objects.filter(person_id=target_id)
-            
-            if not target_photos.exists():
+            if not target_photos:
                 # No photos left, remove the target's embedding from Milvus
                 deleted_count = await self.milvus_service.delete_face_embeddings_parallel([target_id])
                 logger.info(f"Removed {deleted_count} embeddings for target {target_id} (no photos left)")
@@ -330,7 +335,7 @@ class AsyncTargetIntegrationService:
                 }
             
             # Process all photos to create updated normalized embedding
-            return await self.process_target_photos_batch_async(list(target_photos), target_id)
+            return await self.process_target_photos_batch_async(target_photos, target_id)
             
         except Exception as e:
             logger.error(f"Failed to update target normalized embedding asynchronously: {e}")

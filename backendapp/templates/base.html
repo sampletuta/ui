@@ -116,7 +116,7 @@
                         </a>
                         <div class="dropdown-menu bg-transparent border-0">
                             <a href="{% url 'case_list' %}" class="dropdown-item">View All Cases</a>
-                            <a href="{% url 'case_create' %}" class="dropdown-item">Create New Case</a>
+                            <a href="{% url 'case_form' %}" class="dropdown-item">Create New Case</a>
                         </div>
                     </div>
                     <div class="nav-item dropdown">
@@ -125,7 +125,7 @@
                         </a>
                         <div class="dropdown-menu bg-transparent border-0">
                             <a href="{% url 'list_watchlist' %}" class="dropdown-item">View All Targets</a>
-                            <a href="{% url 'backend' %}" class="dropdown-item">Add New Target</a>
+                            <a href="{% url 'add_watchlist' %}" class="dropdown-item">Add New Target</a>
                         </div>
                     </div>
                     <div class="nav-item dropdown">
@@ -185,7 +185,7 @@
                         <div class="dropdown-menu bg-transparent border-0">
                             <a href="{% url 'profile' %}" class="dropdown-item">My Profile</a>
                             <a href="{% url 'settings' %}" class="dropdown-item">Settings</a>
-                            <a href="{% url 'logout' %}" class="dropdown-item">Log Out</a>
+                            <a href="{% url 'signout' %}" class="dropdown-item">Log Out</a>
                         </div>
                     </div>
                     {% if user.is_staff or user.role == 'admin' %}
@@ -195,12 +195,12 @@
                         </a>
                         <div class="dropdown-menu bg-transparent border-0">
                             <a href="{% url 'user_list' %}" class="dropdown-item">All Users</a>
-                            <a href="{% url 'user_create' %}" class="dropdown-item">Create User</a>
+                            <a href="{% url 'user_form' %}" class="dropdown-item">Create User</a>
                         </div>
                     </div>
                     {% endif %}
                     {% else %}
-                    <a href="{% url 'login' %}" class="nav-item nav-link">
+                    <a href="{% url 'signin' %}" class="nav-item nav-link">
                         <i class="fa fa-sign-in-alt me-2"></i>Login
                     </a>
                     <a href="{% url 'signup' %}" class="nav-item nav-link">
@@ -238,8 +238,8 @@
                                 {% live_notify_list list_class="live_notify_list list-unstyled mb-0" %}
                             </div>
                             <div class="border-top">
-                                <a href="{% url 'notifications_list' %}" class="dropdown-item text-center">See all notifications</a>
-                                <a href="{% url 'mark_all_notifications_read' %}" class="dropdown-item text-center">Mark all as read</a>
+                                                        <a href="{% url 'notifications_list' %}" class="dropdown-item text-center">See all notifications</a>
+                        <a href="{% url 'mark_all_notifications_read' %}" class="dropdown-item text-center">Mark all as read</a>
                             </div>
                         </div>
                     </div>
@@ -269,7 +269,7 @@
                                 </div>
                             </a>
                             <hr class="dropdown-divider">
-                            <a href="{% url 'logout' %}" class="dropdown-item">
+                            <a href="{% url 'signout' %}" class="dropdown-item">
                                 <div class="d-flex align-items-center">
                                     <img class="rounded-circle" src="{% if user.avatar %}{{ user.avatar.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
                                     <div class="ms-2">
@@ -279,12 +279,12 @@
                                 </div>
                             </a>
                             <hr class="dropdown-divider">
-                            <a href="{% url 'logout' %}" class="dropdown-item text-center">Sign Out</a>
+                            <a href="{% url 'signout' %}" class="dropdown-item text-center">Sign Out</a>
                         </div>
                     </div>
                     {% else %}
                     <div class="nav-item">
-                        <a href="{% url 'login' %}" class="nav-link">
+                        <a href="{% url 'signin' %}" class="nav-link">
                             <i class="fa fa-sign-in-alt me-lg-2"></i>
                             <span class="d-none d-lg-inline-flex">Login</span>
                         </a>

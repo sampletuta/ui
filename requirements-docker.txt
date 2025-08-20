@@ -1,0 +1,47 @@
+# Django and Core Dependencies
+Django>=5.2.4
+django-environ>=0.11.2
+whitenoise>=6.5.0
+django-notifications-hq>=1.8.3
+psycopg2-binary>=2.9.7
+
+# ASGI and Async Support
+uvicorn[standard]>=0.24.0
+asgiref>=3.7.0
+channels>=4.0.0
+
+# Face Recognition and AI
+opencv-python>=4.8.0
+insightface>=0.7.3
+onnxruntime>=1.15.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# Vector Database
+pymilvus>=2.3.0
+
+# Parallel Processing
+concurrent-futures>=3.1.1
+
+# Performance and Monitoring
+psutil>=5.9.0
+
+# Redis and Caching
+redis>=4.5.0
+django-redis>=5.3.0
+
+# Celery for Background Tasks
+celery>=5.3.0
+django-celery-beat>=2.5.0
+
+# Database
+psycopg2-binary>=2.9.7
+
+# Development and Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-django>=4.5.0
+
+# Additional utilities
+python-dotenv>=1.0.0
+gunicorn>=21.2.0

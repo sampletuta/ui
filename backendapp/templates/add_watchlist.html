@@ -14,7 +14,7 @@
                 <div class="alert alert-info">
                     <i class="fa fa-info-circle me-2"></i>
                     <strong>Note:</strong> You must select a case for this target. If you don't have a case yet, 
-                    <a href="{% url 'case_create' %}" class="alert-link">create one first</a>.
+                    <a href="{% url 'case_form' %}" class="alert-link">create one first</a>.
                 </div>
                 <form method="post" enctype="multipart/form-data" class="row g-3">
                     {% csrf_token %}

@@ -1,20 +1,163 @@
+version: '3.8'
+
 services:
+  # Django Web Application
   web:
     build: .
+    container_name: django_face_ai
+    restart: unless-stopped
     ports:
       - "8000:8000"
-    volumes:
-      - media_data:/app/media
-      - static_data:/app/staticfiles
-      - temp_data:/app/temp_uploads
-      - sqlite_data:/app
     environment:
-      - DEBUG=True
-      - DJANGO_SETTINGS_MODULE=backend.settings
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY:-django-secure-8k9x2!v#m@3$qwe4rt5y6ui7op8as9df0gh1jk2lz3xc4vb5nm6@#$%^&*()_+=-[]{}|}
+      - MILVUS_HOST=${MILVUS_HOST:-localhost}
+      - MILVUS_PORT=${MILVUS_PORT:-19530}
+      - MILVUS_COLLECTION_NAME=${MILVUS_COLLECTION_NAME:-watchlist}
+      - MILVUS_COLLECTION_PREFIX=${MILVUS_COLLECTION_PREFIX:-surveillance_}
+      - MILVUS_DIMENSION=${MILVUS_DIMENSION:-512}
+      - MILVUS_METRIC_TYPE=${MILVUS_METRIC_TYPE:-COSINE}
+      - MILVUS_INDEX_TYPE=${MILVUS_INDEX_TYPE:-IVF_FLAT}
+      - MILVUS_INDEX_NLIST=${MILVUS_INDEX_NLIST:-1024}
+      - MILVUS_SEARCH_NPROBE=${MILVUS_SEARCH_NPROBE:-10}
+      - MILVUS_AUTO_CREATE_COLLECTION=${MILVUS_AUTO_CREATE_COLLECTION:-True}
+      - MILVUS_AUTO_LOAD_COLLECTION=${MILVUS_AUTO_LOAD_COLLECTION:-True}
+      - FACE_DETECTION_SERVICE_URL=${FACE_DETECTION_SERVICE_URL:-http://localhost:5000/api/face-detection/}
+      - FACE_AI_MAX_WORKERS=${FACE_AI_MAX_WORKERS:-4}
+      - FACE_AI_BATCH_SIZE=${FACE_AI_BATCH_SIZE:-10}
+      - FACE_AI_THREAD_POOL_SIZE=${FACE_AI_THREAD_POOL_SIZE:-8}
+      - FACE_AI_ENABLE_GPU=${FACE_AI_ENABLE_GPU:-false}
+      - FACE_AI_GPU_MEMORY_LIMIT=${FACE_AI_GPU_MEMORY_LIMIT:-4GB}
+      - DATA_INGESTION_SERVICE_URL=${DATA_INGESTION_SERVICE_URL:-http://localhost:8001}
+      - DATA_INGESTION_TIMEOUT=${DATA_INGESTION_TIMEOUT:-30}
+      - CHUNKED_UPLOAD_THRESHOLD=${CHUNKED_UPLOAD_THRESHOLD:-104857600}
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+    volumes:
+      - ./media:/app/media
+      - ./staticfiles:/app/staticfiles
+      - ./temp_uploads:/app/temp_uploads
+    depends_on:
+      - db
+      - redis
+    networks:
+      - face_ai_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_face_ai
     restart: unless-stopped
+    environment:
+      - POSTGRES_DB=face_ai_db
+      - POSTGRES_USER=${POSTGRES_USER:-face_ai_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-face_ai_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - face_ai_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-face_ai_user} -d face_ai_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: redis_face_ai
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - face_ai_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nginx for static files and reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_face_ai
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./staticfiles:/var/www/static:ro
+      - ./media:/var/www/media:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    networks:
+      - face_ai_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery worker for background tasks
+  celery:
+    build: .
+    container_name: celery_face_ai
+    restart: unless-stopped
+    command: celery -A backend worker --loglevel=info
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY:-django-secure-8k9x2!v#m@3$qwe4rt5y6ui7op8as9df0gh1jk2lz3xc4vb5nm6@#$%^&*()_+=-[]{}|}
+      - MILVUS_HOST=${MILVUS_HOST:-localhost}
+      - MILVUS_PORT=${MILVUS_PORT:-19530}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./media:/app/media
+      - ./staticfiles:/app/staticfiles
+      - ./temp_uploads:/app/temp_uploads
+    depends_on:
+      - db
+      - redis
+    networks:
+      - face_ai_network
+
+  # Celery beat for scheduled tasks
+  celery-beat:
+    build: .
+    container_name: celery_beat_face_ai
+    restart: unless-stopped
+    command: celery -A backend beat --loglevel=info
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY:-django-secure-8k9x2!v#m@3$qwe4rt5y6ui7op8as9df0gh1jk2lz3xc4vb5nm6@#$%^&*()_+=-[]{}|}
+      - MILVUS_HOST=${MILVUS_HOST:-localhost}
+      - MILVUS_PORT=${MILVUS_PORT:-19530}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./media:/app/media
+      - ./staticfiles:/app/staticfiles
+      - ./temp_uploads:/app/temp_uploads
+    depends_on:
+      - db
+      - redis
+    networks:
+      - face_ai_network
 
 volumes:
-  media_data:
-  static_data:
-  temp_data:
-  sqlite_data:
+  postgres_data:
+  redis_data:
+
+networks:
+  face_ai_network:
+    driver: bridge

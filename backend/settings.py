@@ -26,8 +26,9 @@ SECRET_KEY = os.environ.get('SECRET_KEY', "django-secure-8k9x2!v#m@3$qwe4rt5y6ui
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 DEBUG = True
+ALLOWED_HOSTS = ['*']
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# ALLOWED_HOSTS = os.environ.get('*', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -221,20 +222,25 @@ FACE_AI_PARALLEL_CONFIG = {
 # Base URL for generating callback URLs
 BASE_URL = os.environ.get('BASE_URL', 'http://localhost:8000')
 
-# External Video Processing Service Configuration (FastPublisher)
-# Refer to source_management/API_DOCUMENTATION.md
+# External Video Processing Service Configuration (Data Ingestion Service)
+# Service runs on localhost:8081 - see /docs for API documentation
 
 
 # Data Ingestion Service Configuration
 # Service for ingesting video sources and publishing frames to Kafka
 DATA_INGESTION_SERVICE = {
-    'BASE_URL': os.environ.get('DATA_INGESTION_SERVICE_URL', 'http://0.0.0.0:8001'),
+    'BASE_URL': os.environ.get('DATA_INGESTION_SERVICE_URL', 'http://localhost:8001'),
     'NOTIFY_ENDPOINT': '/api/sources',  # Endpoint to notify about new sources
     'HEALTH_ENDPOINT': '/health',  # Health check endpoint
     'STATUS_ENDPOINT': '/api/sources/{source_id}/status',  # Status check endpoint
     'API_KEY': os.environ.get('DATA_INGESTION_SERVICE_API_KEY', ''),  # Optional API key
     'TIMEOUT': 30,  # Request timeout in seconds
 }
+
+# Video Processing Service Configuration
+# Service for processing videos via the data ingestion service
+DATA_INGESTION_SERVICE_URL = os.environ.get('DATA_INGESTION_SERVICE_URL', 'http://localhost:8001')
+DATA_INGESTION_TIMEOUT = int(os.environ.get('DATA_INGESTION_TIMEOUT', 30))
 
 # File Upload Settings
 MAX_UPLOAD_SIZE = None  # No limit on file size

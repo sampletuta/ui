@@ -249,21 +249,21 @@
                 </div>
             </div>
 
-            <!-- FastPublisher Integration -->
+            <!-- Data Ingestion Service Integration -->
             {% if source.status == 'ready' %}
             <div class="card mt-4">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="fa fa-rocket me-2"></i>FastPublisher Integration
+                        <i class="fa fa-database me-2"></i>Data Ingestion Service Integration
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-success">
                         <i class="fa fa-check-circle me-2"></i>
-                        <strong>Ready for FastPublisher!</strong> Submit this video for processing and frame extraction.
+                        <strong>Ready for Processing!</strong> Submit this video for processing and frame extraction via the data ingestion service.
                     </div>
                     
-                    <!-- FastPublisher Submit Form (uses non-auth endpoints) -->
+                    <!-- Data Ingestion Service Submit Form (uses non-auth endpoints) -->
                     <form id="fastpublisherForm" class="mb-4">
                         {% csrf_token %}
                         <div class="row">
@@ -306,7 +306,7 @@
                         
                         <div class="d-grid">
                             <button type="submit" class="btn btn-primary" id="submitBtn">
-                                <i class="fa fa-paper-plane me-2"></i>Submit to FastPublisher
+                                <i class="fa fa-paper-plane me-2"></i>Submit for Processing
                             </button>
                         </div>
                     </form>
@@ -325,7 +325,7 @@
                     <div class="alert alert-warning">
                         <i class="fa fa-clock me-2"></i>
                         <strong>Video Not Ready!</strong> This video is currently in status: <strong>{{ source.status }}</strong>. 
-                        Please wait for it to be ready before submitting to FastPublisher.
+                        Please wait for it to be ready before submitting for processing.
                     </div>
                     {% endif %}
                 </div>
@@ -487,14 +487,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const serviceStatus = document.getElementById('serviceStatus');
     const serviceMessage = document.getElementById('serviceMessage');
 
-    // Check FastPublisher health on page load and toggle submit availability (non-auth URL from urls.py)
+    // Check data ingestion service health on page load and toggle submit availability (non-auth URL from urls.py)
     fetch('{% url "source_management:fastpublisher_health" %}')
       .then(r => r.json())
       .then(h => {
           const ok = !!h.ok;
           serviceStatus.style.display = 'block';
           serviceStatus.className = 'alert ' + (ok ? 'alert-success' : 'alert-warning');
-          serviceMessage.textContent = ok ? `FastPublisher healthy — ${h.url || ''}` : `FastPublisher unavailable — ${h.url || ''} ${h.error ? '(' + h.error + ')' : ''}`;
+          serviceMessage.textContent = ok ? `Data ingestion service healthy — ${h.url || ''}` : `Data ingestion service unavailable — ${h.url || ''} ${h.error ? '(' + h.error + ')' : ''}`;
           submitBtn.disabled = !ok;
       })
       .catch(() => {});
@@ -554,7 +554,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     serviceStatus.style.display = 'block';
                     const ok = health.ok === true || health.status === 'healthy';
                     serviceStatus.className = 'alert ' + (ok ? 'alert-success' : 'alert-warning');
-                    serviceMessage.textContent = `FastPublisher: ${ok ? 'healthy' : 'unavailable'} — ${health.url || ''}`;
+                    serviceMessage.textContent = `Data ingestion service: ${ok ? 'healthy' : 'unavailable'} — ${health.url || ''}`;
                 }
                 
                 // Reset form
@@ -567,7 +567,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const health = data.external_service_health;
                     serviceStatus.style.display = 'block';
                     serviceStatus.className = 'alert alert-danger';
-                    serviceMessage.textContent = `FastPublisher health check failed — ${health.url || ''}: ${health.error || health.status_code || ''}`;
+                    serviceMessage.textContent = `Data ingestion service health check failed — ${health.url || ''}: ${health.error || health.status_code || ''}`;
                 }
                 throw new Error(data.message || 'Failed to submit processing job');
             }
@@ -579,7 +579,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .finally(() => {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fa fa-paper-plane me-2"></i>Submit to FastPublisher';
+            submitBtn.innerHTML = '<i class="fa fa-paper-plane me-2"></i>Submit for Processing';
         });
     });
 });

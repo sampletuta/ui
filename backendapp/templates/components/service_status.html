@@ -1,0 +1,128 @@
+<!-- Service Status Component -->
+<div class="service-status-component mb-4">
+    <div class="bg-dark rounded p-3 border border-secondary">
+        <h6 class="text-white mb-3">
+            <i class="fa fa-heartbeat me-2 text-danger"></i>Service Status
+            <button id="refreshServiceStatus" class="btn btn-sm btn-outline-primary float-end">
+                <i class="fa fa-refresh me-1"></i>Refresh
+            </button>
+        </h6>
+        
+        <div id="serviceStatusDisplay">
+            <div class="text-center">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <small class="text-light d-block mt-1">Checking services...</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Service Status Component JavaScript
+class ServiceStatusComponent {
+    constructor() {
+        this.statusEndpoint = "{% url 'face_verification_status' %}";
+        this.init();
+    }
+
+    init() {
+        this.checkStatus();
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+        const refreshBtn = document.getElementById('refreshServiceStatus');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.checkStatus();
+            });
+        }
+    }
+
+    async checkStatus() {
+        try {
+            const response = await fetch(this.statusEndpoint);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.updateStatusDisplay(data.data);
+            } else {
+                this.showError('Failed to get service status: ' + data.error);
+            }
+        } catch (error) {
+            this.showError('Error checking service status: ' + error.message);
+        }
+    }
+
+    updateStatusDisplay(statusData) {
+        const statusDiv = document.getElementById('serviceStatusDisplay');
+        
+        let statusHtml = '<div class="row g-2">';
+        
+        // Overall status
+        const overallClass = statusData.overall_status === 'healthy' ? 'success' : 'danger';
+        const overallIcon = statusData.overall_status === 'healthy' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+        
+        statusHtml += `
+            <div class="col-12">
+                <div class="alert alert-${overallClass} alert-sm py-2 mb-2">
+                    <i class="fa ${overallIcon} me-2"></i>
+                    <strong>Overall: ${statusData.overall_status.toUpperCase()}</strong>
+                    <small class="float-end">${statusData.healthy_count}/${statusData.total_count} healthy</small>
+                </div>
+            </div>
+        `;
+        
+        // Individual service status
+        Object.entries(statusData.services).forEach(([serviceKey, service]) => {
+            const statusClass = service.healthy ? 'success' : 'danger';
+            const statusIcon = service.healthy ? 'fa-check-circle' : 'fa-exclamation-triangle';
+            
+            statusHtml += `
+                <div class="col-6">
+                    <div class="d-flex align-items-center p-2 bg-black rounded">
+                        <i class="fa ${statusIcon} text-${statusClass} me-2"></i>
+                        <div class="flex-grow-1">
+                            <small class="text-white d-block">${service.service}</small>
+                            <small class="text-light">${service.status}</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        statusHtml += '</div>';
+        
+        // Add warning if services are unhealthy
+        if (statusData.overall_status !== 'healthy') {
+            statusHtml += `
+                <div class="alert alert-warning alert-sm py-2 mt-2">
+                    <i class="fa fa-exclamation-triangle me-2"></i>
+                    <small>Some services are not fully operational. Face verification may have limited functionality.</small>
+                </div>
+            `;
+        }
+        
+        statusDiv.innerHTML = statusHtml;
+    }
+
+    showError(message) {
+        const statusDiv = document.getElementById('serviceStatusDisplay');
+        statusDiv.innerHTML = `
+            <div class="alert alert-danger alert-sm py-2">
+                <i class="fa fa-exclamation-triangle me-2"></i>
+                <small>${message}</small>
+            </div>
+        `;
+    }
+}
+
+// Initialize service status component
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.querySelector('.service-status-component')) {
+        new ServiceStatusComponent();
+    }
+});
+</script>

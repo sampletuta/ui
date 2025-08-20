@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <!-- Header Section -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <div>
+                        <h4 class="mb-1 text-white">
+                            <i class="fa fa-heartbeat me-2 text-danger"></i>Face Verification Service Status
+                        </h4>
+                        <p class="mb-0 text-light">Monitor the health and status of all face verification services</p>
+                    </div>
+                    <div class="text-end">
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fa fa-home me-1"></i>Dashboard
+                        </a>
+                        <a href="{% url 'face_verification' %}" class="btn btn-outline-danger btn-sm ms-2">
+                            <i class="fa fa-search-plus me-1"></i>Face Verification
+                        </a>
+                        <button id="refreshStatus" class="btn btn-outline-primary btn-sm ms-2">
+                            <i class="fa fa-refresh me-1"></i>Refresh Status
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overall Status Card -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <h5 class="text-white mb-3">
+                    <i class="fa fa-info-circle me-2"></i>Overall Service Status
+                </h5>
+                <div id="overallStatus" class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-light mt-2">Checking service status...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Individual Service Status -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <h5 class="text-white mb-3">
+                    <i class="fa fa-server me-2"></i>Individual Service Status
+                </h5>
+                <div id="serviceStatus" class="row g-3">
+                    <!-- Service status cards will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Details -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <h5 class="text-white mb-3">
+                    <i class="fa fa-cogs me-2"></i>Service Details
+                </h5>
+                <div id="serviceDetails" class="accordion" id="serviceDetailsAccordion">
+                    <!-- Service details will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Health Check History -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <h5 class="text-white mb-3">
+                    <i class="fa fa-history me-2"></i>Health Check History
+                </h5>
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Overall Status</th>
+                                <th>Healthy Services</th>
+                                <th>Total Services</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="healthHistory">
+                            <!-- Health check history will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Service Status Modal -->
+<div class="modal fade" id="serviceStatusModal" tabindex="-1" aria-labelledby="serviceStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="serviceStatusModalLabel">Service Status Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="serviceStatusModalBody">
+                <!-- Service details will be populated here -->
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Service status checking functionality
+class FaceVerificationStatusChecker {
+    constructor() {
+        this.statusEndpoint = "{% url 'face_verification_status' %}";
+        this.healthEndpoint = "{% url 'face_verification_health' %}";
+        this.healthHistory = [];
+        this.init();
+    }
+
+    init() {
+        this.checkStatus();
+        this.setupEventListeners();
+        this.startAutoRefresh();
+    }
+
+    setupEventListeners() {
+        document.getElementById('refreshStatus').addEventListener('click', () => {
+            this.checkStatus();
+        });
+    }
+
+    startAutoRefresh() {
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            this.checkStatus();
+        }, 30000);
+    }
+
+    async checkStatus() {
+        try {
+            const response = await fetch(this.statusEndpoint);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.updateStatusDisplay(data.data);
+                this.addToHealthHistory(data.data);
+            } else {
+                this.showError('Failed to get service status: ' + data.error);
+            }
+        } catch (error) {
+            this.showError('Error checking service status: ' + error.message);
+        }
+    }
+
+    updateStatusDisplay(statusData) {
+        this.updateOverallStatus(statusData);
+        this.updateServiceStatus(statusData.services);
+        this.updateServiceDetails(statusData.services);
+    }
+
+    updateOverallStatus(statusData) {
+        const overallStatusDiv = document.getElementById('overallStatus');
+        const statusClass = statusData.overall_status === 'healthy' ? 'success' : 'danger';
+        const statusIcon = statusData.overall_status === 'healthy' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+        
+        overallStatusDiv.innerHTML = `
+            <div class="alert alert-${statusClass} alert-dismissible fade show" role="alert">
+                <i class="fa ${statusIcon} me-2"></i>
+                <strong>Overall Status: ${statusData.overall_status.toUpperCase()}</strong>
+                <br>
+                <small class="text-muted">
+                    ${statusData.healthy_count} of ${statusData.total_count} services are healthy
+                </small>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+    }
+
+    updateServiceStatus(services) {
+        const serviceStatusDiv = document.getElementById('serviceStatus');
+        serviceStatusDiv.innerHTML = '';
+
+        Object.entries(services).forEach(([serviceKey, service]) => {
+            const statusClass = service.healthy ? 'success' : 'danger';
+            const statusIcon = service.healthy ? 'fa-check-circle' : 'fa-exclamation-triangle';
+            
+            const serviceCard = document.createElement('div');
+            serviceCard.className = 'col-md-4';
+            serviceCard.innerHTML = `
+                <div class="card bg-dark border-${statusClass} h-100">
+                    <div class="card-body text-center">
+                        <i class="fa ${statusIcon} fa-3x text-${statusClass} mb-3"></i>
+                        <h6 class="card-title text-white">${service.service}</h6>
+                        <p class="card-text small text-light">${service.message}</p>
+                        <span class="badge bg-${statusClass}">${service.status}</span>
+                    </div>
+                </div>
+            `;
+            
+            serviceStatusDiv.appendChild(serviceCard);
+        });
+    }
+
+    updateServiceDetails(services) {
+        const serviceDetailsDiv = document.getElementById('serviceDetails');
+        serviceDetailsDiv.innerHTML = '';
+
+        Object.entries(services).forEach(([serviceKey, service], index) => {
+            const accordionItem = document.createElement('div');
+            accordionItem.className = 'accordion-item bg-dark border-secondary';
+            accordionItem.innerHTML = `
+                <h2 class="accordion-header" id="heading${index}">
+                    <button class="accordion-button bg-dark text-white ${index === 0 ? '' : 'collapsed'}" type="button" 
+                            data-bs-toggle="collapse" data-bs-target="#collapse${index}" 
+                            aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="collapse${index}">
+                        <i class="fa ${service.healthy ? 'fa-check-circle text-success' : 'fa-exclamation-triangle text-danger'} me-2"></i>
+                        ${service.service} - ${service.status}
+                    </button>
+                </h2>
+                <div id="collapse${index}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" 
+                     aria-labelledby="heading${index}" data-bs-parent="#serviceDetailsAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Status Information</h6>
+                                <ul class="list-unstyled">
+                                    <li><strong>Service:</strong> ${service.service}</li>
+                                    <li><strong>Status:</strong> <span class="badge bg-${service.healthy ? 'success' : 'danger'}">${service.status}</span></li>
+                                    <li><strong>Message:</strong> ${service.message}</li>
+                                    <li><strong>Healthy:</strong> ${service.healthy ? 'Yes' : 'No'}</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Technical Details</h6>
+                                <pre class="text-light small bg-black p-2 rounded">${JSON.stringify(service.details, null, 2)}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            serviceDetailsDiv.appendChild(accordionItem);
+        });
+    }
+
+    addToHealthHistory(statusData) {
+        const timestamp = new Date().toLocaleString();
+        const historyEntry = {
+            timestamp: timestamp,
+            overallStatus: statusData.overall_status,
+            healthyCount: statusData.healthy_count,
+            totalCount: statusData.total_count,
+            services: statusData.services
+        };
+
+        this.healthHistory.unshift(historyEntry);
+        
+        // Keep only last 10 entries
+        if (this.healthHistory.length > 10) {
+            this.healthHistory = this.healthHistory.slice(0, 10);
+        }
+
+        this.updateHealthHistory();
+    }
+
+    updateHealthHistory() {
+        const healthHistoryTbody = document.getElementById('healthHistory');
+        healthHistoryTbody.innerHTML = '';
+
+        this.healthHistory.forEach((entry, index) => {
+            const row = document.createElement('tr');
+            const statusClass = entry.overallStatus === 'healthy' ? 'success' : 'danger';
+            
+            row.innerHTML = `
+                <td>${entry.timestamp}</td>
+                <td><span class="badge bg-${statusClass}">${entry.overallStatus}</span></td>
+                <td>${entry.healthyCount}</td>
+                <td>${entry.totalCount}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-info" onclick="statusChecker.showHistoryDetails(${index})">
+                        <i class="fa fa-eye me-1"></i>Details
+                    </button>
+                </td>
+            `;
+            
+            healthHistoryTbody.appendChild(row);
+        });
+    }
+
+    showHistoryDetails(index) {
+        const entry = this.healthHistory[index];
+        const modalBody = document.getElementById('serviceStatusModalBody');
+        
+        let detailsHtml = `
+            <h6>Health Check Details - ${entry.timestamp}</h6>
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Summary</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Overall Status:</strong> <span class="badge bg-${entry.overallStatus === 'healthy' ? 'success' : 'danger'}">${entry.overallStatus}</span></li>
+                        <li><strong>Healthy Services:</strong> ${entry.healthyCount}</li>
+                        <li><strong>Total Services:</strong> ${entry.totalCount}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>Service Status</h6>
+        `;
+
+        Object.entries(entry.services).forEach(([serviceKey, service]) => {
+            const statusClass = service.healthy ? 'success' : 'danger';
+            detailsHtml += `
+                <div class="mb-2">
+                    <strong>${service.service}:</strong> 
+                    <span class="badge bg-${statusClass}">${service.status}</span>
+                </div>
+            `;
+        });
+
+        detailsHtml += `
+                </div>
+            </div>
+            <div class="mt-3">
+                <h6>Full Service Details</h6>
+                <pre class="text-light small bg-black p-2 rounded">${JSON.stringify(entry.services, null, 2)}</pre>
+            </div>
+        `;
+
+        modalBody.innerHTML = detailsHtml;
+        
+        const modal = new bootstrap.Modal(document.getElementById('serviceStatusModal'));
+        modal.show();
+    }
+
+    showError(message) {
+        const overallStatusDiv = document.getElementById('overallStatus');
+        overallStatusDiv.innerHTML = `
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"></i>
+                <strong>Error:</strong> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+    }
+}
+
+// Initialize the status checker when the page loads
+let statusChecker;
+document.addEventListener('DOMContentLoaded', function() {
+    statusChecker = new FaceVerificationStatusChecker();
+});
+</script>
+{% endblock %}
