@@ -368,9 +368,62 @@
     </div>
 </div>
 
+<!-- Stream Submission Modal -->
+<div class="modal fade" id="streamSubmissionModal" tabindex="-1" aria-labelledby="streamSubmissionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="streamSubmissionModalLabel">Stream Submission</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="submissionStatus">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 mb-0">Submitting stream data...</p>
+                    </div>
+                </div>
+                <div id="submissionResult" style="display: none;">
+                    <div id="successResult" style="display: none;">
+                        <div class="alert alert-success">
+                            <i class="fa fa-check-circle me-2"></i>
+                            <span id="successMessage"></span>
+                        </div>
+                    </div>
+                    <div id="errorResult" style="display: none;">
+                        <div class="alert alert-danger">
+                            <i class="fa fa-exclamation-circle me-2"></i>
+                            <span id="errorMessage"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="closeModalBtn">Close</button>
+                <button type="button" class="btn btn-primary" id="refreshPageBtn" style="display: none;">Refresh Page</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Stream Control JavaScript -->
 {% if source_type in 'camera,stream' %}
 <script>
+// Reset modal when it's closed
+document.getElementById('streamSubmissionModal').addEventListener('hidden.bs.modal', function () {
+    // Reset modal title and content
+    document.getElementById('streamSubmissionModalLabel').textContent = 'Stream Submission';
+    document.querySelector('#submissionStatus p').textContent = 'Submitting stream data...';
+    
+    // Reset modal state
+    document.getElementById('submissionStatus').style.display = 'block';
+    document.getElementById('submissionResult').style.display = 'none';
+    document.getElementById('closeModalBtn').style.display = 'block';
+    document.getElementById('refreshPageBtn').style.display = 'none';
+});
+
 function startStream(sourceId) {
     if (confirm('Start video stream processing for this source?')) {
         fetch(`/source-management/api/stream/${sourceId}/start/`, {
@@ -420,52 +473,111 @@ function stopStream(sourceId) {
 }
 
 function createStream(sourceId) {
-    if (confirm('Register this source with the stream processor service?')) {
-        fetch(`/source-management/api/stream/${sourceId}/create/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                'Content-Type': 'application/json',
-            },
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload(); // Refresh to show updated status
-            } else {
-                alert('Failed to register stream: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error registering stream. Please try again.');
-        });
-    }
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('streamSubmissionModal'));
+    modal.show();
+    
+    // Update modal title and content for registration
+    document.getElementById('streamSubmissionModalLabel').textContent = 'Stream Registration';
+    document.querySelector('#submissionStatus p').textContent = 'Registering with processor service...';
+    
+    // Reset modal state
+    document.getElementById('submissionStatus').style.display = 'block';
+    document.getElementById('submissionResult').style.display = 'none';
+    document.getElementById('closeModalBtn').style.display = 'block';
+    document.getElementById('refreshPageBtn').style.display = 'none';
+    
+    // Register the stream
+    fetch(`/source-management/api/stream/${sourceId}/create/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading status
+        document.getElementById('submissionStatus').style.display = 'none';
+        document.getElementById('submissionResult').style.display = 'block';
+        
+        if (data.success) {
+            // Show success
+            document.getElementById('successResult').style.display = 'block';
+            document.getElementById('errorResult').style.display = 'none';
+            document.getElementById('successMessage').textContent = data.message || 'Stream registered successfully!';
+            document.getElementById('closeModalBtn').style.display = 'none';
+            document.getElementById('refreshPageBtn').style.display = 'block';
+        } else {
+            // Show error
+            document.getElementById('successResult').style.display = 'none';
+            document.getElementById('errorResult').style.display = 'block';
+            document.getElementById('errorMessage').textContent = data.error || 'Unknown error occurred';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Hide loading status
+        document.getElementById('submissionStatus').style.display = 'none';
+        document.getElementById('submissionResult').style.display = 'block';
+        
+        // Show error
+        document.getElementById('successResult').style.display = 'none';
+        document.getElementById('errorResult').style.display = 'block';
+        document.getElementById('errorMessage').textContent = 'Network error. Please try again.';
+    });
 }
 
 function submitStream(sourceId) {
-    if (confirm('Submit this stream data to the processor service for ingestion?')) {
-        fetch(`/source-management/api/stream/${sourceId}/submit/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                'Content-Type': 'application/json',
-            },
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Stream data submitted successfully!');
-                location.reload(); // Refresh to show updated status
-            } else {
-                alert('Failed to submit stream: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error submitting stream. Please try again.');
-        });
-    }
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('streamSubmissionModal'));
+    modal.show();
+    
+    // Reset modal state
+    document.getElementById('submissionStatus').style.display = 'block';
+    document.getElementById('submissionResult').style.display = 'none';
+    document.getElementById('closeModalBtn').style.display = 'block';
+    document.getElementById('refreshPageBtn').style.display = 'none';
+    
+    // Submit the stream data
+    fetch(`/source-management/api/stream/${sourceId}/submit/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading status
+        document.getElementById('submissionStatus').style.display = 'none';
+        document.getElementById('submissionResult').style.display = 'block';
+        
+        if (data.success) {
+            // Show success
+            document.getElementById('successResult').style.display = 'block';
+            document.getElementById('errorResult').style.display = 'none';
+            document.getElementById('successMessage').textContent = data.message || 'Stream data submitted successfully!';
+            document.getElementById('closeModalBtn').style.display = 'none';
+            document.getElementById('refreshPageBtn').style.display = 'block';
+        } else {
+            // Show error
+            document.getElementById('successResult').style.display = 'none';
+            document.getElementById('errorResult').style.display = 'block';
+            document.getElementById('errorMessage').textContent = data.error || 'Unknown error occurred';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Hide loading status
+        document.getElementById('submissionStatus').style.display = 'none';
+        document.getElementById('submissionResult').style.display = 'block';
+        
+        // Show error
+        document.getElementById('successResult').style.display = 'none';
+        document.getElementById('errorResult').style.display = 'block';
+        document.getElementById('errorMessage').textContent = 'Network error. Please try again.';
+    });
 }
 
 function refreshStreamStatus(sourceId) {
