@@ -1,38 +1,32 @@
 {% extends 'base.html' %}
 
 {% block title %}
-    {% if form.instance.pk %}Edit {{ source_type|title }} Source{% else %}Add {{ source_type|title }} Source{% endif %}
+    {% if is_edit %}Edit {{ source_type|title }} Source{% else %}Add {{ source_type|title }} Source{% endif %}
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid pt-4 px-4">
     <div class="row g-4">
-        <div class="col-12 col-lg-10 mx-auto">
+        <div class="col-12">
             <div class="bg-secondary rounded h-100 p-4">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h6 class="mb-0">
-                        <i class="fa fa-{% if source_type == 'camera' %}video-camera{% elif source_type == 'file' %}file-video{% elif source_type == 'stream' %}broadcast-tower{% else %}video{% endif %} me-2"></i>
-                        {% if form.instance.pk %}
-                            Edit {{ source_type|title }} Source
-                        {% else %}
-                            Add {{ source_type|title }} Source
-                        {% endif %}
-                    </h6>
-                    <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-secondary btn-sm">
-                        <i class="fa fa-arrow-left me-2"></i>Back to Sources
-                    </a>
-                </div>
+                <h6 class="mb-4">
+                    <i class="fa fa-{% if source_type == 'camera' %}video-camera{% elif source_type == 'file' %}file-video{% elif source_type == 'stream' %}broadcast-tower{% else %}video{% endif %} me-2"></i>
+                    {% if is_edit %}
+                        Edit {{ source_type|title }} Source
+                    {% else %}
+                        Add {{ source_type|title }} Source
+                    {% endif %}
+                </h6>
                 
                 <form id="source-form" method="post" enctype="multipart/form-data">
                     {% csrf_token %}
+                    <input type="hidden" name="source_type" value="{{ source_type }}">
                     
                     <div class="row g-4">
                         <!-- Basic Information -->
-                        <div class="col-md-6">
+                        <div class="col-sm-12 col-xl-6">
                             <div class="bg-dark rounded p-4">
-                                <h6 class="mb-4 text-primary">
-                                    <i class="fa fa-info-circle me-2"></i>Basic Information
-                                </h6>
+                                <h6 class="mb-4">Basic Information</h6>
 
                                 <div class="mb-3">
                                     <label for="{{ form.name.id_for_label }}" class="form-label">
@@ -44,7 +38,7 @@
                                             {{ form.name.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.name.help_text }}</small>
+                                    <div class="form-text">{{ form.name.help_text }}</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -57,7 +51,7 @@
                                             {{ form.description.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.description.help_text }}</small>
+                                    <div class="form-text">{{ form.description.help_text }}</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -70,7 +64,7 @@
                                             {{ form.location.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.location.help_text }}</small>
+                                    <div class="form-text">{{ form.location.help_text }}</div>
                                 </div>
 
                                 {% if form.zone %}
@@ -84,39 +78,35 @@
                                             {{ form.zone.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.zone.help_text }}</small>
+                                    <div class="form-text">{{ form.zone.help_text }}</div>
                                 </div>
                                 {% endif %}
 
                                 {% if form.latitude %}
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="{{ form.latitude.id_for_label }}" class="form-label">
-                                                Latitude
-                                            </label>
-                                            {{ form.latitude }}
-                                            {% if form.latitude.errors %}
-                                                <div class="text-danger small">
-                                                    {{ form.latitude.errors.0 }}
-                                                </div>
-                                            {% endif %}
-                                            <small class="form-text text-muted">{{ form.latitude.help_text }}</small>
-                                        </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.latitude.id_for_label }}" class="col-sm-4 col-form-label">
+                                        Latitude
+                                    </label>
+                                    <div class="col-sm-8">
+                                        {{ form.latitude }}
+                                        {% if form.latitude.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.latitude.errors.0 }}
+                                            </div>
+                                        {% endif %}
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="{{ form.longitude.id_for_label }}" class="form-label">
-                                                Longitude
-                                            </label>
-                                            {{ form.longitude }}
-                                            {% if form.longitude.errors %}
-                                                <div class="text-danger small">
-                                                    {{ form.longitude.errors.0 }}
-                                                </div>
-                                            {% endif %}
-                                            <small class="form-text text-muted">{{ form.longitude.help_text }}</small>
-                                        </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.longitude.id_for_label }}" class="col-sm-4 col-form-label">
+                                        Longitude
+                                    </label>
+                                    <div class="col-sm-8">
+                                        {{ form.longitude }}
+                                        {% if form.longitude.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.longitude.errors.0 }}
+                                            </div>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 {% endif %}
@@ -124,11 +114,9 @@
                         </div>
                         
                         <!-- Source Configuration -->
-                        <div class="col-md-6">
+                        <div class="col-sm-12 col-xl-6">
                             <div class="bg-dark rounded p-4">
-                                <h6 class="mb-4 text-primary">
-                                    <i class="fa fa-cog me-2"></i>Source Configuration
-                                </h6>
+                                <h6 class="mb-4">Source Configuration</h6>
 
                                 {% if source_type == 'camera' %}
                                 <div class="mb-3">
@@ -141,7 +129,7 @@
                                             {{ form.camera_ip.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.camera_ip.help_text }}</small>
+                                    <div class="form-text">{{ form.camera_ip.help_text }}</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -154,7 +142,7 @@
                                             {{ form.camera_port.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.camera_port.help_text }}</small>
+                                    <div class="form-text">{{ form.camera_port.help_text }}</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -167,7 +155,7 @@
                                             {{ form.camera_protocol.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.camera_protocol.help_text }}</small>
+                                    <div class="form-text">{{ form.camera_protocol.help_text }}</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -180,7 +168,7 @@
                                             {{ form.camera_username.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.camera_username.help_text }}</small>
+                                    <div class="form-text">{{ form.camera_username.help_text }}</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -193,7 +181,7 @@
                                             {{ form.camera_password.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.camera_password.help_text }}</small>
+                                    <div class="form-text">{{ form.camera_password.help_text }}</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -206,108 +194,215 @@
                                             {{ form.camera_type.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.camera_type.help_text }}</small>
+                                    <div class="form-text">{{ form.camera_type.help_text }}</div>
                                 </div>
 
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="{{ form.camera_resolution.id_for_label }}" class="form-label">
-                                                Resolution
-                                            </label>
-                                            {{ form.camera_resolution }}
-                                            {% if form.camera_resolution.errors %}
-                                                <div class="text-danger small">
-                                                    {{ form.camera_resolution.errors.0 }}
-                                                </div>
-                                            {% endif %}
-                                            <small class="form-text text-muted">{{ form.camera_resolution.help_text }}</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="{{ form.camera_fps.id_for_label }}" class="form-label">
-                                                Frame Rate (FPS)
-                                            </label>
-                                            {{ form.camera_fps }}
-                                            {% if form.camera_fps.errors %}
-                                                <div class="text-danger small">
-                                                    {{ form.camera_fps.errors.0 }}
-                                                </div>
-                                            {% endif %}
-                                            <small class="form-text text-muted">{{ form.camera_fps.help_text }}</small>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% endif %}
-
-                                {% if source_type == 'file' %}
-                                <div class="mb-4">
-                                    <label for="{{ form.video_file.id_for_label }}" class="form-label fw-bold">
-                                        <i class="fa fa-video me-2"></i>Video File <span class="text-danger">*</span>
+                                <div class="mb-3">
+                                    <label for="{{ form.camera_resolution.id_for_label }}" class="form-label">
+                                        Resolution
                                     </label>
-                                    
-                                    <!-- Enhanced File Upload Area -->
-                                    <div class="upload-area" id="uploadArea">
-                                        <div class="upload-content" id="uploadContent">
-                                            <i class="fa fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
-                                            <h5 class="mb-2">Drag & Drop Video File Here</h5>
-                                            <p class="text-muted mb-3">or click to browse</p>
-                                            <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('{{ form.video_file.id_for_label }}').click()">
-                                                <i class="fa fa-folder-open me-2"></i>Choose File
-                                            </button>
-                                            {{ form.video_file }}
+                                    {{ form.camera_resolution }}
+                                    {% if form.camera_resolution.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.camera_resolution.errors.0 }}
                                         </div>
-                                        
-                                        <!-- File Preview -->
-                                        <div class="file-preview" id="filePreview" style="display: none;">
-                                            <div class="d-flex align-items-center">
-                                                <i class="fa fa-video fa-2x text-success me-3"></i>
-                                                <div class="flex-grow-1">
-                                                    <h6 class="mb-1" id="fileName"></h6>
-                                                    <small class="text-muted" id="fileSize"></small>
-                                                </div>
-                                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile()">
-                                                    <i class="fa fa-times"></i>
-                                                </button>
+                                    {% endif %}
+                                    <div class="form-text">{{ form.camera_resolution.help_text }}</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.camera_fps.id_for_label }}" class="form-label">
+                                        Frame Rate (FPS)
+                                    </label>
+                                    {{ form.camera_fps }}
+                                    {% if form.camera_fps.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.camera_fps.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">{{ form.camera_fps.help_text }}</div>
+                                </div>
+
+                                <!-- Camera Quality & Performance Parameters -->
+                                <div class="row mb-3">
+                                    <label for="{{ form.camera_resolution_width.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Resolution Width (px)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.camera_resolution_width }}
+                                        {% if form.camera_resolution_width.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_resolution_width.errors.0 }}
                                             </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.camera_resolution_height.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Resolution Height (px)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.camera_resolution_height }}
+                                        {% if form.camera_resolution_height.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_resolution_height.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <label for="{{ form.camera_bitrate.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Bitrate (bps)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.camera_bitrate }}
+                                        {% if form.camera_bitrate.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_bitrate.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.camera_codec.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Video Codec
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.camera_codec }}
+                                        {% if form.camera_codec.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_codec.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Audio Configuration -->
+                                <h6 class="mb-3">Audio Configuration</h6>
+                                <div class="mb-3 form-check">
+                                    {{ form.camera_audio_enabled }}
+                                    <label class="form-check-label" for="{{ form.camera_audio_enabled.id_for_label }}">
+                                        Audio Enabled
+                                    </label>
+                                    <div class="form-text">{{ form.camera_audio_enabled.help_text }}</div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <label for="{{ form.camera_audio_codec.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Audio Codec
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.camera_audio_codec }}
+                                        {% if form.camera_audio_codec.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_audio_codec.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.camera_audio_channels.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Audio Channels
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.camera_audio_channels }}
+                                        {% if form.camera_audio_channels.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_audio_channels.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.camera_audio_sample_rate.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Sample Rate (Hz)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.camera_audio_sample_rate }}
+                                        {% if form.camera_audio_sample_rate.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_audio_sample_rate.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Network & Performance Configuration -->
+                                <h6 class="mb-3">Network & Performance</h6>
+                                <div class="row mb-3">
+                                    <label for="{{ form.camera_buffer_size.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Buffer Size (ms)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.camera_buffer_size }}
+                                        {% if form.camera_buffer_size.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_buffer_size.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.camera_timeout.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Timeout (seconds)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.camera_timeout }}
+                                        {% if form.camera_timeout.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_timeout.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-sm-6">
+                                        <div class="form-check">
+                                            {{ form.camera_keepalive }}
+                                            <label class="form-check-label" for="{{ form.camera_keepalive.id_for_label }}">
+                                                Keepalive Connections
+                                            </label>
                                         </div>
                                     </div>
-                                    
-                                    <!-- Upload Progress -->
-                                    <div class="upload-progress mt-3" id="uploadProgress" style="display: none;">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span class="fw-bold">Upload Progress</span>
-                                            <span class="text-muted" id="progressText">0%</span>
-                                        </div>
-                                        <div class="progress" style="height: 8px;">
-                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                                                 role="progressbar" id="progressBar" 
-                                                 style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    <div class="col-sm-6">
+                                        <label for="{{ form.camera_retry_attempts.id_for_label }}" class="form-label">
+                                            Retry Attempts
+                                        </label>
+                                        {{ form.camera_retry_attempts }}
+                                        {% if form.camera_retry_attempts.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.camera_retry_attempts.errors.0 }}
                                             </div>
-                                        </div>
-                                        <small class="text-muted mt-1 d-block" id="uploadStatus">Preparing upload...</small>
+                                        {% endif %}
                                     </div>
-                                    
-                                                                          
-                                      {% if form.video_file.errors %}
-                                        <div class="alert alert-danger mt-2">
-                                            <i class="fa fa-exclamation-triangle me-2"></i>
+                                </div>
+
+                                {% elif source_type == 'file' %}
+                                <div class="mb-3">
+                                    <label for="{{ form.video_file.id_for_label }}" class="form-label">
+                                        Video File <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="border-2 border-dashed border-secondary rounded p-4 text-center">
+                                        <i class="fa fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                        <h6 class="text-muted">Drag & Drop Video File Here</h6>
+                                        <p class="text-muted small">or click to browse</p>
+                                        {{ form.video_file }}
+                                        <div class="mt-2">
+                                            <small class="text-muted">
+                                                Supported formats: MP4, AVI, MOV, MKV, WMV, FLV, WebM. Max size: 500MB
+                                            </small>
+                                        </div>
+                                    </div>
+                                    {% if form.video_file.errors %}
+                                        <div class="text-danger small mt-2">
                                             {{ form.video_file.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    
-                                    <small class="form-text text-muted">
-                                        <i class="fa fa-info-circle me-1"></i>
-                                        Supported formats: MP4, AVI, MOV, MKV, WMV, FLV, WebM. Max size: 500MB
-                                    </small>
-                                    
-                                    <input type="hidden" name="chunked_upload_id" id="chunked_upload_id" />
-                                    <input type="hidden" name="chunked_original_filename" id="chunked_original_filename" />
+                                    <div class="form-text">{{ form.video_file.help_text }}</div>
                                 </div>
-                                {% endif %}
 
-                                {% if source_type == 'stream' %}
+                                {% elif source_type == 'stream' %}
                                 <div class="mb-3">
                                     <label for="{{ form.stream_url.id_for_label }}" class="form-label">
                                         Stream URL <span class="text-danger">*</span>
@@ -318,7 +413,7 @@
                                             {{ form.stream_url.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.stream_url.help_text }}</small>
+                                    <div class="form-text">{{ form.stream_url.help_text }}</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -331,12 +426,12 @@
                                             {{ form.stream_protocol.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.stream_protocol.help_text }}</small>
+                                    <div class="form-text">{{ form.stream_protocol.help_text }}</div>
                                 </div>
 
                                 <div class="mb-3">
                                     <label for="{{ form.stream_quality.id_for_label }}" class="form-label">
-                                        Quality
+                                        Stream Quality
                                     </label>
                                     {{ form.stream_quality }}
                                     {% if form.stream_quality.errors %}
@@ -344,418 +439,411 @@
                                             {{ form.stream_quality.errors.0 }}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">{{ form.stream_quality.help_text }}</small>
+                                    <div class="form-text">{{ form.stream_quality.help_text }}</div>
+                                </div>
+
+                                <!-- Stream Quality & Performance Parameters -->
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_resolution_width.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Resolution Width (px)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_resolution_width }}
+                                        {% if form.stream_resolution_width.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_resolution_width.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_resolution_height.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Resolution Height (px)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_resolution_height }}
+                                        {% if form.stream_resolution_height.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_resolution_height.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_fps.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Frame Rate (FPS)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_fps }}
+                                        {% if form.stream_fps.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_fps.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_bitrate.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Bitrate (bps)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_bitrate }}
+                                        {% if form.stream_bitrate.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_bitrate.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.stream_codec.id_for_label }}" class="form-label">
+                                        Video Codec
+                                    </label>
+                                    {{ form.stream_codec }}
+                                    {% if form.stream_codec.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.stream_codec.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">{{ form.stream_codec.help_text }}</div>
+                                </div>
+
+                                <!-- Audio Configuration -->
+                                <h6 class="mb-3">Audio Configuration</h6>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_audio_codec.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Audio Codec
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_audio_codec }}
+                                        {% if form.stream_audio_codec.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_audio_codec.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_audio_channels.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Audio Channels
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_audio_channels }}
+                                        {% if form.stream_audio_channels.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_audio_channels.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_audio_sample_rate.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Sample Rate (Hz)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_audio_sample_rate }}
+                                        {% if form.stream_audio_sample_rate.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_audio_sample_rate.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_audio_bitrate.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Audio Bitrate (bps)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_audio_bitrate }}
+                                        {% if form.stream_audio_bitrate.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_audio_bitrate.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Network & Performance Configuration -->
+                                <h6 class="mb-3">Network & Performance</h6>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_buffer_size.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Buffer Size (ms)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_buffer_size }}
+                                        {% if form.stream_buffer_size.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_buffer_size.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_timeout.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Timeout (seconds)
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_timeout }}
+                                        {% if form.stream_timeout.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_timeout.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-sm-6">
+                                        <div class="form-check">
+                                            {{ form.stream_keepalive }}
+                                            <label class="form-check-label" for="{{ form.stream_keepalive.id_for_label }}">
+                                                Keepalive Connections
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label for="{{ form.stream_retry_attempts.id_for_label }}" class="form-label">
+                                            Retry Attempts
+                                        </label>
+                                        {{ form.stream_retry_attempts }}
+                                        {% if form.stream_retry_attempts.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_retry_attempts.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Advanced Configuration -->
+                                <h6 class="mb-3">Advanced Configuration</h6>
+                                
+                                <!-- Authentication Fields -->
+                                <h6 class="mb-3">Authentication</h6>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_auth_username.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Username
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_auth_username }}
+                                        {% if form.stream_auth_username.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_auth_username.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_auth_password.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Password
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_auth_password }}
+                                        {% if form.stream_auth_password.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_auth_password.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_auth_api_key.id_for_label }}" class="col-sm-6 col-form-label">
+                                        API Key
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_auth_api_key }}
+                                        {% if form.stream_auth_api_key.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_auth_api_key.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <label for="{{ form.stream_auth_token.id_for_label }}" class="col-sm-6 col-form-label">
+                                        Bearer Token
+                                    </label>
+                                    <div class="col-sm-6">
+                                        {{ form.stream_auth_token }}
+                                        {% if form.stream_auth_token.errors %}
+                                            <div class="text-danger small">
+                                                {{ form.stream_auth_token.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="{{ form.stream_parameters.id_for_label }}" class="form-label">
+                                        Stream Parameters
+                                    </label>
+                                    {{ form.stream_parameters }}
+                                    {% if form.stream_parameters.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.stream_parameters.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">{{ form.stream_parameters.help_text }}</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.stream_headers.id_for_label }}" class="form-label">
+                                        Custom Headers
+                                    </label>
+                                    {{ form.stream_headers }}
+                                    {% if form.stream_headers.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.stream_headers.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">{{ form.stream_headers.help_text }}</div>
                                 </div>
                                 {% endif %}
 
                                 {% if form.is_active %}
+                                <div class="mb-3 form-check">
+                                    {{ form.is_active }}
+                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                        Active Source
+                                    </label>
+                                    <div class="form-text">{{ form.is_active.help_text }}</div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Stream Processor Service Integration Info -->
+                                {% if source_type in 'camera,stream' %}
                                 <div class="mb-3">
-                                    <div class="form-check">
-                                        {{ form.is_active }}
-                                        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                                            Active
-                                        </label>
-                                        <small class="form-text text-muted d-block">{{ form.is_active.help_text }}</small>
+                                    <div class="alert alert-info">
+                                        <h6 class="mb-2">
+                                            <i class="fa fa-cogs me-2"></i>Stream Processor Service Integration
+                                        </h6>
+                                        <p class="mb-2 small">
+                                            When you create or update this {{ source_type }} source, it will automatically be integrated with the stream processor service at <code>localhost:8002</code>.
+                                        </p>
+                                        <ul class="mb-0 small">
+                                            <li>A new stream will be created in the processor service</li>
+                                            <li>Video ingestion will start automatically if the source is active</li>
+                                            <li>Real-time processing and analysis will be available</li>
+                                            <li>You can monitor the stream status from the source detail page</li>
+                                        </ul>
                                     </div>
+                                </div>
+                                {% endif %}
+
+                                {% if form.configuration %}
+                                <div class="mb-3">
+                                    <label for="{{ form.configuration.id_for_label }}" class="form-label">
+                                        Configuration
+                                    </label>
+                                    {{ form.configuration }}
+                                    {% if form.configuration.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.configuration.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">{{ form.configuration.help_text }}</div>
+                                </div>
+                                {% endif %}
+
+                                {% if form.tags %}
+                                <div class="mb-3">
+                                    <label for="{{ form.tags.id_for_label }}" class="form-label">
+                                        Tags
+                                    </label>
+                                    {{ form.tags }}
+                                    {% if form.tags.errors %}
+                                        <div class="text-danger small">
+                                            {{ form.tags.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">{{ form.tags.help_text }}</div>
                                 </div>
                                 {% endif %}
                             </div>
                         </div>
-                        
-                        <!-- Form Actions -->
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="row mt-4">
                         <div class="col-12">
-                            <div class="d-flex gap-2">
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="{% url 'source_management:source_list' %}" class="btn btn-secondary">
+                                    <i class="fa fa-times me-2"></i>Cancel
+                                </a>
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="fa fa-save me-2"></i>
-                                    {% if form.instance.pk %}Update Source{% else %}Create Source{% endif %}
+                                    <i class="fa fa-{% if is_edit %}save{% else %}plus{% endif %} me-2"></i>
+                                    {% if is_edit %}Update Source{% else %}Create Source{% endif %}
                                 </button>
-                                <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-secondary">Cancel</a>
                             </div>
                         </div>
                     </div>
                 </form>
-
-                {% if source_type == 'file' %}
-                
-                <style>
-                .upload-area {
-                    border: 2px dashed #6c757d;
-                    border-radius: 10px;
-                    padding: 2rem;
-                    text-align: center;
-                    transition: all 0.3s ease;
-                    background: linear-gradient(145deg, #f8f9fa, #e9ecef);
-                    position: relative;
-                    overflow: hidden;
-                }
-                
-                .upload-area:hover {
-                    border-color: #0d6efd;
-                    background: linear-gradient(145deg, #e3f2fd, #f3e5f5);
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-                }
-                
-                .upload-area.dragover {
-                    border-color: #0d6efd;
-                    background: linear-gradient(145deg, #e8f5e8, #f3e5f5);
-                    transform: scale(1.02);
-                }
-                
-                .upload-content {
-                    pointer-events: none;
-                }
-                
-                .upload-area input[type="file"] {
-                    position: absolute;
-                    width: 100%;
-                    height: 100%;
-                    opacity: 0;
-                    cursor: pointer;
-                    pointer-events: auto;
-                }
-                
-                .file-preview {
-                    background: rgba(40, 167, 69, 0.1);
-                    border: 1px solid #28a745;
-                    border-radius: 8px;
-                    padding: 1rem;
-                    margin-top: 1rem;
-                }
-                
-                .upload-progress {
-                    background: #f8f9fa;
-                    border-radius: 8px;
-                    padding: 1rem;
-                    border: 1px solid #dee2e6;
-                }
-                
-                .progress {
-                    background-color: #ff0000;
-                    border-radius: 10px;
-                    overflow: hidden;
-                }
-                
-                .progress-bar {
-                    background: linear-gradient(90deg, #0d6efd, #0dcaf0);
-                    border-radius: 10px;
-                }
-                
-                .chunked-status {
-                    border-radius: 8px;
-                }
-                
-                .alert {
-                    border-radius: 8px;
-                    border: none;
-                }
-                
-                .btn {
-                    border-radius: 6px;
-                    font-weight: 500;
-                    transition: all 0.3s ease;
-                }
-                
-                .btn:hover {
-                    transform: translateY(-1px);
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                }
-                
-                /* Enhanced form styling */
-                .form-control, .form-select {
-                    border-radius: 8px;
-                    border: 2px solid #e9ecef;
-                    transition: all 0.3s ease;
-                    background-color: #f8f9fa;
-                }
-                
-                .form-control:focus, .form-select:focus {
-                    border-color: #0d6efd;
-                    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-                    background-color: #fff;
-                }
-                
-                .form-label {
-                    font-weight: 600;
-                    color: #495057;
-                    margin-bottom: 0.5rem;
-                }
-                
-                .form-text {
-                    color: #6c757d;
-                    font-size: 0.875rem;
-                }
-                
-                .bg-secondary {
-                    background: linear-gradient(145deg, #f8f9fa, #e9ecef) !important;
-                }
-                
-                .bg-dark {
-                    background: linear-gradient(145deg, #343a40, #495057) !important;
-                }
-                
-                .card, .bg-secondary, .bg-dark {
-                    border-radius: 15px;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-                    border: none;
-                }
-                
-                .text-primary {
-                    color: #0d6efd !important;
-                }
-                
-                .text-success {
-                    color: #198754 !important;
-                }
-                
-                .text-warning {
-                    color: #ffc107 !important;
-                }
-                
-                .text-danger {
-                    color: #dc3545 !important;
-                }
-                </style>
-                
-                <script>
-                (function() {
-                  const form = document.getElementById('source-form');
-                  if (!form) {
-                    console.warn('Source form not found');
-                    return;
-                  }
-                  
-                  const fileInput = form.querySelector('input[type="file"][name="video_file"]');
-                  if (!fileInput) {
-                    console.warn('File input not found');
-                    return;
-                  }
-                  
-                  const threshold = {{ chunk_threshold|default:104857600 }}; // 100MB default
-                  const chunkSize = {{ chunk_size|default:1048576 }}; // 1MB
-                  
-                  // Enhanced UI elements
-                  const uploadArea = document.getElementById('uploadArea');
-                  const uploadContent = document.getElementById('uploadContent');
-                  const filePreview = document.getElementById('filePreview');
-                  const fileName = document.getElementById('fileName');
-                  const fileSize = document.getElementById('fileSize');
-                  const uploadProgress = document.getElementById('uploadProgress');
-                  const progressBar = document.getElementById('progressBar');
-                  const progressText = document.getElementById('progressText');
-                  const uploadStatus = document.getElementById('uploadStatus');
-                  const chunkedStatus = document.getElementById('chunkedStatus');
-                  const chunkedStatusText = document.getElementById('chunkedStatusText');
-                  const hidId = document.getElementById('chunked_upload_id');
-                  const hidName = document.getElementById('chunked_original_filename');
-                  
-                  // Check if required elements exist
-                  if (!uploadArea || !uploadContent || !filePreview || !fileName || !fileSize || 
-                      !uploadProgress || !progressBar || !progressText || !uploadStatus || 
-                      !chunkedStatus || !chunkedStatusText || !hidId || !hidName) {
-                    console.warn('Some required DOM elements not found, enhanced upload features disabled');
-                    console.log('Missing elements:', {
-                      uploadArea: !!uploadArea,
-                      uploadContent: !!uploadContent,
-                      filePreview: !!filePreview,
-                      fileName: !!fileName,
-                      fileSize: !!fileSize,
-                      uploadProgress: !!uploadProgress,
-                      progressBar: !!progressBar,
-                      progressText: !!progressText,
-                      uploadStatus: !!uploadStatus,
-                      chunkedStatus: !!chunkedStatus,
-                      chunkedStatusText: !!chunkedStatusText,
-                      hidId: !!hidId,
-                      hidName: !!hidName
-                    });
-                    return;
-                  }
-                  
-                  // File handling functions
-                  function showFilePreview(file) {
-                    if (fileName) fileName.textContent = file.name;
-                    if (fileSize) fileSize.textContent = formatFileSize(file.size);
-                    if (uploadContent) uploadContent.style.display = 'none';
-                    if (filePreview) filePreview.style.display = 'block';
-                  }
-                  
-                  function removeFile() {
-                    if (fileInput) fileInput.value = '';
-                    if (uploadContent) uploadContent.style.display = 'block';
-                    if (filePreview) filePreview.style.display = 'none';
-                    if (uploadProgress) uploadProgress.style.display = 'none';
-                    if (chunkedStatus) chunkedStatus.style.display = 'none';
-                  }
-                  
-                  function formatFileSize(bytes) {
-                    if (bytes === 0) return '0 Bytes';
-                    const k = 1024;
-                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-                    const i = Math.floor(Math.log(bytes) / Math.log(k));
-                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-                  }
-                  
-                  function updateProgress(percent, status) {
-                    if (progressBar) progressBar.style.width = percent + '%';
-                    if (progressBar) progressBar.setAttribute('aria-valuenow', percent);
-                    if (progressText) progressText.textContent = percent + '%';
-                    if (uploadStatus) uploadStatus.textContent = status;
-                  }
-                  
-                  function showUploadProgress() {
-                    if (uploadProgress) uploadProgress.style.display = 'block';
-                    updateProgress(0, 'Preparing upload...');
-                  }
-                  
-                  function showChunkedStatus() {
-                    if (chunkedStatus) chunkedStatus.style.display = 'block';
-                    if (chunkedStatusText) chunkedStatusText.textContent = 'Preparing chunked upload...';
-                  }
-
-                  async function uploadInChunks(file) {
-                    showChunkedStatus();
-                    showUploadProgress();
-                    
-                    const uploadId = self.crypto.randomUUID ? self.crypto.randomUUID() : Math.random().toString(36).slice(2);
-                    const totalChunks = Math.ceil(file.size / chunkSize);
-                    
-                    for (let i = 0; i < totalChunks; i++) {
-                      const start = i * chunkSize;
-                      const end = Math.min(file.size, start + chunkSize);
-                      const chunk = file.slice(start, end);
-                      
-                      const formData = new FormData();
-                      formData.append('upload_id', uploadId);
-                      formData.append('chunk_index', i.toString());
-                      formData.append('total_chunks', totalChunks.toString());
-                      formData.append('original_filename', file.name);
-                      formData.append('chunk', chunk, file.name + '.part');
-                      
-                      try {
-                        const resp = await fetch('{% url "upload_chunk" %}', { 
-                          method: 'POST', 
-                          body: formData, 
-                          credentials: 'same-origin' 
-                        });
-                        
-                        if (!resp.ok) {
-                          const errorText = await resp.text();
-                          throw new Error('Chunk upload failed: ' + errorText);
-                        }
-                        
-                        const data = await resp.json();
-                        if (!data.success) {
-                          throw new Error('Chunk upload failed: ' + (data.error || 'unknown error'));
-                        }
-                        
-                        // Update progress
-                        const progress = Math.round(((i + 1) / totalChunks) * 100);
-                        updateProgress(progress, `Uploading chunk ${i + 1} of ${totalChunks}`);
-                        if (chunkedStatusText) chunkedStatusText.textContent = `Uploading chunk ${i + 1} of ${totalChunks}`;
-                        
-                      } catch (error) {
-                        throw new Error(`Chunk ${i + 1} upload failed: ${error.message}`);
-                      }
-                    }
-                    
-                    // Mark hidden fields
-                    hidId.value = uploadId;
-                    hidName.value = file.name;
-                    
-                    updateProgress(100, 'Upload complete. Submitting metadata...');
-                    if (chunkedStatusText) chunkedStatusText.textContent = 'Upload complete. Submitting metadata...';
-                  }
-
-                  // File input change handler
-                  fileInput.addEventListener('change', function(e) {
-                    const file = e.target.files[0];
-                    if (file) {
-                      showFilePreview(file);
-                      
-                      // Validate file type
-                      const allowed = {{ settings.ALLOWED_VIDEO_EXTENSIONS|default:"['.mp4','.avi','.mov','.mkv','.wmv','.flv','.webm']"|safe }};
-                      const ext = (file.name.split('.').pop() || '').toLowerCase();
-                      if (allowed.indexOf('.' + ext) === -1) {
-                        alert('Unsupported file type. Please use: ' + allowed.join(', '));
-                        removeFile();
-                        return;
-                      }
-                    }
-                  });
-                  
-                  // Drag and drop functionality
-                  uploadArea.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    uploadArea.classList.add('dragover');
-                  });
-                  
-                  uploadArea.addEventListener('dragleave', function(e) {
-                    e.preventDefault();
-                    uploadArea.classList.remove('dragover');
-                  });
-                  
-                  uploadArea.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    uploadArea.classList.remove('dragover');
-                    
-                    const files = e.dataTransfer.files;
-                    if (files.length > 0) {
-                      const file = files[0];
-                      fileInput.files = files;
-                      showFilePreview(file);
-                      
-                      // Validate file type
-                      const allowed = {{ settings.ALLOWED_VIDEO_EXTENSIONS|default:"['.mp4','.avi','.mov','.mkv','.wmv','.flv','.webm']"|safe }};
-                      const ext = (file.name.split('.').pop() || '').toLowerCase();
-                      if (allowed.indexOf('.' + ext) === -1) {
-                        alert('Unsupported file type. Please use: ' + allowed.join(', '));
-                        removeFile();
-                        return;
-                      }
-                    }
-                  });
-                  
-                  // Form submission handler
-                  form.addEventListener('submit', function(e) {
-                    const file = fileInput.files && fileInput.files[0];
-                    if (!file) return; // normal submit blocked in form clean
-                    
-                    if (file.size > threshold) {
-                      e.preventDefault();
-                      uploadInChunks(file)
-                        .then(() => {
-                          // Remove the file from form so we don't resend bytes
-                          fileInput.value = '';
-                          // Ensure hidden fields exist before submit
-                          if (!hidId.value || !hidName.value) {
-                            alert('Upload metadata missing; please retry.');
-                            return;
-                          }
-                          form.submit();
-                        })
-                        .catch(err => {
-                          alert('Upload failed: ' + err.message);
-                          console.error('Upload error:', err);
-                        });
-                    }
-                  });
-                })();
-                </script>
-                {% endif %}
-                
-                {% if messages %}
-                    <div class="mt-3">
-                        {% for message in messages %}
-                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
             </div>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // File upload drag and drop functionality
+    const fileInput = document.querySelector('input[type="file"]');
+    const dropZone = document.querySelector('.border-dashed');
+    
+    if (fileInput && dropZone) {
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#EB1616';
+            dropZone.style.backgroundColor = 'rgba(235, 22, 22, 0.1)';
+        });
+        
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#6C7293';
+            dropZone.style.backgroundColor = 'transparent';
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#6C7293';
+            dropZone.style.backgroundColor = 'transparent';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                // Update the display to show selected file
+                const fileName = files[0].name;
+                dropZone.innerHTML = `
+                    <i class="fa fa-check-circle fa-3x text-success mb-3"></i>
+                    <h6 class="text-success">File Selected</h6>
+                    <p class="text-muted small">${fileName}</p>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetFileInput()">
+                        Change File
+                    </button>
+                `;
+            }
+        });
+    }
+});
+
+function resetFileInput() {
+    const fileInput = document.querySelector('input[type="file"]');
+    const dropZone = document.querySelector('.border-dashed');
+    
+    if (fileInput && dropZone) {
+        fileInput.value = '';
+        dropZone.innerHTML = `
+            <i class="fa fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+            <h6 class="text-muted">Drag & Drop Video File Here</h6>
+            <p class="text-muted small">or click to browse</p>
+            <div class="mt-2">
+                <small class="text-muted">
+                    Supported formats: MP4, AVI, MOV, MKV, WMV, FLV, WebM. Max size: 500MB
+                </small>
+            </div>
+        `;
+    }
+}
+</script>
 {% endblock %} 

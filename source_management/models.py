@@ -5,8 +5,20 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 import json
 from django.utils import timezone
 from notifications.signals import notify
+import requests
+import logging
+from django.conf import settings
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
+
+# Stream processor service configuration
+STREAM_PROCESSOR_CONFIG = getattr(settings, 'STREAM_PROCESSOR_CONFIG', {
+    'BASE_URL': 'http://localhost:8002',
+    'EXTERNAL_SERVICE_ID': 'django-source-management',
+    'TIMEOUT': 30,
+    'ENABLED': True
+})
 
 class BaseSource(models.Model):
     """Base model for all video sources"""
@@ -64,6 +76,51 @@ class BaseSource(models.Model):
             
         return metadata
 
+    def _call_stream_processor_api(self, method, endpoint, data=None, stream_id=None):
+        """Make HTTP call to stream processor service"""
+        if not STREAM_PROCESSOR_CONFIG.get('ENABLED', True):
+            logger.warning(f"Stream processor integration is disabled for {self.__class__.__name__} {self.source_id}")
+            return {'success': False, 'error': 'Integration disabled'}
+        
+        try:
+            base_url = STREAM_PROCESSOR_CONFIG['BASE_URL']
+            timeout = STREAM_PROCESSOR_CONFIG['TIMEOUT']
+            
+            if stream_id:
+                url = f"{base_url}{endpoint.format(stream_id=stream_id)}"
+            else:
+                url = f"{base_url}{endpoint}"
+            
+            headers = {'Content-Type': 'application/json'}
+            
+            if method.upper() == 'GET':
+                response = requests.get(url, headers=headers, timeout=timeout)
+            elif method.upper() == 'POST':
+                response = requests.post(url, json=data, headers=headers, timeout=timeout)
+            elif method.upper() == 'PUT':
+                response = requests.put(url, json=data, headers=headers, timeout=timeout)
+            elif method.upper() == 'DELETE':
+                response = requests.delete(url, headers=headers, timeout=timeout)
+            else:
+                return {'success': False, 'error': f'Unsupported HTTP method: {method}'}
+            
+            if response.status_code in (200, 201, 202):
+                try:
+                    response_data = response.json()
+                    return {'success': True, 'data': response_data}
+                except ValueError:
+                    return {'success': True, 'data': response.text}
+            else:
+                logger.error(f"Stream processor API error: {response.status_code} - {response.text}")
+                return {'success': False, 'error': f'API returned {response.status_code}', 'details': response.text}
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Stream processor API request failed: {e}")
+            return {'success': False, 'error': str(e)}
+        except Exception as e:
+            logger.error(f"Stream processor API unexpected error: {e}")
+            return {'success': False, 'error': str(e)}
+
 class CameraSource(BaseSource):
     """Model for camera sources (IP cameras, USB cameras, etc.)"""
     CAMERA_TYPE_CHOICES = [
@@ -86,15 +143,197 @@ class CameraSource(BaseSource):
     ], default='rtsp', help_text="Protocol used to connect to the camera")
     camera_type = models.CharField(max_length=20, choices=CAMERA_TYPE_CHOICES, default='ip', help_text="Type of camera hardware")
     camera_resolution = models.CharField(max_length=20, blank=True, help_text="Camera resolution (e.g., 1920x1080)")
-    camera_fps = models.IntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(120)], help_text="Frame rate in frames per second")
+    camera_resolution_width = models.IntegerField(null=True, blank=True, help_text="Camera width in pixels")
+    camera_resolution_height = models.IntegerField(null=True, blank=True, help_text="Camera height in pixels")
+    camera_fps = models.IntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(300)], help_text="Frame rate in frames per second")
+    camera_bitrate = models.IntegerField(null=True, blank=True, help_text="Camera bitrate in bits per second")
+    camera_codec = models.CharField(max_length=50, blank=True, help_text="Video codec (e.g., h264, h265, mjpeg)")
+    
+    # Audio Parameters
+    camera_audio_enabled = models.BooleanField(default=False, help_text="Whether camera has audio capability")
+    camera_audio_codec = models.CharField(max_length=50, blank=True, help_text="Audio codec (e.g., aac, pcm, g711)")
+    camera_audio_channels = models.IntegerField(null=True, blank=True, help_text="Number of audio channels")
+    camera_audio_sample_rate = models.IntegerField(null=True, blank=True, help_text="Audio sample rate in Hz")
+    
+    # Network & Performance Parameters
+    camera_buffer_size = models.IntegerField(null=True, blank=True, help_text="Buffer size in milliseconds")
+    camera_timeout = models.IntegerField(null=True, blank=True, help_text="Connection timeout in seconds")
+    camera_keepalive = models.BooleanField(default=True, help_text="Whether to use keepalive connections")
+    camera_retry_attempts = models.IntegerField(default=3, help_text="Number of retry attempts on failure")
 
     zone = models.CharField(max_length=100, blank=True, help_text="Zone name for organization")
     is_active = models.BooleanField(default=True, help_text="Whether this source is active")
     configuration = models.JSONField(default=dict, blank=True, help_text="Additional configuration as JSON")
+    
+    # Topic customization for downstream model integration
+    topic_name = models.CharField(max_length=100, blank=True, help_text="Topic name for downstream model subscription (auto-generated)")
+    topic_suffix = models.CharField(max_length=6, blank=True, help_text="Custom suffix for topic name (max 6 chars, no spaces, replaces * in zone.camera.*)")
 
     class Meta:
         verbose_name = "Camera Source"
         verbose_name_plural = "Camera Sources"
+
+    def generate_topic_name(self, suffix=None):
+        """Generate topic name for downstream model integration"""
+        if self.zone:
+            # Clean zone name: replace spaces and special chars with underscores
+            clean_zone = self.zone.replace(' ', '_').replace('.', '_').replace('-', '_')
+            base_topic = f"{clean_zone}_camera"
+            if suffix:
+                # Clean suffix: no spaces, max 6 chars, replace special chars
+                clean_suffix = suffix.replace(' ', '_').replace('.', '_').replace('-', '_')[:6]
+                return f"{base_topic}_{clean_suffix}"
+            else:
+                return f"{base_topic}_default"
+        return "django_camera_default"
+
+    def get_camera_url(self):
+        """Generate camera URL for stream processor service"""
+        auth_part = ""
+        if self.camera_username:
+            auth_part = f"{self.camera_username}:{self.camera_password}@"
+        
+        return f"{self.camera_protocol}://{auth_part}{self.camera_ip}:{self.camera_port}/stream"
+
+    def get_stream_processor_payload(self):
+        """Get payload for stream processor service"""
+        return {
+            'stream_id': str(self.source_id),
+            'source_url': self.get_camera_url(),
+            'topic_name': self.topic_name or self.generate_topic_name(self.topic_suffix),
+            'external_service_id': STREAM_PROCESSOR_CONFIG['EXTERNAL_SERVICE_ID'],
+            'target_fps': self.camera_fps or 1.0,
+            'frame_quality': 85,
+            'resize_enabled': bool(self.camera_resolution_width and self.camera_resolution_height),
+            'target_width': self.camera_resolution_width,
+            'target_height': self.camera_resolution_height,
+            'username': self.camera_username if self.camera_username else None,
+            'password': self.camera_password if self.camera_password else None,
+            'metadata': {
+                'camera_type': self.camera_type,
+                'camera_protocol': self.camera_protocol,
+                'zone': self.zone,
+                'location': self.location,
+                'description': self.description
+            }
+        }
+
+    def save(self, *args, **kwargs):
+        # Auto-generate topic name if not set
+        if not self.topic_name:
+            self.topic_name = self.generate_topic_name(self.topic_suffix)
+        
+        # Check if this is a new camera or existing one
+        # For UUID primary keys, we need to check if the record exists in DB
+        is_new = not self.__class__.objects.filter(pk=self.pk).exists()
+        
+        super().save(*args, **kwargs)
+        
+        # Integrate with stream processor service
+        if is_new and self.is_active:
+            # Create new stream in processor service
+            self._create_in_stream_processor()
+        elif not is_new and self.is_active:
+            # Update existing stream in processor service
+            self._update_in_stream_processor()
+
+    def delete(self, *args, **kwargs):
+        # Remove from stream processor service first
+        self._delete_from_stream_processor()
+        super().delete(*args, **kwargs)
+
+    def _create_in_stream_processor(self):
+        """Create camera stream in stream processor service"""
+        payload = self.get_stream_processor_payload()
+        result = self._call_stream_processor_api('POST', '/api/external/streams', data=payload)
+        
+        if result['success']:
+            logger.info(f"Camera {self.source_id} created in stream processor service")
+        else:
+            logger.error(f"Failed to create camera {self.source_id} in stream processor service: {result.get('error')}")
+
+    def _update_in_stream_processor(self):
+        """Update camera stream in stream processor service"""
+        payload = {
+            'stream_id': str(self.source_id),
+            'target_fps': self.camera_fps or 1.0,
+            'frame_quality': 85,
+            'resize_enabled': bool(self.camera_resolution_width and self.camera_resolution_height),
+            'target_width': self.camera_resolution_width,
+            'target_height': self.camera_resolution_height,
+            'metadata': {
+                'camera_type': self.camera_type,
+                'camera_protocol': self.camera_protocol,
+                'zone': self.zone,
+                'location': self.location,
+                'description': self.description
+            }
+        }
+        
+        result = self._call_stream_processor_api('PUT', '/api/external/streams/{stream_id}', data=payload, stream_id=str(self.source_id))
+        
+        if result['success']:
+            logger.info(f"Camera {self.source_id} updated in stream processor service")
+        else:
+            logger.error(f"Failed to update camera {self.source_id} in stream processor service: {result.get('error')}")
+
+    def _delete_from_stream_processor(self):
+        """Delete camera stream from stream processor service"""
+        result = self._call_stream_processor_api('DELETE', '/api/external/streams/{stream_id}', stream_id=str(self.source_id))
+        
+        if result['success']:
+            logger.info(f"Camera {self.source_id} deleted from stream processor service")
+        else:
+            logger.error(f"Failed to delete camera {self.source_id} from stream processor service: {result.get('error')}")
+
+    def get_processor_status(self):
+        """Get the current status from the stream processor service"""
+        result = self._call_stream_processor_api('GET', '/api/external/streams/{stream_id}/status', stream_id=str(self.source_id))
+        
+        if result['success']:
+            return result
+        else:
+            # Handle 404 (stream not found) gracefully
+            if 'API returned 404' in result.get('error', ''):
+                return {
+                    'success': False,
+                    'error': 'Stream not found in processor service',
+                    'not_found': True
+                }
+            else:
+                logger.error(f"Error getting processor status for camera {self.source_id}: {result.get('error')}")
+                return {
+                    'success': False,
+                    'error': result.get('error')
+                }
+
+    def start_processor_stream(self):
+        """Start the camera stream in the processor service"""
+        result = self._call_stream_processor_api('PUT', '/api/external/streams/{stream_id}/start', stream_id=str(self.source_id))
+        
+        if result['success']:
+            logger.info(f"Camera {self.source_id} started in stream processor service")
+            return result['data']
+        else:
+            logger.error(f"Error starting camera {self.source_id} in stream processor service: {result.get('error')}")
+            return {
+                'success': False,
+                'error': result.get('error')
+            }
+
+    def stop_processor_stream(self):
+        """Stop the camera stream in the processor service"""
+        result = self._call_stream_processor_api('PUT', '/api/external/streams/{stream_id}/stop', stream_id=str(self.source_id))
+        
+        if result['success']:
+            logger.info(f"Camera {self.source_id} stopped in stream processor service")
+            return result['data']
+        else:
+            logger.error(f"Error stopping camera {self.source_id} in stream processor service: {result.get('error')}")
+            return {
+                'success': False,
+                'error': result.get('error')
+            }
 
     def get_camera_info(self):
         """Get camera-specific information"""
@@ -104,11 +343,25 @@ class CameraSource(BaseSource):
             'protocol': self.camera_protocol,
             'type': self.camera_type,
             'resolution': self.camera_resolution,
+            'resolution_width': self.camera_resolution_width,
+            'resolution_height': self.camera_resolution_height,
             'fps': self.camera_fps,
+            'bitrate': self.camera_bitrate,
+            'codec': self.camera_codec,
+            'audio_enabled': self.camera_audio_enabled,
+            'audio_codec': self.camera_audio_codec,
+            'audio_channels': self.camera_audio_channels,
+            'audio_sample_rate': self.camera_audio_sample_rate,
+            'buffer_size': self.camera_buffer_size,
+            'timeout': self.camera_timeout,
+            'keepalive': self.camera_keepalive,
+            'retry_attempts': self.camera_retry_attempts,
             'has_auth': bool(self.camera_username),
             'zone': self.zone,
             'configuration': self.configuration,
-            "is_active": self.is_active,
+            'is_active': self.is_active,
+            'topic_name': self.topic_name,
+            'topic_suffix': self.topic_suffix,
         }
 
     def get_absolute_url(self):
@@ -117,11 +370,7 @@ class CameraSource(BaseSource):
 
     def get_stream_url(self):
         """Generate stream URL for the camera"""
-        auth_part = ""
-        if self.camera_username:
-            auth_part = f"{self.camera_username}:{self.camera_password}@"
-        
-        return f"{self.camera_protocol}://{auth_part}{self.camera_ip}:{self.camera_port}/stream"
+        return self.get_camera_url()
 
 class FileSource(BaseSource):
     """Model for file sources (uploaded video files)"""
@@ -353,7 +602,7 @@ class FileSource(BaseSource):
 
 class StreamSource(BaseSource):
     """Model for stream sources (RTSP, HTTP streams, etc.)"""
-    stream_url = models.URLField(help_text="URL of the video stream")
+    stream_url = models.CharField(max_length=500, help_text="URL of the video stream (supports RTSP, RTMP, HTTP, UDP, etc.)")
     stream_protocol = models.CharField(max_length=10, choices=[
         ('rtsp', 'RTSP'),
         ('http', 'HTTP'),
@@ -362,12 +611,221 @@ class StreamSource(BaseSource):
         ('hls', 'HLS'),
         ('dash', 'DASH'),
     ], default='rtsp', help_text="Protocol of the stream")
+    
+    # Stream Quality & Performance Parameters
     stream_quality = models.CharField(max_length=20, blank=True, help_text="Stream quality (e.g., 1080p, 720p)")
+    stream_resolution_width = models.IntegerField(null=True, blank=True, help_text="Stream width in pixels")
+    stream_resolution_height = models.IntegerField(null=True, blank=True, help_text="Stream height in pixels")
+    stream_fps = models.FloatField(null=True, blank=True, validators=[MinValueValidator(0.1), MaxValueValidator(300)], help_text="Stream frame rate (frames per second)")
+    stream_bitrate = models.IntegerField(null=True, blank=True, help_text="Stream bitrate in bits per second")
+    stream_codec = models.CharField(max_length=50, blank=True, help_text="Video codec (e.g., h264, h265, av1)")
+    
+    # Audio Parameters
+    stream_audio_codec = models.CharField(max_length=50, blank=True, help_text="Audio codec (e.g., aac, mp3, opus)")
+    stream_audio_channels = models.IntegerField(null=True, blank=True, help_text="Number of audio channels")
+    stream_audio_sample_rate = models.IntegerField(null=True, blank=True, help_text="Audio sample rate in Hz")
+    stream_audio_bitrate = models.IntegerField(null=True, blank=True, help_text="Audio bitrate in bits per second")
+    
+    # Network & Performance Parameters
+    stream_buffer_size = models.IntegerField(null=True, blank=True, help_text="Buffer size in milliseconds")
+    stream_timeout = models.IntegerField(null=True, blank=True, help_text="Connection timeout in seconds")
+    stream_retry_attempts = models.IntegerField(default=3, help_text="Number of retry attempts on failure")
+    stream_keepalive = models.BooleanField(default=True, help_text="Whether to use keepalive connections")
+    
+    # Advanced Configuration
     stream_parameters = models.JSONField(default=dict, blank=True, help_text="Additional stream parameters as JSON")
+    stream_authentication = models.JSONField(default=dict, blank=True, help_text="Authentication credentials as JSON")
+    stream_headers = models.JSONField(default=dict, blank=True, help_text="Custom HTTP headers as JSON")
+    
+    # Additional fields for consistency with other source types
+    zone = models.CharField(max_length=100, blank=True, help_text="Zone name for organization")
+    is_active = models.BooleanField(default=True, help_text="Whether this source is active")
+    configuration = models.JSONField(default=dict, blank=True, help_text="Additional configuration as JSON")
+    
+    # Topic customization for downstream model integration
+    topic_name = models.CharField(max_length=100, blank=True, help_text="Topic name for downstream model subscription (auto-generated)")
+    topic_suffix = models.CharField(max_length=6, blank=True, help_text="Custom suffix for topic name (max 6 chars, no spaces, replaces * in zone.camera.*)")
 
     class Meta:
         verbose_name = "Stream Source"
         verbose_name_plural = "Stream Sources"
+
+    def generate_topic_name(self, suffix=None):
+        """Generate topic name for downstream model integration"""
+        if self.zone:
+            # Clean zone name: replace spaces and special chars with underscores
+            clean_zone = self.zone.replace(' ', '_').replace('.', '_').replace('-', '_')
+            base_topic = f"{clean_zone}_stream"
+            if suffix:
+                # Clean suffix: no spaces, max 6 chars, replace special chars
+                clean_suffix = suffix.replace(' ', '_').replace('.', '_').replace('-', '_')[:6]
+                return f"{base_topic}_{clean_suffix}"
+            else:
+                return f"{base_topic}_default"
+        return "django_stream_default"
+
+    def get_stream_processor_payload(self):
+        """Get payload for stream processor service"""
+        # Extract authentication from JSON if available
+        username = None
+        password = None
+        if self.stream_authentication:
+            username = self.stream_authentication.get('username')
+            password = self.stream_authentication.get('password')
+        
+        return {
+            'stream_id': str(self.source_id),
+            'source_url': self.stream_url,
+            'topic_name': self.topic_name or self.generate_topic_name(self.topic_suffix),
+            'external_service_id': STREAM_PROCESSOR_CONFIG['EXTERNAL_SERVICE_ID'],
+            'target_fps': self.stream_fps or 1.0,
+            'frame_quality': 85,
+            'resize_enabled': bool(self.stream_resolution_width and self.stream_resolution_height),
+            'target_width': self.stream_resolution_width,
+            'target_height': self.stream_resolution_height,
+            'username': username,
+            'password': password,
+            'metadata': {
+                'stream_protocol': self.stream_protocol,
+                'stream_quality': self.stream_quality,
+                'stream_codec': self.stream_codec,
+                'zone': self.zone,
+                'location': self.location,
+                'description': self.description,
+                'stream_parameters': self.stream_parameters,
+                'stream_headers': self.stream_headers
+            }
+        }
+
+    def save(self, *args, **kwargs):
+        # Auto-generate topic name if not set
+        if not self.topic_name:
+            self.topic_name = self.generate_topic_name(self.topic_suffix)
+        
+        # Check if this is a new stream or existing one
+        # For UUID primary keys, we need to check if the record exists in DB
+        is_new = not self.__class__.objects.filter(pk=self.pk).exists()
+        
+        super().save(*args, **kwargs)
+        
+        # Integrate with stream processor service
+        if is_new and self.is_active:
+            # Create new stream in processor service
+            self._create_in_stream_processor()
+        elif not is_new and self.is_active:
+            # Update existing stream in processor service
+            self._update_in_stream_processor()
+
+    def delete(self, *args, **kwargs):
+        # Remove from stream processor service first
+        self._delete_from_stream_processor()
+        super().delete(*args, **kwargs)
+
+    def _create_in_stream_processor(self):
+        """Create stream in stream processor service"""
+        payload = self.get_stream_processor_payload()
+        result = self._call_stream_processor_api('POST', '/api/external/streams', data=payload)
+        
+        if result['success']:
+            logger.info(f"Stream {self.source_id} created in processor service")
+        else:
+            logger.warning(f"Failed to create stream {self.source_id} in processor service: {result.get('error')}")
+
+    def _update_in_stream_processor(self):
+        """Update stream in stream processor service"""
+        payload = {
+            'stream_id': str(self.source_id),
+            'target_fps': self.stream_fps or 1.0,
+            'frame_quality': 85,
+            'resize_enabled': bool(self.stream_resolution_width and self.stream_resolution_height),
+            'target_width': self.stream_resolution_width,
+            'target_height': self.stream_resolution_height,
+            'metadata': {
+                'stream_protocol': self.stream_protocol,
+                'stream_quality': self.stream_quality,
+                'stream_codec': self.stream_codec,
+                'zone': self.zone,
+                'location': self.location,
+                'description': self.description,
+                'stream_parameters': self.stream_parameters,
+                'stream_headers': self.stream_headers
+            }
+        }
+        
+        result = self._call_stream_processor_api('PUT', '/api/external/streams/{stream_id}', data=payload, stream_id=str(self.source_id))
+        
+        if result['success']:
+            logger.info(f"Stream {self.source_id} updated in processor service")
+        else:
+            logger.warning(f"Failed to update stream {self.source_id} in processor service: {result.get('error')}")
+
+    def _delete_from_stream_processor(self):
+        """Delete stream from stream processor service"""
+        result = self._call_stream_processor_api('DELETE', '/api/external/streams/{stream_id}', stream_id=str(self.source_id))
+        
+        if result['success']:
+            logger.info(f"Stream {self.source_id} deleted from processor service")
+        else:
+            logger.warning(f"Failed to delete stream {self.source_id} from processor service: {result.get('error')}")
+
+    def get_processor_status(self):
+        """Get the current status from the stream processor service"""
+        result = self._call_stream_processor_api('GET', '/api/external/streams/{stream_id}/status', stream_id=str(self.source_id))
+        
+        if result['success']:
+            return result
+        else:
+            # Handle 404 (stream not found) gracefully
+            if 'API returned 404' in result.get('error', ''):
+                return {
+                    'success': False,
+                    'error': 'Stream not found in processor service',
+                    'not_found': True
+                }
+            else:
+                logger.error(f"Error getting processor status for stream {self.source_id}: {result.get('error')}")
+                return {
+                    'success': False,
+                    'error': result.get('error')
+                }
+
+    def get_processor_metrics(self):
+        """Get metrics from the stream processor service"""
+        # This would use the status endpoint which includes metrics
+        return self.get_processor_status()
+
+    def get_processor_real_time_stats(self):
+        """Get real-time statistics from the stream processor service"""
+        # This would use the status endpoint which includes real-time stats
+        return self.get_processor_status()
+
+    def start_processor_stream(self):
+        """Start the stream in the processor service"""
+        result = self._call_stream_processor_api('PUT', '/api/external/streams/{stream_id}/start', stream_id=str(self.source_id))
+        
+        if result['success']:
+            logger.info(f"Stream {self.source_id} started in processor service")
+            return result['data']
+        else:
+            logger.error(f"Error starting stream {self.source_id} in processor service: {result.get('error')}")
+            return {
+                'success': False,
+                'error': result.get('error')
+            }
+
+    def stop_processor_stream(self):
+        """Stop the stream in the processor service"""
+        result = self._call_stream_processor_api('PUT', '/api/external/streams/{stream_id}/stop', stream_id=str(self.source_id))
+        
+        if result['success']:
+            logger.info(f"Stream {self.source_id} stopped in processor service")
+            return result['data']
+        else:
+            logger.error(f"Error stopping stream {self.source_id} in processor service: {result.get('error')}")
+            return {
+                'success': False,
+                'error': result.get('error')
+            }
 
     def get_stream_info(self):
         """Get stream-specific information"""
@@ -375,7 +833,27 @@ class StreamSource(BaseSource):
             'url': self.stream_url,
             'protocol': self.stream_protocol,
             'quality': self.stream_quality,
+            'resolution_width': self.stream_resolution_width,
+            'resolution_height': self.stream_resolution_height,
+            'fps': self.stream_fps,
+            'bitrate': self.stream_bitrate,
+            'codec': self.stream_codec,
+            'audio_codec': self.stream_audio_codec,
+            'audio_channels': self.stream_audio_channels,
+            'audio_sample_rate': self.stream_audio_sample_rate,
+            'audio_bitrate': self.stream_audio_bitrate,
+            'buffer_size': self.stream_buffer_size,
+            'timeout': self.stream_timeout,
+            'retry_attempts': self.stream_retry_attempts,
+            'keepalive': self.stream_keepalive,
             'parameters': self.stream_parameters,
+            'authentication': self.stream_authentication,
+            'headers': self.stream_headers,
+            'zone': self.zone,
+            'is_active': self.is_active,
+            'configuration': self.configuration,
+            'topic_name': self.topic_name,
+            'topic_suffix': self.topic_suffix,
         }
 
     def get_absolute_url(self):

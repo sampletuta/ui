@@ -28,7 +28,7 @@ def source_list(request):
         .order_by('-created_at')[:per_type_limit]
     )
     stream_sources_qs = (
-        StreamSource.objects.only('source_id', 'name', 'location', 'created_at', 'stream_protocol')
+        StreamSource.objects.only('source_id', 'name', 'location', 'created_at', 'stream_protocol', 'zone', 'is_active')
         .order_by('-created_at')[:per_type_limit]
     )
     
@@ -74,10 +74,10 @@ def source_list(request):
             'type': 'stream',
             'type_display': 'Video Stream',
             'location': source.location,
-            'status': 'active',
+            'status': 'active' if source.is_active else 'inactive',
             'created_at': source.created_at,
-            'zone': getattr(source, 'zone', ''),
-            'is_active': getattr(source, 'is_active', True),
+            'zone': source.zone,
+            'is_active': source.is_active,
             'color': 'info',
             'icon': 'fa-broadcast-tower',
             'info': f'{source.stream_protocol.upper()} stream' if hasattr(source, 'stream_protocol') else 'Stream configured',
@@ -102,5 +102,9 @@ def source_list(request):
         'file_sources_count': file_sources_count,
         'camera_sources_count': camera_sources_count,
         'stream_sources_count': stream_sources_count,
+        'active_sources': camera_sources_count + stream_sources_count,  # Active camera and stream sources
+        'total_videos': file_sources_count,  # File sources count as videos
+        'processing_jobs': 0,  # Placeholder for processing jobs count
+        'active_streams_count': camera_sources_count + stream_sources_count,  # Active streams in processor service
     }
     return render(request, 'source_management/source_list.html', context)

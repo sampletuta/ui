@@ -37,6 +37,13 @@ from .health_views import (
     data_ingestion_source_status,
 )
 from .callback_views import processing_callback
+from .stream_control_views import (
+    stream_create,
+    stream_submit,
+    stream_start,
+    stream_stop,
+    stream_status,
+)
 
 __all__ = [
     'source_list',
@@ -65,4 +72,9 @@ __all__ = [
     'data_ingestion_health',
     'data_ingestion_source_status',
     'processing_callback',
+    'stream_create',
+    'stream_submit',
+    'stream_start',
+    'stream_stop',
+    'stream_status',
 ]

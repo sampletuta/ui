@@ -1,8 +1,8 @@
-# Surveillance System - Video Management & Face Detection
+# ClearInsight - Video Management & Face Detection
 
 ## Project Overview
 
-This is a Django-based surveillance system that separates video management from search functionality, integrates with external face detection services, and provides advanced search capabilities with geospatial filtering and Milvus vector search integration.
+This is a Django-based ClearInsight that separates video management from search functionality, integrates with external face detection services, and provides advanced search capabilities with geospatial filtering and Milvus vector search integration.
 
 ## 🚀 Quick Start with Docker
 

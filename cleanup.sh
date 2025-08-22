@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Cleanup script for Surveillance System
+# Cleanup script for ClearInsight
 
 echo "🧹 Starting cleanup..."
 

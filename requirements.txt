@@ -25,6 +25,9 @@ pymilvus #>=2.3.0
 # Performance and Monitoring
 psutil #>=5.9.0
 
+# HTTP Client for Downstream Service Integration
+requests #>=2.31.0
+
 # Development and Testing
 pytest #>=7.0.0
 pytest-asyncio #>=0.21.0

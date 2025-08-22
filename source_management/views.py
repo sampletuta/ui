@@ -40,6 +40,13 @@ from .views.health_views import (
     data_ingestion_source_status,
 )
 from .views.callback_views import processing_callback
+from .views.stream_control_views import (
+    stream_create,
+    stream_submit,
+    stream_start,
+    stream_stop,
+    stream_status,
+)
 
 # Export all views for Django to find
 __all__ = [
@@ -79,6 +86,13 @@ __all__ = [
     # Health views
     'data_ingestion_health',
     'data_ingestion_source_status',
+    
+    # Stream control views
+    'stream_create',
+    'stream_submit',
+    'stream_start',
+    'stream_stop',
+    'stream_status',
     
     # Callback views
     'processing_callback',

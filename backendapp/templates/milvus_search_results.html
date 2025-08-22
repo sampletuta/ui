@@ -1,5 +1,37 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+.face-badge {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.face-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.face-badge.active {
+    background-color: #28a745 !important;
+    border: 2px solid #fff;
+}
+
+.face-result-section {
+    transition: all 0.3s ease;
+}
+
+.face-result-section.highlighted {
+    border: 2px solid #28a745;
+    box-shadow: 0 0 20px rgba(40, 167, 69, 0.3);
+}
+
+#faceOverlay {
+    z-index: 10;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid pt-4 px-4">
     <div class="row g-4">
@@ -8,9 +40,20 @@
             <div class="bg-secondary rounded p-4 mb-4">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h3 class="text-white mb-2">Face Search Results</h3>
+                        <h3 class="text-white mb-2">
+                            {% if search_result.multiple_faces %}
+                                Multiple Face Search Results
+                            {% else %}
+                                Face Search Results
+                            {% endif %}
+                        </h3>
                         <p class="text-light mb-0">
-                            Found {{ search_result.total_results }} similar faces 
+                            {% if search_result.multiple_faces %}
+                                Found {{ search_result.faces_processed }} faces in query image<br>
+                                Combined results: {{ search_result.combined_results|length }} similar faces
+                            {% else %}
+                                Found {{ search_result.total_results }} similar faces
+                            {% endif %}
                             (Threshold: {{ search_result.search_metadata.confidence_threshold }})
                         </p>
                     </div>
@@ -26,17 +69,42 @@
                     <div class="bg-secondary rounded p-4">
                         <h6 class="text-white mb-3">Query Image</h6>
                         {% if uploaded_image %}
-                        <div class="text-center">
-                            <img src="{{ uploaded_image.url }}" alt="Query Image" 
-                                 class="img-fluid rounded" style="max-height: 200px;">
+                        <div class="text-center position-relative">
+                            <div class="position-relative d-inline-block">
+                                <img src="{{ uploaded_image.url }}" alt="Query Image" 
+                                     class="img-fluid rounded" style="max-height: 200px;" id="queryImage">
+                                
+                                <!-- Draw face bounding boxes if multiple faces detected -->
+                                {% if search_result.multiple_faces %}
+                                <canvas id="faceOverlay" class="position-absolute top-0 start-0" 
+                                        style="pointer-events: none;"></canvas>
+                                {% endif %}
+                            </div>
+                            
+                            {% if search_result.multiple_faces %}
+                            <div class="mt-2">
+                                <small class="text-light">
+                                    <strong>{{ search_result.total_faces_detected }} faces detected</strong><br>
+                                    {% for face in search_result.query_faces %}
+                                    <span class="badge bg-info me-1 mb-1 face-badge" 
+                                          onclick="highlightFace({{ forloop.counter0 }})" 
+                                          id="face-badge-{{ forloop.counter0 }}">
+                                        Face {{ forloop.counter }}: {{ face.confidence|floatformat:3 }}
+                                        {% if face.age %}({{ face.age }}{% if face.gender %}, {{ face.gender|title }}{% endif %}){% endif %}
+                                    </span>
+                                    {% endfor %}
+                                </small>
+                            </div>
+                            {% else %}
+                            <div class="mt-2">
+                                <small class="text-light">
+                                    <strong>Face Detection:</strong> {{ search_result.query_face_info.confidence|floatformat:3 }}<br>
+                                    <strong>Face Area:</strong> {{ search_result.query_face_info.face_area }} pixels
+                                </small>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
-                        <div class="mt-3">
-                            <small class="text-light">
-                                <strong>Face Detection:</strong> {{ search_result.query_face_info.confidence|floatformat:3 }}<br>
-                                <strong>Face Area:</strong> {{ search_result.query_face_info.face_area }} pixels
-                            </small>
-                        </div>
                     </div>
                 </div>
                 
@@ -76,82 +144,274 @@
             </div>
             
             <!-- Search Results -->
-            {% if search_result.results %}
-            <div class="row g-4">
-                {% for result in search_result.results %}
-                <div class="col-md-6 col-lg-4">
-                    <div class="bg-secondary rounded h-100">
-                        <!-- Result Image -->
-                        <div class="position-relative">
-                            {% if result.photo.image_url %}
-                            <img src="{{ result.photo.image_url }}" alt="Result Image" 
-                                 class="img-fluid rounded-top" style="width: 100%; height: 200px; object-fit: cover;">
-                            {% else %}
-                            <div class="bg-dark rounded-top d-flex align-items-center justify-content-center" 
-                                 style="height: 200px;">
-                                <i class="fa fa-image fa-3x text-muted"></i>
-                            </div>
-                            {% endif %}
-                            
-                            <!-- Similarity Score Badge -->
-                            <div class="position-absolute top-0 end-0 m-2">
-                                <span class="badge bg-primary fs-6">
-                                    {{ result.similarity_score|floatformat:3 }}
-                                </span>
+            {% if search_result.multiple_faces %}
+                <!-- Multiple Face Results -->
+                {% for face_result in search_result.search_results %}
+                <div class="bg-secondary rounded p-4 mb-4 face-result-section">
+                    <h5 class="text-white mb-3">
+                        <i class="fa fa-user me-2"></i>
+                        Face {{ face_result.face_index|add:1 }} 
+                        ({{ face_result.face_info.confidence|floatformat:3 }})
+                        {% if face_result.face_info.age %}({{ face_result.face_info.age }}{% if face_result.face_info.gender %}, {{ face_result.face_info.gender|title }}{% endif %}){% endif %}
+                    </h5>
+                    
+                    {% if face_result.results %}
+                    <div class="row g-3">
+                        {% for result in face_result.results %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="bg-dark rounded h-100">
+                                <!-- Result Image -->
+                                <div class="position-relative">
+                                    {% if result.photo.image_url %}
+                                    <img src="{{ result.photo.image_url }}" alt="Result Image" 
+                                         class="img-fluid rounded-top" style="width: 100%; height: 200px; object-fit: cover;">
+                                    {% else %}
+                                    <div class="bg-secondary rounded-top d-flex align-items-center justify-content-center" 
+                                         style="height: 200px;">
+                                        <i class="fa fa-image fa-3x text-muted"></i>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Similarity Score Badge -->
+                                    <div class="position-absolute top-0 end-0 m-2">
+                                        <span class="badge bg-primary fs-6">
+                                            {{ result.similarity_score|floatformat:3 }}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Result Details -->
+                                <div class="p-3">
+                                    <h6 class="text-white mb-2">{{ result.target.name }}</h6>
+                                    
+                                    <div class="row mb-2">
+                                        <div class="col-6">
+                                            <small class="text-light">
+                                                <i class="fa fa-user me-1"></i>
+                                                {% if result.target.gender %}{{ result.target.gender|title }}{% else %}Unknown{% endif %}
+                                            </small>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-light">
+                                                <i class="fa fa-calendar me-1"></i>
+                                                {% if result.target.age %}{{ result.target.age }}{% else %}Unknown{% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if result.target.case %}
+                                    <div class="mb-2">
+                                        <small class="text-light">
+                                            <i class="fa fa-briefcase me-1"></i>
+                                            {{ result.target.case }}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            ID: {{ result.target.id|truncatechars:8 }}
+                                        </small>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'target_profile' result.target.id %}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fa fa-eye"></i>
+                                            </a>
+                                            <button class="btn btn-outline-info btn-sm" 
+                                                    onclick="showPhotoDetails('{{ result.photo.id }}')">
+                                                <i class="fa fa-info"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        
-                        <!-- Result Details -->
-                        <div class="p-3">
-                            <h6 class="text-white mb-2">{{ result.target.name }}</h6>
-                            
-                            <div class="row mb-2">
-                                <div class="col-6">
-                                    <small class="text-light">
-                                        <i class="fa fa-user me-1"></i>
-                                        {% if result.target.gender %}{{ result.target.gender|title }}{% else %}Unknown{% endif %}
-                                    </small>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center p-4">
+                        <i class="fa fa-search fa-2x text-muted mb-3"></i>
+                        <p class="text-light mb-0">No similar faces found for this face</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                
+                <!-- Combined Results Section -->
+                <div class="bg-secondary rounded p-4 mb-4">
+                    <h5 class="text-white mb-3">
+                        <i class="fa fa-layer-group me-2"></i>
+                        Combined Results (Deduplicated)
+                    </h5>
+                    {% if search_result.combined_results %}
+                    <div class="row g-3">
+                        {% for result in search_result.combined_results %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="bg-dark rounded h-100">
+                                <!-- Result Image -->
+                                <div class="position-relative">
+                                    {% if result.photo.image_url %}
+                                    <img src="{{ result.photo.image_url }}" alt="Result Image" 
+                                         class="img-fluid rounded-top" style="width: 100%; height: 200px; object-fit: cover;">
+                                    {% else %}
+                                    <div class="bg-secondary rounded-top d-flex align-items-center justify-content-center" 
+                                         style="height: 200px;">
+                                        <i class="fa fa-image fa-3x text-muted"></i>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Similarity Score Badge -->
+                                    <div class="position-absolute top-0 end-0 m-2">
+                                        <span class="badge bg-primary fs-6">
+                                            {{ result.similarity_score|floatformat:3 }}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Matched Faces Badge -->
+                                    {% if result.matched_faces %}
+                                    <div class="position-absolute top-0 start-0 m-2">
+                                        <span class="badge bg-success fs-6">
+                                            Matched: {{ result.matched_faces|length }} face{{ result.matched_faces|length|pluralize }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
                                 </div>
-                                <div class="col-6">
-                                    <small class="text-light">
-                                        <i class="fa fa-calendar me-1"></i>
-                                        {% if result.target.age %}{{ result.target.age }}{% else %}Unknown{% endif %}
-                                    </small>
+                                
+                                <!-- Result Details -->
+                                <div class="p-3">
+                                    <h6 class="text-white mb-2">{{ result.target.name }}</h6>
+                                    
+                                    <div class="row mb-2">
+                                        <div class="col-6">
+                                            <small class="text-light">
+                                                <i class="fa fa-user me-1"></i>
+                                                {% if result.target.gender %}{{ result.target.gender|title }}{% else %}Unknown{% endif %}
+                                            </small>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-light">
+                                                <i class="fa fa-calendar me-1"></i>
+                                                {% if result.target.age %}{{ result.target.age }}{% else %}Unknown{% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if result.target.case %}
+                                    <div class="mb-2">
+                                        <small class="text-light">
+                                            <i class="fa fa-briefcase me-1"></i>
+                                            {{ result.target.case }}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            ID: {{ result.target.id|truncatechars:8 }}
+                                        </small>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'target_profile' result.target.id %}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fa fa-eye"></i>
+                                            </a>
+                                            <button class="btn btn-outline-info btn-sm" 
+                                                    onclick="showPhotoDetails('{{ result.photo.id }}')">
+                                                <i class="fa fa-info"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center p-4">
+                        <i class="fa fa-search fa-2x text-muted mb-3"></i>
+                        <p class="text-light mb-0">No combined results available</p>
+                    </div>
+                    {% endif %}
+                </div>
+                
+            {% else %}
+                <!-- Single Face Results (Legacy format) -->
+                {% if search_result.results %}
+                <div class="row g-4">
+                    {% for result in search_result.results %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="bg-secondary rounded h-100">
+                            <!-- Result Image -->
+                            <div class="position-relative">
+                                {% if result.photo.image_url %}
+                                <img src="{{ result.photo.image_url }}" alt="Result Image" 
+                                     class="img-fluid rounded-top" style="width: 100%; height: 200px; object-fit: cover;">
+                                {% else %}
+                                <div class="bg-dark rounded-top d-flex align-items-center justify-content-center" 
+                                     style="height: 200px;">
+                                    <i class="fa fa-image fa-3x text-muted"></i>
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Similarity Score Badge -->
+                                <div class="position-absolute top-0 end-0 m-2">
+                                    <span class="badge bg-primary fs-6">
+                                        {{ result.similarity_score|floatformat:3 }}
+                                    </span>
                                 </div>
                             </div>
                             
-                            {% if result.target.case %}
-                            <div class="mb-2">
-                                <small class="text-light">
-                                    <i class="fa fa-briefcase me-1"></i>
-                                    {{ result.target.case }}
-                                </small>
-                            </div>
-                            {% endif %}
-                            
-                            <div class="d-flex justify-content-between align-items-center">
-                                <small class="text-muted">
-                                    ID: {{ result.target.id|truncatechars:8 }}
-                                </small>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'target_profile' result.target.id %}" 
-                                       class="btn btn-outline-primary btn-sm">
-                                        <i class="fa fa-eye"></i>
-                                    </a>
-                                    <button class="btn btn-outline-info btn-sm" 
-                                            onclick="showPhotoDetails('{{ result.photo.id }}')">
-                                        <i class="fa fa-info"></i>
-                                    </button>
+                            <!-- Result Details -->
+                            <div class="p-3">
+                                <h6 class="text-white mb-2">{{ result.target.name }}</h6>
+                                
+                                <div class="row mb-2">
+                                    <div class="col-6">
+                                        <small class="text-light">
+                                            <i class="fa fa-user me-1"></i>
+                                            {% if result.target.gender %}{{ result.target.gender|title }}{% else %}Unknown{% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-light">
+                                            <i class="fa fa-calendar me-1"></i>
+                                            {% if result.target.age %}{{ result.target.age }}{% else %}Unknown{% endif %}
+                                        </small>
+                                    </div>
+                                    {% if result.target.case %}
+                                    <div class="mb-2">
+                                        <small class="text-light">
+                                            <i class="fa fa-briefcase me-1"></i>
+                                            {{ result.target.case }}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            ID: {{ result.target.id|truncatechars:8 }}
+                                        </small>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'target_profile' result.target.id %}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fa fa-eye"></i>
+                                            </a>
+                                            <button class="btn btn-outline-info btn-sm" 
+                                                    onclick="showPhotoDetails('{{ result.photo.id }}')">
+                                                <i class="fa fa-info"></i>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-            </div>
+                {% endif %}
+            {% endif %}
             
             <!-- No Results Message -->
-            {% else %}
+            {% if not search_result.multiple_faces and not search_result.results %}
             <div class="bg-secondary rounded p-5 text-center">
                 <i class="fa fa-search fa-3x text-muted mb-3"></i>
                 <h5 class="text-white mb-3">No Similar Faces Found</h5>
@@ -199,6 +459,89 @@ function showPhotoDetails(photoId) {
     var modal = new bootstrap.Modal(document.getElementById('photoDetailsModal'));
     modal.show();
 }
+
+// Face bounding box drawing functionality
+{% if search_result.multiple_faces %}
+let faceData = {{ search_result.query_faces|safe }};
+let currentHighlightedFace = -1;
+
+function drawFaceBoxes() {
+    const canvas = document.getElementById('faceOverlay');
+    const img = document.getElementById('queryImage');
+    
+    if (!canvas || !img) return;
+    
+    // Wait for image to load
+    img.onload = function() {
+        const rect = img.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw all face bounding boxes
+        faceData.forEach((face, index) => {
+            const bbox = face.bbox;
+            const x = (bbox[0] / 640) * canvas.width;  // Assuming 640 is the detection size
+            const y = (bbox[1] / 640) * canvas.height;
+            const w = ((bbox[2] - bbox[0]) / 640) * canvas.width;
+            const h = ((bbox[3] - bbox[1]) / 640) * canvas.height;
+            
+            ctx.strokeStyle = index === currentHighlightedFace ? '#00ff00' : '#ff0000';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+            
+            // Add face number label
+            ctx.fillStyle = index === currentHighlightedFace ? '#00ff00' : '#ff0000';
+            ctx.font = '12px Arial';
+            ctx.fillText(`Face ${index + 1}`, x, y - 5);
+        });
+    };
+}
+
+function highlightFace(faceIndex) {
+    // Remove active class from all badges
+    document.querySelectorAll('.face-badge').forEach(badge => {
+        badge.classList.remove('active');
+    });
+    
+    // Remove highlighted class from all sections
+    document.querySelectorAll('.face-result-section').forEach(section => {
+        section.classList.remove('highlighted');
+    });
+    
+    // Add active class to clicked badge
+    const badge = document.getElementById(`face-badge-${faceIndex}`);
+    if (badge) {
+        badge.classList.add('active');
+    }
+    
+    // Highlight corresponding section
+    const faceSection = document.querySelector(`[data-face-index="${faceIndex}"]`);
+    if (faceSection) {
+        faceSection.classList.add('highlighted');
+        faceSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    currentHighlightedFace = faceIndex;
+    drawFaceBoxes();
+}
+
+// Initialize face boxes when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    drawFaceBoxes();
+    
+    // Add data attributes to face result sections
+    document.querySelectorAll('.bg-secondary.rounded.p-4.mb-4').forEach((section, index) => {
+        if (index < faceData.length) {
+            section.setAttribute('data-face-index', index);
+        }
+    });
+});
+{% endif %}
 </script>
 {% endblock %}
 

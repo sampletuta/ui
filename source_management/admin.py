@@ -3,21 +3,30 @@ from .models import CameraSource, FileSource, StreamSource, VideoProcessingJob
 
 @admin.register(CameraSource)
 class CameraSourceAdmin(admin.ModelAdmin):
-    list_display = ['name', 'camera_ip', 'camera_protocol', 'location', 'zone', 'is_active', 'created_at']
-    list_filter = ['camera_type', 'camera_protocol', 'zone', 'is_active', 'created_at']
+    list_display = ['name', 'camera_ip', 'camera_protocol', 'camera_fps', 'camera_resolution_width', 'camera_resolution_height', 'location', 'zone', 'is_active', 'created_at']
+    list_filter = ['camera_type', 'camera_protocol', 'camera_codec', 'camera_fps', 'camera_audio_enabled', 'zone', 'is_active', 'created_at']
     search_fields = ['name', 'description', 'location', 'camera_ip']
     readonly_fields = ['created_at', 'updated_at']
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'description', 'location', 'latitude', 'longitude', 'tags')
+            'fields': ('name', 'description', 'location', 'latitude', 'longitude', 'zone', 'tags')
         }),
         ('Camera Configuration', {
             'fields': ('camera_ip', 'camera_port', 'camera_username', 'camera_password', 
-                      'camera_protocol', 'camera_type', 'camera_resolution', 'camera_fps')
+                      'camera_protocol', 'camera_type')
         }),
-        ('Zone & Status', {
-            'fields': ('zone', 'is_active', 'configuration')
+        ('Camera Quality & Performance', {
+            'fields': ('camera_resolution', 'camera_resolution_width', 'camera_resolution_height', 'camera_fps', 'camera_bitrate', 'camera_codec')
+        }),
+        ('Audio Configuration', {
+            'fields': ('camera_audio_enabled', 'camera_audio_codec', 'camera_audio_channels', 'camera_audio_sample_rate')
+        }),
+        ('Network & Performance', {
+            'fields': ('camera_buffer_size', 'camera_timeout', 'camera_keepalive', 'camera_retry_attempts')
+        }),
+        ('Status & Configuration', {
+            'fields': ('is_active', 'configuration')
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at', 'created_by'),
@@ -69,17 +78,32 @@ class FileSourceAdmin(admin.ModelAdmin):
 
 @admin.register(StreamSource)
 class StreamSourceAdmin(admin.ModelAdmin):
-    list_display = ['name', 'stream_protocol', 'location', 'created_at', 'created_by']
-    list_filter = ['stream_protocol', 'created_at', 'created_by']
+    list_display = ['name', 'stream_protocol', 'stream_fps', 'stream_resolution_width', 'stream_resolution_height', 'location', 'zone', 'is_active', 'created_at', 'created_by']
+    list_filter = ['stream_protocol', 'stream_codec', 'stream_fps', 'zone', 'is_active', 'created_at', 'created_by']
     search_fields = ['name', 'description', 'location', 'stream_url']
     readonly_fields = ['created_at', 'updated_at']
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'description', 'location', 'latitude', 'longitude', 'tags')
+            'fields': ('name', 'description', 'location', 'latitude', 'longitude', 'zone', 'tags')
         }),
         ('Stream Configuration', {
             'fields': ('stream_url', 'stream_protocol', 'stream_quality', 'stream_parameters')
+        }),
+        ('Stream Quality & Performance', {
+            'fields': ('stream_resolution_width', 'stream_resolution_height', 'stream_fps', 'stream_bitrate', 'stream_codec')
+        }),
+        ('Audio Configuration', {
+            'fields': ('stream_audio_codec', 'stream_audio_channels', 'stream_audio_sample_rate', 'stream_audio_bitrate')
+        }),
+        ('Network & Performance', {
+            'fields': ('stream_buffer_size', 'stream_timeout', 'stream_retry_attempts', 'stream_keepalive')
+        }),
+        ('Advanced Configuration', {
+            'fields': ('stream_authentication', 'stream_headers', 'configuration')
+        }),
+        ('Status', {
+            'fields': ('is_active',)
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at', 'created_by'),

@@ -62,6 +62,13 @@ urlpatterns = [
     path('api/data-ingestion/health/', views.data_ingestion_health, name='data_ingestion_health'),
     path('api/data-ingestion/status/<uuid:source_id>/', views.data_ingestion_source_status, name='data_ingestion_source_status'),
     
+    # Stream Processor Service endpoints
+    path('api/stream/<uuid:source_id>/create/', views.stream_create, name='stream_create'),
+    path('api/stream/<uuid:source_id>/submit/', views.stream_submit, name='stream_submit'),
+    path('api/stream/<uuid:source_id>/start/', views.stream_start, name='stream_start'),
+    path('api/stream/<uuid:source_id>/stop/', views.stream_stop, name='stream_stop'),
+    path('api/stream/<uuid:source_id>/status/', views.stream_status, name='stream_status'),
+    
     # FastPublisher endpoints (aliases for template compatibility)
     path('api/fastpublisher/health/', views.fastpublisher_health, name='fastpublisher_health'),
     path('api/fastpublisher/submit-video/<uuid:source_id>/', views.fastpublisher_submit_video, name='fastpublisher_submit_video'),

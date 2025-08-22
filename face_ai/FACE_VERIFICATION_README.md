@@ -162,7 +162,7 @@ A powerful AI-powered service that compares two images and analyzes facial simil
 - **Face Search**: Search for similar faces in database
 - **Video Analysis**: Extract faces from video content
 
-### Surveillance System
+### ClearInsight
 - **Target Management**: Manage watchlist targets
 - **Case Management**: Organize surveillance cases
 - **Advanced Search**: Multi-criteria search capabilities

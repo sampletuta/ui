@@ -9,7 +9,6 @@ urlpatterns = [
     # Original video player views
     path('video/<int:video_id>/', views.video_detail, name='video_detail'),
     path('zm/live/<int:monitor_id>/', views.zm_live_stream, name='zm_live_stream'),
-    path('sample/', views.sample_view, name='sample_view'),
     path('play/', views.play_from_url, name='play_from_url'),
     
     # Source management integration

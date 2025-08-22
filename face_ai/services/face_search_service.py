@@ -63,52 +63,83 @@ class FaceSearchService:
                 if detection_result['faces_detected'] == 0:
                     return {
                         'success': False,
-                        'error': 'No faces detected in the uploaded image',
+                        'error': 'No faces detected in the uploaded image. Please ensure the image contains clear, visible faces.',
                         'results': []
                     }
                 
-                if detection_result['faces_detected'] > 1:
-                    logger.warning(f"Multiple faces detected ({detection_result['faces_detected']}), using the first one")
+                # Handle multiple faces - search for each detected face
+                all_search_results = []
+                all_query_faces = []
                 
-                # Get the first detected face
-                first_face = detection_result['faces'][0]
+                # Process each detected face individually for better accuracy
+                for i, face in enumerate(detection_result['faces']):
+                    try:
+                        # Generate embedding for this specific face
+                        face_embedding = self._generate_embedding_for_face(temp_path, face)
+                        
+                        if face_embedding is None:
+                            logger.warning(f"Could not generate embedding for face {i} (bbox: {face.get('bbox', 'unknown')})")
+                            continue
+                        
+                        logger.info(f"Generated embedding for face {i}: shape={face_embedding.shape}, bbox={face.get('bbox', 'unknown')}")
+                        
+                        # Search for similar faces in Milvus
+                        similar_faces = self.milvus_service.search_similar_faces(
+                            face_embedding, 
+                            top_k=top_k, 
+                            threshold=confidence_threshold
+                        )
+                        
+                        logger.info(f"Face {i}: Found {len(similar_faces)} similar faces in Milvus (threshold: {confidence_threshold})")
+                        
+                        # Enrich results with target information
+                        enriched_results = self._enrich_search_results(similar_faces)
+                        
+                        # Store results for this face
+                        face_results = {
+                            'face_index': i,
+                            'face_info': {
+                                'bbox': face['bbox'],
+                                'confidence': face['confidence'],
+                                'face_area': face['face_area'],
+                                'age': face.get('age'),
+                                'gender': face.get('gender')
+                            },
+                            'results': enriched_results,
+                            'total_results': len(enriched_results),
+                            'search_metadata': {
+                                'top_k': top_k,
+                                'confidence_threshold': confidence_threshold,
+                                'embedding_dimension': face_embedding.shape[0]
+                            }
+                        }
+                        
+                        all_search_results.append(face_results)
+                        all_query_faces.append(face)
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to process face {i}: {e}")
+                        continue
                 
-                # Generate embedding for the detected face
-                embedding_result = self.face_detection.generate_face_embeddings([temp_path])
-                
-                if not embedding_result['success'] or not embedding_result['embeddings']:
+                if not all_search_results:
                     return {
                         'success': False,
-                        'error': 'Failed to generate face embedding',
+                        'error': 'Failed to process any of the detected faces',
                         'results': []
                     }
-                
-                # Get the embedding vector
-                face_embedding = np.array(embedding_result['embeddings'][0]['embedding'])
-                
-                # Search for similar faces in Milvus
-                similar_faces = self.milvus_service.search_similar_faces(
-                    face_embedding, 
-                    top_k=top_k, 
-                    threshold=confidence_threshold
-                )
-                
-                # Enrich results with target information
-                enriched_results = self._enrich_search_results(similar_faces)
                 
                 return {
                     'success': True,
-                    'query_face_info': {
-                        'bbox': first_face['bbox'],
-                        'confidence': first_face['confidence'],
-                        'face_area': first_face['face_area']
-                    },
-                    'results': enriched_results,
-                    'total_results': len(enriched_results),
+                    'multiple_faces': len(all_search_results) > 1,
+                    'faces_processed': len(all_search_results),
+                    'total_faces_detected': detection_result['faces_detected'],
+                    'query_faces': all_query_faces,
+                    'search_results': all_search_results,
+                    'combined_results': self._combine_search_results(all_search_results),
                     'search_metadata': {
                         'top_k': top_k,
                         'confidence_threshold': confidence_threshold,
-                        'embedding_dimension': face_embedding.shape[0]
+                        'embedding_dimension': face_embedding.shape[0] if face_embedding is not None else 0
                     }
                 }
                 
@@ -124,6 +155,132 @@ class FaceSearchService:
                 'error': f'Face search failed: {str(e)}',
                 'results': []
             }
+    
+    def _generate_embedding_for_face(self, image_path: str, face_data: Dict) -> Optional[np.ndarray]:
+        """
+        Generate embedding for a specific detected face
+        
+        Args:
+            image_path: Path to the image file
+            face_data: Face detection data with bbox information
+            
+        Returns:
+            Face embedding as numpy array or None if failed
+        """
+        try:
+            # Use the face detection service to generate embedding for this specific face
+            # We'll use the InsightFace app directly for better control
+            import cv2
+            from insightface.app import FaceAnalysis
+            
+            # Load image
+            img = cv2.imread(image_path)
+            if img is None:
+                logger.error(f"Failed to load image: {image_path}")
+                return None
+            
+            # Convert BGR to RGB
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            
+            # Get face analysis app from the face detection service
+            app = self.face_detection.app
+            
+            # Detect faces in the image
+            faces = app.get(img_rgb)
+            
+            if not faces:
+                logger.warning("No faces detected during embedding generation")
+                return None
+            
+            # Find the face that matches our detected face by comparing bounding boxes
+            target_bbox = face_data['bbox']
+            best_match = None
+            min_distance = float('inf')
+            
+            logger.debug(f"Looking for face with bbox: {target_bbox}")
+            logger.debug(f"Found {len(faces)} faces in image during embedding generation")
+            
+            for face_idx, face in enumerate(faces):
+                if face.det_score >= self.face_detection.confidence_threshold:
+                    face_bbox = face.bbox.astype(int)
+                    
+                    # Calculate distance between bounding box centers
+                    face_center = [(face_bbox[0] + face_bbox[2]) / 2, (face_bbox[1] + face_bbox[3]) / 2]
+                    target_center = [(target_bbox[0] + target_bbox[2]) / 2, (target_bbox[1] + target_bbox[3]) / 2]
+                    
+                    distance = ((face_center[0] - target_center[0]) ** 2 + (face_center[1] - target_center[1]) ** 2) ** 0.5
+                    
+                    logger.debug(f"Face {face_idx}: bbox={face_bbox.tolist()}, center={face_center}, distance={distance:.2f}")
+                    
+                    if distance < min_distance:
+                        min_distance = distance
+                        best_match = face
+                        logger.debug(f"New best match: face {face_idx} with distance {distance:.2f}")
+            
+            if best_match is None:
+                logger.warning("Could not find matching face for embedding generation")
+                return None
+            
+            # Check if the match is close enough (within reasonable distance)
+            if min_distance > 50:  # 50 pixels tolerance
+                logger.warning(f"Best face match too far from detected face: {min_distance} pixels")
+                return None
+            
+            # Generate embedding for the matched face
+            embedding = best_match.normed_embedding
+            
+            if embedding is None:
+                logger.warning("Failed to generate embedding for matched face")
+                return None
+            
+            return np.array(embedding)
+            
+        except Exception as e:
+            logger.error(f"Error generating embedding for face: {e}")
+            return None
+    
+    def _combine_search_results(self, all_search_results: List[Dict]) -> List[Dict]:
+        """
+        Combine search results from multiple faces, removing duplicates and ranking by similarity
+        
+        Args:
+            all_search_results: List of search results for each face
+            
+        Returns:
+            Combined and deduplicated results
+        """
+        try:
+            combined_results = {}
+            
+            for face_result in all_search_results:
+                for result in face_result['results']:
+                    # Use target_id + photo_id as unique key
+                    key = f"{result['target']['id']}_{result['photo']['id']}"
+                    
+                    if key not in combined_results:
+                        combined_results[key] = result
+                    else:
+                        # If we already have this result, keep the one with higher similarity
+                        if result['similarity_score'] > combined_results[key]['similarity_score']:
+                            combined_results[key] = result
+                            # Add face index information
+                            combined_results[key]['matched_faces'] = [face_result['face_index']]
+                        else:
+                            # Add this face index to the existing result
+                            if 'matched_faces' not in combined_results[key]:
+                                combined_results[key]['matched_faces'] = []
+                            if face_result['face_index'] not in combined_results[key]['matched_faces']:
+                                combined_results[key]['matched_faces'].append(face_result['face_index'])
+            
+            # Convert back to list and sort by similarity score
+            combined_list = list(combined_results.values())
+            combined_list.sort(key=lambda x: x['similarity_score'], reverse=True)
+            
+            return combined_list
+            
+        except Exception as e:
+            logger.error(f"Error combining search results: {e}")
+            return []
     
     def _enrich_search_results(self, milvus_results: List[Dict]) -> List[Dict]:
         """

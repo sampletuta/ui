@@ -22,6 +22,40 @@ let retryCount = 0;
 let dataUpdateInterval = null;
 let isRealTimeMode = false;
 
+// Initialize global variables from window context
+function initializeGlobalData() {
+    console.log('=== INITIALIZING GLOBAL DATA ===');
+    console.log('window.videoStreams:', window.videoStreams);
+    console.log('window.currentCamera:', window.currentCamera);
+    console.log('window.detectionEvents:', window.detectionEvents);
+    
+    if (window.videoStreams) {
+        videoStreams = window.videoStreams;
+        console.log('✅ Initialized videoStreams from window context:', videoStreams);
+        console.log('✅ videoStreams keys:', Object.keys(videoStreams));
+    } else {
+        console.error('❌ window.videoStreams is not available');
+    }
+    
+    if (window.currentCamera) {
+        currentCamera = window.currentCamera;
+        console.log('✅ Initialized currentCamera from window context:', currentCamera);
+    } else {
+        console.error('❌ window.currentCamera is not available');
+    }
+    
+    if (window.detectionEvents) {
+        detectionEvents = window.detectionEvents;
+        console.log('✅ Initialized detectionEvents from window context:', detectionEvents);
+    } else {
+        console.error('❌ window.detectionEvents is not available');
+    }
+    
+    console.log('=== GLOBAL DATA INITIALIZATION COMPLETE ===');
+    console.log('Final videoStreams:', videoStreams);
+    console.log('Final currentCamera:', currentCamera);
+}
+
 // DOM Elements
 let video, playPauseBtn, playIcon, progressBar, progressContainer, currentTimeSpan, durationSpan;
 let volumeBtn, fullscreenBtn, cameraTabsContainer, detectionItems;
@@ -32,6 +66,10 @@ let errorMessage, retryButton, refreshDataBtn, toggleRealTimeBtn, apiStatus;
 
 // Initialize video player
 function initVideoPlayer() {
+    console.log('Initializing video player...');
+    console.log('Available video streams:', videoStreams);
+    console.log('Current camera:', currentCamera);
+    
     // Get DOM elements
     video = document.getElementById('zmPlayer');
     playPauseBtn = document.getElementById('playPauseBtn');
@@ -71,36 +109,122 @@ function initVideoPlayer() {
     toggleRealTimeBtn = document.getElementById('toggleRealTimeBtn');
     apiStatus = document.getElementById('apiStatus');
 
+    // Check if video element exists
+    if (!video) {
+        console.error('Video element not found');
+        return;
+    }
+
     // Initialize components
     createCameraTabs();
     initTimeNavigation();
     initSpeedControl();
     initEventListeners();
-    initVideoPlayerWithCamera(currentCamera);
+    
+    // Only initialize video if we have a current camera
+    if (currentCamera && currentCamera !== 'no_camera') {
+        console.log('Initializing video player with camera:', currentCamera);
+        initVideoPlayerWithCamera(currentCamera);
+    } else {
+        console.log('No camera selected, video player ready but not playing');
+    }
 }
 
 // Create camera tabs dynamically
 function createCameraTabs() {
-    if (!cameraTabsContainer) return;
+    console.log('=== CREATING CAMERA TABS ===');
+    console.log('Camera tabs container:', cameraTabsContainer);
+    console.log('Available video streams:', videoStreams);
+    console.log('videoStreams type:', typeof videoStreams);
+    console.log('videoStreams keys:', videoStreams ? Object.keys(videoStreams) : 'undefined');
+    
+    if (!cameraTabsContainer) {
+        console.error('❌ Camera tabs container not found');
+        return;
+    }
     
     cameraTabsContainer.innerHTML = '';
     cameraTabs = [];
     
+    // Check if we have video streams
+    if (!videoStreams || Object.keys(videoStreams).length === 0) {
+        console.log('❌ No video streams available for camera tabs');
+        console.log('videoStreams value:', videoStreams);
+        return;
+    }
+    
+    console.log('✅ Creating tabs for cameras:', Object.keys(videoStreams));
+    
     Object.keys(videoStreams).forEach(cameraId => {
         const cameraData = videoStreams[cameraId];
+        if (!cameraData) {
+            console.warn('❌ No camera data for:', cameraId);
+            return;
+        }
+        
+        console.log('✅ Creating tab for camera:', cameraId, cameraData);
+        
         const button = document.createElement('button');
         button.setAttribute('data-camera', cameraId);
-        button.setAttribute('data-live-url', cameraData.liveUrl);
-        button.setAttribute('data-archive-url', cameraData.archiveUrl);
-        button.textContent = cameraData.name;
+        button.setAttribute('data-live-url', cameraData.liveUrl || '');
+        button.setAttribute('data-archive-url', cameraData.archiveUrl || '');
+        button.textContent = cameraData.name || 'Unknown Camera';
+        button.className = 'camera-tab-btn';
+        
+        // Add camera info tooltip
+        button.title = `${cameraData.name}\nType: ${cameraData.type}\nLocation: ${cameraData.location || 'Unknown'}`;
         
         if (cameraId === currentCamera) {
             button.classList.add('active');
+            console.log('✅ Set active tab for:', cameraId);
         }
+        
+        button.addEventListener('click', () => {
+            console.log('Camera tab clicked:', cameraId);
+            switchCamera(cameraId);
+        });
         
         cameraTabsContainer.appendChild(button);
         cameraTabs.push(button);
+        
+        console.log('✅ Created tab for camera:', cameraId);
     });
+    
+    console.log('Total camera tabs created:', cameraTabs.length);
+    
+    // Show camera tabs container if we have tabs
+    if (cameraTabs.length > 0) {
+        cameraTabsContainer.style.display = 'flex';
+        console.log('✅ Camera tabs container is now visible');
+        
+        // Show header if we have multiple sources
+        const headerElement = document.getElementById('cameraTabsHeader');
+        if (headerElement && cameraTabs.length > 1) {
+            headerElement.style.display = 'block';
+            console.log('✅ Camera tabs header is now visible');
+        }
+        
+        console.log('✅ Camera tabs are now fully visible');
+    } else {
+        console.log('❌ No camera tabs were created');
+    }
+}
+
+// Switch between cameras
+function switchCamera(cameraId) {
+    console.log('Switching to camera:', cameraId);
+    
+    // Update current camera
+    currentCamera = cameraId;
+    
+    // Update active tab
+    document.querySelectorAll('[data-camera]').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-camera="${cameraId}"]`)?.classList.add('active');
+    
+    // Initialize video player with new camera
+    initVideoPlayerWithCamera(cameraId);
 }
 
 // Initialize time navigation
@@ -306,13 +430,19 @@ function initSpeedControl() {
 
 // Initialize video player with current camera
 function initVideoPlayerWithCamera(cameraId) {
+    console.log('=== INITIALIZING VIDEO PLAYER WITH CAMERA ===');
+    console.log('Camera ID:', cameraId);
+    console.log('Available videoStreams:', videoStreams);
+    console.log('videoStreams keys:', videoStreams ? Object.keys(videoStreams) : 'undefined');
+    
     const cameraData = videoStreams[cameraId];
     if (!cameraData) {
-        console.error('Camera data not found for:', cameraId);
+        console.error('❌ Camera data not found for:', cameraId);
+        console.error('Available cameras:', videoStreams ? Object.keys(videoStreams) : 'none');
         return;
     }
 
-    console.log('Initializing video for camera:', cameraId, cameraData);
+    console.log('✅ Found camera data:', cameraData);
     currentCameraData = cameraData;
 
     // Reset states
@@ -328,98 +458,218 @@ function initVideoPlayerWithCamera(cameraId) {
 
     // Try live stream first, fallback to archive
     const streamUrl = cameraData.liveUrl || cameraData.archiveUrl;
-    console.log('Stream URL:', streamUrl);
+    console.log('Stream URL for camera', cameraId, ':', streamUrl);
+    console.log('Camera data:', cameraData);
     
     if (streamUrl) {
-        if (Hls.isSupported() && streamUrl.includes('.m3u8')) {
-            // HLS stream
-            console.log('Using HLS for:', streamUrl);
-            currentHls = new Hls({
-                enableWorker: true,
-                lowLatencyMode: true,
-                backBufferLength: 90
-            });
-            
-            currentHls.loadSource(streamUrl);
-            currentHls.attachMedia(video);
-            
-            currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
-                console.log('HLS manifest parsed, playing video');
-                hideLoading();
-                video.play();
-                isPlaying = true;
-                playIcon.className = 'fas fa-pause';
-                initTimeNavigation();
-                // Seek if requested
-                if (window.initialSeek && isFinite(window.initialSeek) && window.initialSeek > 0) {
-                    video.currentTime = window.initialSeek;
-                }
-            });
-            
-            currentHls.on(Hls.Events.BUFFER_STALLED, () => {
-                console.log('HLS buffer stalled');
-                showLoading('Buffering...');
-            });
-            
-            currentHls.on(Hls.Events.BUFFER_APPENDING, () => {
-                console.log('HLS buffer appending');
-                hideLoading();
-            });
-            
-            currentHls.on(Hls.Events.ERROR, (event, data) => {
-                console.error('HLS Error:', data);
-                if (data.fatal) {
-                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                        showNetworkError('Network error occurred. Retrying...');
-                        retryCount++;
-                        if (retryCount < 3) {
-                            setTimeout(() => {
-                                currentHls.startLoad();
-                            }, 2000);
-                        } else {
-                            // Fallback to archive URL
-                            if (cameraData.archiveUrl) {
-                                console.log('Falling back to archive URL');
-                                loadDirectVideo(cameraData.archiveUrl);
-                            }
-                        }
-                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                        showNetworkError('Media error occurred');
-                    }
-                }
-            });
-        } else if (video.canPlayType('application/vnd.apple.mpegurl') && streamUrl.includes('.m3u8')) {
-            // Native HLS support (Safari)
-            console.log('Using native HLS for:', streamUrl);
-            loadDirectVideo(streamUrl);
-        } else {
-            // Direct video file
-            console.log('Using direct video file:', streamUrl);
-            loadDirectVideo(streamUrl);
+        // Determine stream type and handle accordingly
+        const streamType = detectStreamType(streamUrl);
+        console.log('Detected stream type:', streamType);
+        
+        switch (streamType) {
+            case 'hls':
+                loadHLSStream(streamUrl);
+                break;
+            case 'rtsp':
+                loadRTSPStream(streamUrl, cameraData);
+                break;
+            case 'rtmp':
+                loadRTMPStream(streamUrl, cameraData);
+                break;
+            case 'http':
+            case 'https':
+                loadDirectVideo(streamUrl);
+                break;
+            default:
+                // Try as direct video file
+                console.log('Trying as direct video file:', streamUrl);
+                console.log('Video element can play MP4:', video.canPlayType('video/mp4'));
+                loadDirectVideo(streamUrl);
         }
     } else {
         console.error('No stream URL available for camera:', cameraId);
+        console.error('Camera data:', cameraData);
         showNetworkError('No video source available');
+    }
+}
+
+// Detect stream type from URL
+function detectStreamType(url) {
+    if (url.includes('.m3u8')) return 'hls';
+    if (url.includes('rtsp://')) return 'rtsp';
+    if (url.includes('rtmp://')) return 'rtmp';
+    if (url.startsWith('http://') || url.startsWith('https://')) return 'http';
+    return 'unknown';
+}
+
+// Load HLS stream
+function loadHLSStream(url) {
+    console.log('Loading HLS stream:', url);
+    
+    if (Hls.isSupported()) {
+        currentHls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            backBufferLength: 90
+        });
+        
+        currentHls.loadSource(url);
+        currentHls.attachMedia(video);
+        
+        currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
+            console.log('HLS manifest parsed, playing video');
+            hideLoading();
+            video.play();
+            isPlaying = true;
+            playIcon.className = 'fas fa-pause';
+            initTimeNavigation();
+            if (window.initialSeek && isFinite(window.initialSeek) && window.initialSeek > 0) {
+                video.currentTime = window.initialSeek;
+            }
+        });
+        
+        currentHls.on(Hls.Events.BUFFER_STALLED, () => {
+            console.log('HLS buffer stalled');
+            showLoading('Buffering...');
+        });
+        
+        currentHls.on(Hls.Events.BUFFER_APPENDING, () => {
+            console.log('HLS buffer appending');
+            hideLoading();
+        });
+        
+        currentHls.on(Hls.Events.ERROR, (event, data) => {
+            console.error('HLS Error:', data);
+            if (data.fatal) {
+                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                    showNetworkError('Network error occurred. Retrying...');
+                    retryCount++;
+                    if (retryCount < 3) {
+                        setTimeout(() => {
+                            currentHls.startLoad();
+                        }, 2000);
+                    } else {
+                        // Fallback to archive URL
+                        if (currentCameraData && currentCameraData.archiveUrl) {
+                            console.log('Falling back to archive URL');
+                            loadDirectVideo(currentCameraData.archiveUrl);
+                        }
+                    }
+                } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                    showNetworkError('Media error occurred');
+                }
+            }
+        });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (Safari)
+        console.log('Using native HLS for:', url);
+        loadDirectVideo(url);
+    } else {
+        showNetworkError('HLS not supported in this browser');
+    }
+}
+
+// Load RTSP stream (convert to HTTP stream via proxy)
+function loadRTSPStream(url, cameraData) {
+    console.log('Loading RTSP stream:', url);
+    
+    // Show user-friendly message about RTSP
+    showLoading('RTSP streams require a media gateway server. Checking for fallback...');
+    
+    // Try to use archive URL as fallback
+    if (cameraData.archiveUrl) {
+        console.log('RTSP not directly supported, using archive URL as fallback');
+        setTimeout(() => {
+            hideLoading();
+            showNetworkError('RTSP stream not supported. Using fallback video instead.');
+            loadDirectVideo(cameraData.archiveUrl);
+        }, 2000);
+    } else {
+        // No fallback available
+        hideLoading();
+        showNetworkError('RTSP stream not supported and no fallback available. Please contact your administrator to set up a media gateway server.');
+    }
+}
+
+// Load RTMP stream (convert to HTTP stream via proxy)
+function loadRTMPStream(url, cameraData) {
+    console.log('Loading RTMP stream:', url);
+    
+    // Show user-friendly message about RTMP
+    showLoading('RTMP streams require a media gateway server. Checking for fallback...');
+    
+    // Try to use archive URL as fallback
+    if (cameraData.archiveUrl) {
+        console.log('RTMP not directly supported, using archive URL as fallback');
+        setTimeout(() => {
+            hideLoading();
+            showNetworkError('RTMP stream not supported. Using fallback video instead.');
+            loadDirectVideo(cameraData.archiveUrl);
+        }, 2000);
+    } else {
+        // No fallback available
+        hideLoading();
+        showNetworkError('RTMP stream not supported and no fallback available. Please contact your administrator to set up a media gateway server.');
     }
 }
 
 // Load direct video file
 function loadDirectVideo(url) {
-    if (!video) return;
+    console.log('Loading direct video from URL:', url);
     
-    video.src = url;
+    if (!video) {
+        console.error('Video element not found');
+        return;
+    }
+    
+    // Clear any existing source
+    video.innerHTML = '';
+    
+    // Create new source element
+    const source = document.createElement('source');
+    source.src = url;
+    
+    // Detect video type from URL
+    let videoType = 'video/mp4'; // default
+    if (url.includes('.webm')) videoType = 'video/webm';
+    else if (url.includes('.ogg')) videoType = 'video/ogg';
+    else if (url.includes('.m3u8')) videoType = 'application/vnd.apple.mpegurl';
+    else if (url.includes('.mp4')) videoType = 'video/mp4';
+    
+    source.type = videoType;
+    console.log('Setting video source type:', videoType);
+    video.appendChild(source);
+    
+    console.log('Video source set, loading...');
     video.load();
     
+    // Add event listeners for debugging
+    video.addEventListener('loadstart', () => {
+        console.log('Video load started');
+        showLoading('Loading video...');
+    });
+    
     video.addEventListener('loadedmetadata', () => {
-        console.log('Video loaded, playing');
+        console.log('Video metadata loaded, duration:', video.duration);
+        console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight);
         hideLoading();
-        video.play();
-        isPlaying = true;
-        playIcon.className = 'fas fa-pause';
-        initTimeNavigation();
-        // Seek if requested
-        if (window.initialSeek && isFinite(window.initialSeek) && window.initialSeek > 0) {
-            video.currentTime = window.initialSeek;
+        
+        // Try to play the video
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                console.log('Video started playing successfully');
+                isPlaying = true;
+                if (playIcon) playIcon.className = 'fas fa-pause';
+                initTimeNavigation();
+                // Seek if requested
+                if (window.initialSeek && isFinite(window.initialSeek) && window.initialSeek > 0) {
+                    video.currentTime = window.initialSeek;
+                }
+            }).catch(error => {
+                console.error('Video play failed:', error);
+                showNetworkError('Video play failed: ' + error.message);
+            });
         }
     });
     
@@ -433,9 +683,29 @@ function loadDirectVideo(url) {
         hideLoading();
     });
     
+    video.addEventListener('canplaythrough', () => {
+        console.log('Video can play through');
+        hideLoading();
+    });
+    
+    video.addEventListener('playing', () => {
+        console.log('Video is now playing');
+        hideLoading();
+    });
+    
     video.addEventListener('error', (e) => {
-        console.error('Video error:', e);
-        showNetworkError('Failed to load video');
+        console.error('Video error event:', e);
+        console.error('Video error details:', video.error);
+        showNetworkError('Failed to load video: ' + (video.error ? video.error.message : 'Unknown error'));
+    });
+    
+    video.addEventListener('abort', () => {
+        console.log('Video loading aborted');
+    });
+    
+    video.addEventListener('stalled', () => {
+        console.log('Video stalled');
+        showLoading('Video stalled, retrying...');
     });
 }
 
@@ -1110,16 +1380,30 @@ function initAPIControls() {
 
 // Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing video player...');
+    
+    // Initialize global data from window context
+    initializeGlobalData();
+    
+    // Check if we have video streams data
+    if (!videoStreams || Object.keys(videoStreams).length === 0) {
+        console.warn('No video streams available, showing no sources message');
+        return;
+    }
+    
+    console.log('Found video streams:', videoStreams);
+    console.log('Current camera:', currentCamera);
+    
     // Initialize video player
     initVideoPlayer();
     
     // Initialize API controls
     initAPIControls();
     
-            // Initial data fetch
-        fetchDataFromAPI();
-        
-        // Real-time updates will be controlled by the toggle button
+    // Initial data fetch
+    fetchDataFromAPI();
+    
+    // Real-time updates will be controlled by the toggle button
 });
 
 // Export functions for global access

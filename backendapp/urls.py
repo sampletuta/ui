@@ -81,10 +81,4 @@ urlpatterns = [
     # Watchlist management URLs
     path('watchlist/', views.list_watchlist, name='list_watchlist'),
     path('watchlist/add/', views.backend, name='add_watchlist'),
-    
-    # Video player URLs - TODO: Implement video_detail view
-    # path('video/<uuid:video_id>/', views.video_detail, name='video_detail'),
-    
-    # Table view URLs - TODO: Implement table_view
-    # path('table/', views.table_view, name='table_view'),
 ] 

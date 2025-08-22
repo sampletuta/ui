@@ -15,8 +15,11 @@ class CameraSourceForm(forms.ModelForm):
             'name', 'description', 'location', 'zone',
             'latitude', 'longitude', 'is_active',
             'camera_ip', 'camera_port', 'camera_username', 'camera_password',
-            'camera_protocol', 'camera_type', 'camera_resolution', 'camera_fps',
-            'configuration', 'tags'
+            'camera_protocol', 'camera_type', 'camera_resolution', 
+            'camera_resolution_width', 'camera_resolution_height', 'camera_fps', 'camera_bitrate', 'camera_codec',
+            'camera_audio_enabled', 'camera_audio_codec', 'camera_audio_channels', 'camera_audio_sample_rate',
+            'camera_buffer_size', 'camera_timeout', 'camera_keepalive', 'camera_retry_attempts',
+            'configuration', 'tags', 'topic_suffix'
         ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Front Door Camera'}),
@@ -33,9 +36,22 @@ class CameraSourceForm(forms.ModelForm):
             'camera_protocol': forms.Select(attrs={'class': 'form-select'}),
             'camera_type': forms.Select(attrs={'class': 'form-select'}),
             'camera_resolution': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1920x1080'}),
+            'camera_resolution_width': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1920'}),
+            'camera_resolution_height': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1080'}),
             'camera_fps': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 30'}),
+            'camera_bitrate': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 2000000'}),
+            'camera_codec': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., h264, h265, mjpeg'}),
+            'camera_audio_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'camera_audio_codec': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., aac, pcm, g711'}),
+            'camera_audio_channels': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1, 2'}),
+            'camera_audio_sample_rate': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 8000, 16000, 44100'}),
+            'camera_buffer_size': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1000'}),
+            'camera_timeout': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 30'}),
+            'camera_keepalive': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'camera_retry_attempts': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 3'}),
             'configuration': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '{"key": "value"}'}),
             'tags': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': '["tag1", "tag2"]'}),
+            'topic_suffix': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., front, back, main (max 6 chars, no spaces)'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -55,9 +71,22 @@ class CameraSourceForm(forms.ModelForm):
         self.fields['camera_protocol'].help_text = 'Protocol used to connect to the camera'
         self.fields['camera_type'].help_text = 'Type of camera hardware'
         self.fields['camera_resolution'].help_text = 'Camera resolution (e.g., 1920x1080, 1280x720)'
+        self.fields['camera_resolution_width'].help_text = 'Camera width in pixels'
+        self.fields['camera_resolution_height'].help_text = 'Camera height in pixels'
         self.fields['camera_fps'].help_text = 'Frame rate in frames per second'
+        self.fields['camera_bitrate'].help_text = 'Camera bitrate in bits per second'
+        self.fields['camera_codec'].help_text = 'Video codec used by the camera'
+        self.fields['camera_audio_enabled'].help_text = 'Whether the camera has audio capability'
+        self.fields['camera_audio_codec'].help_text = 'Audio codec used by the camera'
+        self.fields['camera_audio_channels'].help_text = 'Number of audio channels'
+        self.fields['camera_audio_sample_rate'].help_text = 'Audio sample rate in Hz'
+        self.fields['camera_buffer_size'].help_text = 'Buffer size in milliseconds'
+        self.fields['camera_timeout'].help_text = 'Connection timeout in seconds'
+        self.fields['camera_keepalive'].help_text = 'Whether to use keepalive connections'
+        self.fields['camera_retry_attempts'].help_text = 'Number of retry attempts on failure'
         self.fields['configuration'].help_text = 'Additional configuration as JSON (optional)'
         self.fields['tags'].help_text = 'Tags for categorization as JSON array (optional)'
+        self.fields['topic_suffix'].help_text = 'Suffix to add to the MQTT topic for this camera (e.g., /camera/front_door)'
     
     def clean_camera_ip(self):
         ip = self.cleaned_data['camera_ip']
@@ -75,6 +104,19 @@ class CameraSourceForm(forms.ModelForm):
                     raise forms.ValidationError('IP address octets must be between 0 and 255')
         
         return ip
+    
+    def clean_topic_suffix(self):
+        """Clean and validate topic suffix"""
+        suffix = self.cleaned_data.get('topic_suffix', '').strip()
+        if suffix:
+            # Remove spaces and limit to 6 characters
+            clean_suffix = suffix.replace(' ', '')[:6]
+            if len(clean_suffix) < len(suffix.replace(' ', '')):
+                raise forms.ValidationError('Topic suffix cannot contain spaces')
+            if len(clean_suffix) > 6:
+                raise forms.ValidationError('Topic suffix cannot exceed 6 characters')
+            return clean_suffix
+        return suffix
     
     def clean_camera_port(self):
         port = self.cleaned_data['camera_port']
@@ -208,41 +250,128 @@ class FileSourceForm(forms.ModelForm):
 class StreamSourceForm(forms.ModelForm):
     """Form for creating/editing stream sources"""
     
+    # Add proper authentication fields instead of JSON
+    stream_auth_username = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 
+            'placeholder': 'e.g., admin'
+        }),
+        help_text='Username for stream authentication (if required)'
+    )
+    
+    stream_auth_password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control', 
+            'placeholder': 'Enter stream password'
+        }),
+        help_text='Password for stream authentication (if required)'
+    )
+    
+    stream_auth_api_key = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 
+            'placeholder': 'e.g., sk-1234567890abcdef'
+        }),
+        help_text='API key for stream authentication (if required)'
+    )
+    
+    stream_auth_token = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 
+            'placeholder': 'e.g., Bearer token123'
+        }),
+        help_text='Bearer token for stream authentication (if required)'
+    )
+    
     class Meta:
         model = StreamSource
         fields = [
-            'name', 'description', 'location',
+            'name', 'description', 'location', 'zone',
             'latitude', 'longitude',
-            'stream_url', 'stream_protocol', 'stream_quality', 'stream_parameters',
-            'tags'
+            'stream_url', 'stream_protocol', 'stream_quality', 
+            'stream_resolution_width', 'stream_resolution_height', 'stream_fps', 'stream_bitrate', 'stream_codec',
+            'stream_audio_codec', 'stream_audio_channels', 'stream_audio_sample_rate', 'stream_audio_bitrate',
+            'stream_buffer_size', 'stream_timeout', 'stream_retry_attempts', 'stream_keepalive',
+            'stream_parameters', 'stream_headers',
+            'is_active', 'configuration', 'tags', 'topic_suffix'
         ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Live Stream'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Optional description'}),
             'location': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Building A, Floor 1'}),
+            'zone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Zone A'}),
             'latitude': forms.NumberInput(attrs={'class': 'form-control', 'step': 'any', 'placeholder': 'e.g., 40.7128'}),
             'longitude': forms.NumberInput(attrs={'class': 'form-control', 'step': 'any', 'placeholder': 'e.g., -74.0060'}),
             'stream_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'e.g., rtsp://192.168.1.100:554/stream'}),
             'stream_protocol': forms.Select(attrs={'class': 'form-select'}),
             'stream_quality': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1080p, 720p'}),
+            'stream_resolution_width': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1920'}),
+            'stream_resolution_height': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1080'}),
+            'stream_fps': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1', 'placeholder': 'e.g., 30.0'}),
+            'stream_bitrate': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 2000000'}),
+            'stream_codec': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., h264, h265, av1'}),
+            'stream_audio_codec': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., aac, mp3, opus'}),
+            'stream_audio_channels': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1, 2'}),
+            'stream_audio_sample_rate': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 8000, 16000, 44100'}),
+            'stream_audio_bitrate': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 128000'}),
+            'stream_buffer_size': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 1000'}),
+            'stream_timeout': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 30'}),
+            'stream_retry_attempts': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 3'}),
+            'stream_keepalive': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'stream_parameters': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '{"key": "value"}'}),
+            'stream_headers': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '{"User-Agent": "CustomAgent"}'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'configuration': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '{"key": "value"}'}),
             'tags': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': '["tag1", "tag2"]'}),
+            'topic_suffix': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., front, back, main (max 6 chars, no spaces)'}),
         }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
+        # Override the stream_url field to use CharField instead of URLField
+        # This allows us to accept RTSP and other streaming protocol URLs
+        self.fields['stream_url'] = forms.CharField(
+            max_length=500,
+            widget=forms.TextInput(attrs={
+                'class': 'form-control', 
+                'placeholder': 'e.g., rtsp://192.168.1.100:554/stream'
+            }),
+            help_text='URL of the video stream (supports RTSP, RTMP, HTTP, UDP, etc.)'
+        )
+        
         # Add help text
         self.fields['name'].help_text = 'Display name for this stream (e.g., Live Stream)'
         self.fields['description'].help_text = 'Optional description of this stream'
         self.fields['location'].help_text = 'Physical location of the stream source'
+        self.fields['zone'].help_text = 'Zone name for organization'
         self.fields['latitude'].help_text = 'GPS latitude coordinate'
         self.fields['longitude'].help_text = 'GPS longitude coordinate'
-        self.fields['stream_url'].help_text = 'URL of the video stream'
         self.fields['stream_protocol'].help_text = 'Protocol of the stream'
         self.fields['stream_quality'].help_text = 'Stream quality (e.g., 1080p, 720p)'
+        self.fields['stream_resolution_width'].help_text = 'Stream width in pixels'
+        self.fields['stream_resolution_height'].help_text = 'Stream height in pixels'
+        self.fields['stream_fps'].help_text = 'Stream frame rate (frames per second)'
+        self.fields['stream_bitrate'].help_text = 'Stream bitrate in bits per second'
+        self.fields['stream_codec'].help_text = 'Video codec of the stream'
+        self.fields['stream_audio_codec'].help_text = 'Audio codec of the stream'
+        self.fields['stream_audio_channels'].help_text = 'Number of audio channels'
+        self.fields['stream_audio_sample_rate'].help_text = 'Audio sample rate in Hz'
+        self.fields['stream_audio_bitrate'].help_text = 'Audio bitrate in bits per second'
+        self.fields['stream_buffer_size'].help_text = 'Buffer size in milliseconds'
+        self.fields['stream_timeout'].help_text = 'Connection timeout in seconds'
+        self.fields['stream_retry_attempts'].help_text = 'Number of retry attempts on failure'
+        self.fields['stream_keepalive'].help_text = 'Whether to use keepalive connections'
         self.fields['stream_parameters'].help_text = 'Additional stream parameters as JSON'
+        self.fields['stream_headers'].help_text = 'Custom HTTP headers as JSON'
+        self.fields['is_active'].help_text = 'Whether this source is active'
+        self.fields['configuration'].help_text = 'Additional configuration as JSON (optional)'
         self.fields['tags'].help_text = 'Tags for categorization as JSON array (optional)'
+        self.fields['topic_suffix'].help_text = 'Suffix to add to the MQTT topic for this stream (e.g., /stream/front_door)'
     
     def clean_stream_parameters(self):
         params = self.cleaned_data['stream_parameters']
@@ -277,7 +406,58 @@ class StreamSourceForm(forms.ModelForm):
                         raise forms.ValidationError('Tags must be a JSON array')
             except json.JSONDecodeError:
                 raise forms.ValidationError('Tags must be valid JSON array')
-        return tags 
+        return tags
+    
+    def clean_stream_url(self):
+        """Custom validation for stream URLs to accept RTSP and other streaming protocols"""
+        url = self.cleaned_data.get('stream_url', '').strip()
+        if url:
+            # Check if it's a valid streaming protocol URL
+            import re
+            # Pattern for common streaming protocols: rtsp://, rtmp://, http://, https://, udp://, etc.
+            stream_url_pattern = r'^(rtsp|rtmp|http|https|udp|tcp|srt|webrtc)://[^\s]+$'
+            if not re.match(stream_url_pattern, url):
+                raise forms.ValidationError('Please enter a valid streaming URL (e.g., rtsp://192.168.1.100:554/stream, rtmp://server/live/stream)')
+            # Update the cleaned data with the stripped URL
+            self.cleaned_data['stream_url'] = url
+        return url
+    
+    def clean_topic_suffix(self):
+        """Clean and validate topic suffix"""
+        suffix = self.cleaned_data.get('topic_suffix', '').strip()
+        if suffix:
+            # Remove spaces and limit to 6 characters
+            clean_suffix = suffix.replace(' ', '')[:6]
+            if len(clean_suffix) < len(suffix.replace(' ', '')):
+                raise forms.ValidationError('Topic suffix cannot contain spaces')
+            if len(clean_suffix) > 6:
+                raise forms.ValidationError('Topic suffix cannot exceed 6 characters')
+            return clean_suffix
+        return suffix
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # Build authentication JSON from individual fields
+        auth_data = {}
+        if self.cleaned_data.get('stream_auth_username'):
+            auth_data['username'] = self.cleaned_data['stream_auth_username']
+        if self.cleaned_data.get('stream_auth_password'):
+            auth_data['password'] = self.cleaned_data['stream_auth_password']
+        if self.cleaned_data.get('stream_auth_api_key'):
+            auth_data['api_key'] = self.cleaned_data['stream_auth_api_key']
+        if self.cleaned_data.get('stream_auth_token'):
+            auth_data['token'] = self.cleaned_data['stream_auth_token']
+        
+        # Set the authentication field
+        if auth_data:
+            instance.stream_authentication = auth_data
+        else:
+            instance.stream_authentication = {}
+        
+        if commit:
+            instance.save()
+        return instance
 
 class VideoProcessingForm(forms.Form):
     """Form for configuring video processing parameters"""

@@ -1,587 +1,494 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ source.name }} - Source Details{% endblock %}
+{% block title %}{{ source.name }} - {{ source_type|title }} Source{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
+{% csrf_token %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
         <div class="col-12">
-            <div class="page-title-box d-flex align-items-center justify-content-between">
-                <h4 class="mb-0">{{ source.name }} - Source Details</h4>
-                <div class="page-title-right">
-                    <ol class="breadcrumb m-0">
-                        <li class="breadcrumb-item"><a href="{% url 'source_management:source_list' %}">Video Sources</a></li>
-                        <li class="breadcrumb-item active">{{ source.name }}</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
-        <!-- Source Information -->
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fa fa-info-circle me-2"></i>Source Information
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Name:</strong></td>
-                                    <td>{{ source.name }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Source ID:</strong></td>
-                                    <td><code>{{ source.source_id }}</code></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Type:</strong></td>
-                                    <td>
-                                        {% if source_type == 'camera' %}
-                                            <span class="badge bg-primary">Camera</span>
-                                        {% elif source_type == 'file' %}
-                                            <span class="badge bg-success">File</span>
-                                        {% elif source_type == 'stream' %}
-                                            <span class="badge bg-info">Stream</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Status:</strong></td>
-                                    <td>
-                                        {% if source.is_active %}
-                                            <span class="badge bg-success">Active</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">Inactive</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Zone:</strong></td>
-                                    <td>{{ source.zone|default:"Not specified" }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Created:</strong></td>
-                                    <td>{{ source.created_at|date:"M d, Y H:i" }}</td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            {% if source.description %}
-                            <div class="mb-3">
-                                <strong>Description:</strong>
-                                <p class="text-muted">{{ source.description }}</p>
-                            </div>
-                            {% endif %}
-                            
-                            {% if source.location %}
-                            <div class="mb-3">
-                                <strong>Location:</strong>
-                                <p class="text-muted">{{ source.location }}</p>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Source Type Specific Details -->
-            {% if source_type == 'camera' %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fa fa-video-camera me-2"></i>Camera Details
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>IP Address:</strong></td>
-                                    <td>{{ source.camera_ip|default:"Not specified" }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Port:</strong></td>
-                                    <td>{{ source.camera_port|default:"Not specified" }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Protocol:</strong></td>
-                                    <td>{{ source.camera_protocol|default:"Not specified" }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Camera Type:</strong></td>
-                                    <td>{{ source.camera_type|default:"Not specified" }}</td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Username:</strong></td>
-                                    <td>{{ source.camera_username|default:"Not specified" }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Resolution:</strong></td>
-                                    <td>{{ source.camera_resolution|default:"Not specified" }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Frame Rate:</strong></td>
-                                    <td>{{ source.camera_fps|default:"Not specified" }} FPS</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Stream URL:</strong></td>
-                                    <td><code>{{ source.get_stream_url }}</code></td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    {% if source.configuration %}
-                    <div class="mt-3">
-                        <strong>Configuration:</strong>
-                        <pre class="bg-light p-2 rounded"><code>{{ source.configuration|pprint }}</code></pre>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-
-            {% if source_type == 'file' %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fa fa-file-video me-2"></i>Video File Details
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <!-- Processing Status -->
-                    <div class="alert {% if source.status == 'ready' %}alert-success{% elif source.status == 'processing' %}alert-warning{% elif source.status == 'failed' %}alert-danger{% else %}alert-info{% endif %} mb-3">
-                        <strong>Status:</strong> 
-                        {% if source.status == 'ready' %}
-                            <i class="fa fa-check-circle me-1"></i>Ready
-                        {% elif source.status == 'processing' %}
-                            <i class="fa fa-spinner fa-spin me-1"></i>Processing
-                        {% elif source.status == 'failed' %}
-                            <i class="fa fa-exclamation-triangle me-1"></i>Failed
-                        {% else %}
-                            <i class="fa fa-clock me-1"></i>Uploading
-                        {% endif %}
-                    </div>
-
-                    {% if source.status == 'failed' and source.processing_error %}
-                    <div class="alert alert-danger">
-                        <strong>Error:</strong> {{ source.processing_error }}
-                    </div>
-                    {% endif %}
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>File Name:</strong></td>
-                                    <td>{{ source.video_file.name|default:"Not specified" }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>File Format:</strong></td>
-                                    <td>{{ source.file_format|default:"Not specified"|upper }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>File Size:</strong></td>
-                                    <td>{{ source.get_file_size_display }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Duration:</strong></td>
-                                    <td>{{ source.get_duration_display }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Resolution:</strong></td>
-                                    <td>{{ source.get_resolution_display }}</td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Frame Rate:</strong></td>
-                                    <td>{{ source.fps|default:"Not specified" }} FPS</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Video Codec:</strong></td>
-                                    <td>{{ source.codec|default:"Not specified"|upper }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Audio Codec:</strong></td>
-                                    <td>{{ source.audio_codec|default:"Not specified"|upper }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Audio Channels:</strong></td>
-                                    <td>{{ source.audio_channels|default:"Not specified" }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Bitrate:</strong></td>
-                                    <td>{{ source.bitrate|default:"Not specified" }} bps</td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
-
-                    {% if source.processing_started_at %}
-                    <div class="mt-3">
-                        <strong>Processing Information:</strong>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <small class="text-muted">Started: {{ source.processing_started_at|date:"M d, Y H:i:s" }}</small>
-                            </div>
-                            {% if source.processing_completed_at %}
-                            <div class="col-md-6">
-                                <small class="text-muted">Completed: {{ source.processing_completed_at|date:"M d, Y H:i:s" }}</small>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Data Ingestion Service Integration -->
-            {% if source.status == 'ready' %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fa fa-database me-2"></i>Data Ingestion Service Integration
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="alert alert-success">
-                        <i class="fa fa-check-circle me-2"></i>
-                        <strong>Ready for Processing!</strong> Submit this video for processing and frame extraction via the data ingestion service.
-                    </div>
-                    
-                    <!-- Data Ingestion Service Submit Form (uses non-auth endpoints) -->
-                    <form id="fastpublisherForm" class="mb-4">
-                        {% csrf_token %}
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="target_fps" class="form-label">Target FPS</label>
-                                    <select class="form-select" id="target_fps" name="target_fps" required>
-                                        <option value="">Select FPS</option>
-                                        <option value="1">1 FPS</option>
-                                        <option value="2">2 FPS</option>
-                                        <option value="3">3 FPS</option>
-                                        <option value="4">4 FPS</option>
-                                        <option value="5">5 FPS</option>
-                                    </select>
-                                    <div class="form-text">Select the frame rate for processing (1-5 FPS)</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="target_resolution" class="form-label">Target Resolution</label>
-                                    <select class="form-select" id="target_resolution" name="target_resolution" required>
-                                        <option value="">Select Resolution</option>
-                                        <option value="320x240">320x240</option>
-                                        <option value="640x480">640x480</option>
-                                        <option value="1280x720">1280x720</option>
-                                        <option value="1920x1080">1920x1080</option>
-                                        <option value="custom">Custom</option>
-                                    </select>
-                                    <div class="form-text">Select the resolution for processing</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3" id="custom_resolution_div" style="display: none;">
-                            <label for="custom_resolution" class="form-label">Custom Resolution</label>
-                            <input type="text" class="form-control" id="custom_resolution" name="custom_resolution" 
-                                   placeholder="e.g., 800x600" pattern="^\d+x\d+$">
-                            <div class="form-text">Format: widthxheight (e.g., 800x600)</div>
-                        </div>
-                        
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-primary" id="submitBtn">
-                                <i class="fa fa-paper-plane me-2"></i>Submit for Processing
-                            </button>
-                        </div>
-                    </form>
-
-                    <!-- Submission Status -->
-                    <div id="submissionStatus" class="alert" style="display: none;">
-                        <i class="me-2"></i>
-                        <span id="statusMessage"></span>
-                    </div>
-                     <!-- External Service Status -->
-                     <div id="serviceStatus" class="alert alert-secondary" style="display: none;">
-                         <i class="fa fa-server me-2"></i>
-                         <span id="serviceMessage"></span>
-                     </div>
-                    {% else %}
-                    <div class="alert alert-warning">
-                        <i class="fa fa-clock me-2"></i>
-                        <strong>Video Not Ready!</strong> This video is currently in status: <strong>{{ source.status }}</strong>. 
-                        Please wait for it to be ready before submitting for processing.
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-
-            {% if source_type == 'stream' %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fa fa-broadcast-tower me-2"></i>Stream Details
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Stream URL:</strong></td>
-                                    <td><code>{{ source.stream_url|default:"Not specified" }}</code></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Protocol:</strong></td>
-                                    <td>{{ source.stream_protocol|default:"Not specified"|upper }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Quality:</strong></td>
-                                    <td>{{ source.stream_quality|default:"Not specified" }}</td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            {% if source.stream_parameters %}
-                            <div class="mb-3">
-                                <strong>Stream Parameters:</strong>
-                                <pre class="bg-light p-2 rounded"><code>{{ source.stream_parameters|pprint }}</code></pre>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Actions Sidebar -->
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fa fa-cogs me-2"></i>Actions
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        {% if source_type == 'file' and source.status == 'ready' %}
-                        <a href="{% url 'video_player:source_video_detail' source.source_id %}" class="btn btn-success">
-                            <i class="fa fa-play me-2"></i>Play Video
-                        </a>
-                        {% elif source_type == 'camera' and source.is_active %}
-                        <a href="{% url 'video_player:source_video_detail' source.source_id %}" class="btn btn-success">
-                            <i class="fa fa-video me-2"></i>View Live Stream
-                        </a>
-                        {% elif source_type == 'stream' %}
-                        <a href="{% url 'video_player:source_video_detail' source.source_id %}" class="btn btn-success">
-                            <i class="fa fa-broadcast-tower me-2"></i>View Stream
-                        </a>
-                        {% endif %}
-                        <a href="{% url 'source_management:'|add:source_type|add:'_update' source.source_id %}" class="btn btn-primary">
-                            <i class="fa fa-edit me-2"></i>Edit Source
-                        </a>
-                        <a href="{% url 'source_management:source_list' %}" class="btn btn-secondary">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">
+                        <i class="fa fa-{% if source_type == 'camera' %}video-camera{% elif source_type == 'file' %}file-video{% elif source_type == 'stream' %}broadcast-tower{% else %}video{% endif %} me-2"></i>
+                        {{ source.name }}
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-secondary btn-sm">
                             <i class="fa fa-arrow-left me-2"></i>Back to Sources
                         </a>
-                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
-                            <i class="fa fa-trash me-2"></i>Delete Source
-                        </button>
+                        <a href="{% url 'source_management:'|add:source_type|add:'_update' source.source_id %}" class="btn btn-primary btn-sm">
+                            <i class="fa fa-edit me-2"></i>Edit
+                        </a>
                     </div>
                 </div>
-            </div>
 
-            <!-- Source Metadata -->
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fa fa-database me-2"></i>Metadata
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <strong>Database ID:</strong>
-                        <code>{{ source.source_id }}</code>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Created:</strong>
-                        <div>{{ source.created_at|date:"M d, Y H:i:s" }}</div>
-                    </div>
-                    {% if source.updated_at %}
-                    <div class="mb-3">
-                        <strong>Last Updated:</strong>
-                        <div>{{ source.updated_at|date:"M d, Y H:i:s" }}</div>
-                    </div>
-                    {% endif %}
-                    
-                    {% if source.tags %}
-                    <div class="mb-3">
-                        <strong>Tags:</strong>
-                        <div>
-                            {% for tag in source.tags %}
-                                <span class="badge bg-light text-dark me-1">{{ tag }}</span>
-                            {% endfor %}
+                <!-- Source Information -->
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="bg-dark rounded p-4">
+                            <h6 class="mb-4 text-primary">
+                                <i class="fa fa-info-circle me-2"></i>Source Details
+                            </h6>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-borderless text-white">
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Source ID:</strong></td>
+                                            <td><code class="text-info">{{ source.source_id }}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Name:</strong></td>
+                                            <td>{{ source.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Type:</strong></td>
+                                            <td>
+                                                {% if source_type == 'camera' %}
+                                                    <span class="badge bg-primary">Camera</span>
+                                                {% elif source_type == 'file' %}
+                                                    <span class="badge bg-success">File</span>
+                                                {% elif source_type == 'stream' %}
+                                                    <span class="badge bg-info">Stream</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Status:</strong></td>
+                                            <td>
+                                                {% if source.is_active %}
+                                                    <span class="badge bg-success">Active</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Inactive</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% if source.description %}
+                                        <tr>
+                                            <td><strong>Description:</strong></td>
+                                            <td>{{ source.description }}</td>
+                                        </tr>
+                                        {% endif %}
+                                        {% if source.location %}
+                                        <tr>
+                                            <td><strong>Location:</strong></td>
+                                            <td>{{ source.location }}</td>
+                                        </tr>
+                                        {% endif %}
+                                        {% if source.zone %}
+                                        <tr>
+                                            <td><strong>Zone:</strong></td>
+                                            <td>{{ source.zone }}</td>
+                                        </tr>
+                                        {% endif %}
+                                        <tr>
+                                            <td><strong>Created:</strong></td>
+                                            <td>{{ source.created_at|date:"F d, Y H:i" }}</td>
+                                        </tr>
+                                        {% if source.updated_at %}
+                                        <tr>
+                                            <td><strong>Last Updated:</strong></td>
+                                            <td>{{ source.updated_at|date:"F d, Y H:i" }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Source Type Specific Information -->
+                            {% if source_type == 'camera' %}
+                            <div class="mt-4">
+                                <h6 class="mb-3 text-primary">
+                                    <i class="fa fa-video-camera me-2"></i>Camera Configuration
+                                </h6>
+                                <div class="table-responsive">
+                                    <table class="table table-borderless text-white">
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>IP Address:</strong></td>
+                                                <td><code class="text-info">{{ source.camera_ip }}</code></td>
+                                            </tr>
+                                            {% if source.camera_port %}
+                                            <tr>
+                                                <td><strong>Port:</strong></td>
+                                                <td>{{ source.camera_port }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if source.camera_protocol %}
+                                            <tr>
+                                                <td><strong>Protocol:</strong></td>
+                                                <td>{{ source.camera_protocol }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if source.camera_username %}
+                                            <tr>
+                                                <td><strong>Username:</strong></td>
+                                                <td>{{ source.camera_username }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if source.camera_type %}
+                                            <tr>
+                                                <td><strong>Camera Type:</strong></td>
+                                                <td>{{ source.camera_type }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if source.camera_resolution %}
+                                            <tr>
+                                                <td><strong>Resolution:</strong></td>
+                                                <td>{{ source.camera_resolution }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if source.camera_fps %}
+                                            <tr>
+                                                <td><strong>Frame Rate:</strong></td>
+                                                <td>{{ source.camera_fps }} FPS</td>
+                                            </tr>
+                                            {% endif %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if source_type == 'file' %}
+                            <div class="mt-4">
+                                <h6 class="mb-3 text-primary">
+                                    <i class="fa fa-file-video me-2"></i>File Information
+                                </h6>
+                                <div class="table-responsive">
+                                    <table class="table table-borderless text-white">
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>Original Filename:</strong></td>
+                                                <td><code class="text-info">{{ source.original_filename|default:"Not specified" }}</code></td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>File Size:</strong></td>
+                                                <td>{{ source.get_file_size_display|default:"Not specified" }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>File Format:</strong></td>
+                                                <td>{{ source.file_format|default:"Not specified" }}</td>
+                                            </tr>
+                                            {% if source.access_token %}
+                                            <tr>
+                                                <td><strong>Access Token:</strong></td>
+                                                <td><code class="text-info">{{ source.access_token }}</code></td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if source.status %}
+                                            <tr>
+                                                <td><strong>Processing Status:</strong></td>
+                                                <td>
+                                                    {% if source.status == 'ready' %}
+                                                        <span class="badge bg-success">Ready</span>
+                                                    {% elif source.status == 'processing' %}
+                                                        <span class="badge bg-warning">Processing</span>
+                                                    {% elif source.status == 'failed' %}
+                                                        <span class="badge bg-danger">Failed</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{{ source.status|title }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endif %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if source_type == 'stream' %}
+                            <div class="mt-4">
+                                <h6 class="mb-3 text-primary">
+                                    <i class="fa fa-broadcast-tower me-2"></i>Stream Configuration
+                                </h6>
+                                <div class="table-responsive">
+                                    <table class="table table-borderless text-white">
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>Stream URL:</strong></td>
+                                                <td><code class="text-info">{{ source.stream_url }}</code></td>
+                                            </tr>
+                                            {% if source.stream_protocol %}
+                                            <tr>
+                                                <td><strong>Protocol:</strong></td>
+                                                <td>{{ source.stream_protocol }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if source.stream_quality %}
+                                            <tr>
+                                                <td><strong>Quality:</strong></td>
+                                                <td>{{ source.stream_quality }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if source.stream_parameters %}
+                                            <tr>
+                                                <td><strong>Parameters:</strong></td>
+                                                <td><code class="text-info">{{ source.stream_parameters }}</code></td>
+                                            </tr>
+                                            {% endif %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
-                    {% endif %}
+
+                    <!-- Sidebar -->
+                    <div class="col-lg-4">
+                        <!-- Location Information -->
+                        {% if source.latitude and source.longitude %}
+                        <div class="bg-dark rounded p-4 mb-4">
+                            <h6 class="mb-4 text-primary">
+                                <i class="fa fa-map me-2"></i>Location
+                            </h6>
+                            <div class="text-center">
+                                <i class="fa fa-map fa-2x text-primary mb-2"></i>
+                                <p class="text-muted mb-2">Coordinates</p>
+                                <p class="mb-2">
+                                    <strong>Lat:</strong> {{ source.latitude|floatformat:6 }}<br>
+                                    <strong>Lng:</strong> {{ source.longitude|floatformat:6 }}
+                                </p>
+                                <a href="https://maps.google.com/?q={{ source.latitude }},{{ source.longitude }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <i class="fa fa-external-link-alt me-2"></i>View on Map
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Quick Actions -->
+                        <div class="bg-dark rounded p-4">
+                            <h6 class="mb-4 text-primary">
+                                <i class="fa fa-bolt me-2"></i>Quick Actions
+                            </h6>
+                            <div class="d-grid gap-2">
+                                {% if source_type == 'file' and source.status == 'ready' %}
+                                <a href="{% url 'video_player:source_video_detail' source.source_id %}" class="btn btn-success">
+                                    <i class="fa fa-play me-2"></i>Play Video
+                                </a>
+                                {% elif source_type == 'camera' and source.is_active %}
+                                <a href="{% url 'video_player:source_video_detail' source.source_id %}" class="btn btn-success">
+                                    <i class="fa fa-video me-2"></i>View Live Stream
+                                </a>
+                                {% elif source_type == 'stream' %}
+                                <a href="{% url 'video_player:source_video_detail' source.source_id %}" class="btn btn-success">
+                                    <i class="fa fa-broadcast-tower me-2"></i>View Stream
+                                </a>
+                                {% endif %}
+                                <a href="{% url 'source_management:'|add:source_type|add:'_update' source.source_id %}" class="btn btn-primary">
+                                    <i class="fa fa-edit me-2"></i>Edit Source
+                                </a>
+                                <a href="{% url 'source_management:'|add:source_type|add:'_delete' source.source_id %}" class="btn btn-danger">
+                                    <i class="fa fa-trash me-2"></i>Delete Source
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Stream Processor Service Status -->
+                        {% if source_type in 'camera,stream' and processor_status %}
+                        <div class="bg-dark rounded p-4 mt-4">
+                            <h6 class="mb-4 text-primary">
+                                <i class="fa fa-cogs me-2"></i>Stream Processor Service
+                            </h6>
+                            {% if processor_status.success %}
+                                <div class="text-success mb-2">
+                                    <i class="fa fa-check-circle me-2"></i>Connected
+                                </div>
+                                {% if processor_status.data %}
+                                    <div class="small text-muted">
+                                        <div><strong>Status:</strong> {{ processor_status.data.status|default:"Unknown" }}</div>
+                                        {% if processor_status.data.topic_name %}
+                                        <div><strong>Topic:</strong> {{ processor_status.data.topic_name }}</div>
+                                        {% endif %}
+                                        {% if processor_status.data.frames_ingested is not None %}
+                                        <div><strong>Frames:</strong> {{ processor_status.data.frames_ingested }}</div>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                                
+                                <!-- Stream Control Buttons -->
+                                <div class="mt-3">
+                                    <div class="d-grid gap-2">
+                                        {% if processor_status.data.status == 'running' %}
+                                            <button class="btn btn-warning btn-sm" onclick="stopStream('{{ source.source_id }}')">
+                                                <i class="fa fa-stop me-2"></i>Stop Stream
+                                            </button>
+                                        {% else %}
+                                            <button class="btn btn-success btn-sm" onclick="startStream('{{ source.source_id }}')">
+                                                <i class="fa fa-play me-2"></i>Start Stream
+                                            </button>
+                                        {% endif %}
+                                        <button class="btn btn-outline-primary btn-sm" onclick="submitStream('{{ source.source_id }}')">
+                                            <i class="fa fa-paper-plane me-2"></i>Submit Stream Data
+                                        </button>
+                                        <button class="btn btn-info btn-sm" onclick="refreshStreamStatus('{{ source.source_id }}')">
+                                            <i class="fa fa-refresh me-2"></i>Refresh Status
+                                        </button>
+                                    </div>
+                                </div>
+                            {% elif processor_status.not_found %}
+                                <div class="text-info mb-2">
+                                    <i class="fa fa-info-circle me-2"></i>Not Registered
+                                </div>
+                                <div class="small text-muted mb-3">
+                                    This source is not yet registered with the stream processor service.
+                                </div>
+                                <div class="mt-3">
+                                    <div class="d-grid gap-2">
+                                        <button class="btn btn-primary btn-sm" onclick="createStream('{{ source.source_id }}')">
+                                            <i class="fa fa-plus me-2"></i>Register with Processor Service
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm" onclick="submitStream('{{ source.source_id }}')">
+                                            <i class="fa fa-paper-plane me-2"></i>Submit Stream Data
+                                        </button>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="text-warning mb-2">
+                                    <i class="fa fa-exclamation-triangle me-2"></i>Connection Failed
+                                </div>
+                                <div class="small text-muted">
+                                    {{ processor_status.error|default:"Unknown error" }}
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-info btn-sm" onclick="refreshStreamStatus('{{ source.source_id }}')">
+                                        <i class="fa fa-refresh me-2"></i>Retry Connection
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Delete Source</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete the source "{{ source.name }}"?</p>
-                <div class="alert alert-warning">
-                    <i class="fa fa-exclamation-triangle me-2"></i>
-                    This action cannot be undone. All associated data will be permanently deleted.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form method="post" action="{% url 'source_management:'|add:source_type|add:'_delete' source.source_id %}" class="d-inline">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-danger">Delete Source</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
+<!-- Stream Control JavaScript -->
+{% if source_type in 'camera,stream' %}
 <script>
-// Video Processing functionality
-document.addEventListener('DOMContentLoaded', function() {
-    const sourceId = '{{ source.source_id }}';
-    const fastpublisherForm = document.getElementById('fastpublisherForm');
-    const targetFpsSelect = document.getElementById('target_fps');
-    const targetResolutionSelect = document.getElementById('target_resolution');
-    const customResolutionDiv = document.getElementById('custom_resolution_div');
-    const customResolutionInput = document.getElementById('custom_resolution');
-    const submitBtn = document.getElementById('submitBtn');
-    const submissionStatus = document.getElementById('submissionStatus');
-    const statusMessage = document.getElementById('statusMessage');
-    const serviceStatus = document.getElementById('serviceStatus');
-    const serviceMessage = document.getElementById('serviceMessage');
-
-    // Check data ingestion service health on page load and toggle submit availability (non-auth URL from urls.py)
-    fetch('{% url "source_management:fastpublisher_health" %}')
-      .then(r => r.json())
-      .then(h => {
-          const ok = !!h.ok;
-          serviceStatus.style.display = 'block';
-          serviceStatus.className = 'alert ' + (ok ? 'alert-success' : 'alert-warning');
-          serviceMessage.textContent = ok ? `Data ingestion service healthy — ${h.url || ''}` : `Data ingestion service unavailable — ${h.url || ''} ${h.error ? '(' + h.error + ')' : ''}`;
-          submitBtn.disabled = !ok;
-      })
-      .catch(() => {});
-
-    // Show/hide custom resolution field based on selection
-    targetResolutionSelect.addEventListener('change', function() {
-        if (this.value === 'custom') {
-            customResolutionDiv.style.display = 'block';
-            customResolutionInput.required = true;
-        } else {
-            customResolutionDiv.style.display = 'none';
-            customResolutionInput.required = false;
-        }
-    });
-
-    // Handle form submission (non-auth submit URL from urls.py)
-    fastpublisherForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Get form data
-        const formData = new FormData();
-        formData.append('target_fps', targetFpsSelect.value);
-        
-        let resolution = targetResolutionSelect.value;
-        if (resolution === 'custom') {
-            resolution = customResolutionInput.value;
-            if (!resolution.match(/^\d+x\d+$/)) {
-                alert('Please enter a valid custom resolution in format "widthxheight"');
-                return;
-            }
-        }
-        formData.append('target_resolution', resolution);
-        
-        // Disable submit button and show status
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Submitting...';
-        submissionStatus.style.display = 'block';
-        statusMessage.textContent = 'Submitting processing job...';
-        
-        // Submit the job
-        fetch('{% url "source_management:fastpublisher_submit_video" source.source_id %}', {
+function startStream(sourceId) {
+    if (confirm('Start video stream processing for this source?')) {
+        fetch(`/source-management/api/stream/${sourceId}/start/`, {
             method: 'POST',
-            body: formData,
             headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
         })
         .then(response => response.json())
         .then(data => {
-            if (data.status === 'success') {
-                statusMessage.textContent = 'Processing job submitted successfully!';
-                submissionStatus.className = 'alert alert-success';
-                submissionStatus.querySelector('i').className = 'fa fa-check-circle me-2';
-                // Show external service status (health)
-                if (data.external_service_health) {
-                    const health = data.external_service_health;
-                    serviceStatus.style.display = 'block';
-                    const ok = health.ok === true || health.status === 'healthy';
-                    serviceStatus.className = 'alert ' + (ok ? 'alert-success' : 'alert-warning');
-                    serviceMessage.textContent = `Data ingestion service: ${ok ? 'healthy' : 'unavailable'} — ${health.url || ''}`;
-                }
-                
-                // Reset form
-                fastpublisherForm.reset();
-                customResolutionDiv.style.display = 'none';
-                customResolutionInput.required = false;
+            if (data.success) {
+                location.reload(); // Refresh to show updated status
             } else {
-                // Show external service status when error
-                if (data.external_service_health) {
-                    const health = data.external_service_health;
-                    serviceStatus.style.display = 'block';
-                    serviceStatus.className = 'alert alert-danger';
-                    serviceMessage.textContent = `Data ingestion service health check failed — ${health.url || ''}: ${health.error || health.status_code || ''}`;
-                }
-                throw new Error(data.message || 'Failed to submit processing job');
+                alert('Failed to start stream: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
-            statusMessage.textContent = `Error: ${error.message}`;
-            submissionStatus.className = 'alert alert-danger';
-            submissionStatus.querySelector('i').className = 'fa fa-exclamation-triangle me-2';
-        })
-        .finally(() => {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fa fa-paper-plane me-2"></i>Submit for Processing';
+            console.error('Error:', error);
+            alert('Error starting stream. Please try again.');
         });
-    });
-});
+    }
+}
+
+function stopStream(sourceId) {
+    if (confirm('Stop video stream processing for this source?')) {
+        fetch(`/source-management/api/stream/${sourceId}/stop/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload(); // Refresh to show updated status
+            } else {
+                alert('Failed to stop stream: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error stopping stream. Please try again.');
+        });
+    }
+}
+
+function createStream(sourceId) {
+    if (confirm('Register this source with the stream processor service?')) {
+        fetch(`/source-management/api/stream/${sourceId}/create/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload(); // Refresh to show updated status
+            } else {
+                alert('Failed to register stream: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error registering stream. Please try again.');
+        });
+    }
+}
+
+function submitStream(sourceId) {
+    if (confirm('Submit this stream data to the processor service for ingestion?')) {
+        fetch(`/source-management/api/stream/${sourceId}/submit/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Stream data submitted successfully!');
+                location.reload(); // Refresh to show updated status
+            } else {
+                alert('Failed to submit stream: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error submitting stream. Please try again.');
+        });
+    }
+}
+
+function refreshStreamStatus(sourceId) {
+    // Show loading state
+    const statusDiv = document.querySelector('.bg-dark.rounded.p-4.mt-4');
+    if (statusDiv) {
+        statusDiv.innerHTML = `
+            <h6 class="mb-4 text-primary">
+                <i class="fa fa-cogs me-2"></i>Stream Processor Service
+            </h6>
+            <div class="text-center">
+                <i class="fa fa-spinner fa-spin fa-2x text-info mb-2"></i>
+                <p class="text-muted">Refreshing status...</p>
+            </div>
+        `;
+    }
+    
+    // Reload the page to get fresh status
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
+}
 </script>
+{% endif %}
+
 {% endblock %} 

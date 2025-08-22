@@ -8,17 +8,17 @@
         <div class="col-12">
             <div class="bg-secondary rounded h-100 p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="mb-0">
+                    <h6 class="mb-0">
                         <i class="fa fa-video me-2"></i>Video Sources
-                    </h4>
+                    </h6>
                     <div class="d-flex gap-2">
                         {% if total_sources > 0 %}
-                        <a href="{% url 'video_player:source_video_list' %}" class="btn btn-success">
+                        <a href="{% url 'video_player:source_video_list' %}" class="btn btn-success btn-sm">
                             <i class="fa fa-play me-2"></i>Video Player
                         </a>
                         {% endif %}
                         <div class="dropdown">
-                            <button class="btn btn-primary dropdown-toggle" type="button" id="addSourceDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <button class="btn btn-primary btn-sm dropdown-toggle" type="button" id="addSourceDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fa fa-plus me-2"></i>Add Source
                             </button>
                             <ul class="dropdown-menu bg-secondary border-0" aria-labelledby="addSourceDropdown">
@@ -80,9 +80,9 @@
                 <div class="row g-4">
                     <div class="col-12">
                         <div class="bg-dark rounded p-4">
-                            <h5 class="mb-4">
+                            <h6 class="mb-4 text-primary">
                                 <i class="fa fa-list me-2"></i>All Video Sources
-                            </h5>
+                            </h6>
                             {% if sources %}
                                 <div class="row g-4">
                                     {% for source in sources %}
@@ -90,14 +90,12 @@
                                         <div class="bg-secondary rounded p-3 h-100">
                                             <div class="d-flex align-items-center mb-3">
                                                 <div class="flex-shrink-0">
-                                                    <div class="avatar-sm rounded-circle bg-{{ source.color }} align-self-center">
-                                                        <span class="avatar-title">
-                                                            <i class="fa {{ source.icon }} font-size-18"></i>
-                                                        </span>
+                                                    <div class="avatar-sm rounded-circle bg-primary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                        <i class="fa {{ source.icon }} text-white"></i>
                                                     </div>
                                                 </div>
                                                 <div class="flex-grow-1 ms-3">
-                                                    <h6 class="mb-1">{{ source.name }}</h6>
+                                                    <h6 class="mb-1 text-white">{{ source.name }}</h6>
                                                     <p class="text-muted mb-0">{{ source.type_display }}</p>
                                                 </div>
                                                 <div class="flex-shrink-0">
@@ -132,6 +130,18 @@
                                             </div>
                                             {% endif %}
                                             
+                                            <!-- Stream Processor Service Status for Camera/Stream Sources -->
+                                            {% if source.type in 'camera,stream' and source.is_active %}
+                                            <div class="mb-2">
+                                                <span class="badge bg-info">
+                                                    <i class="fa fa-cogs me-1"></i>Stream Processor
+                                                </span>
+                                                <small class="text-muted d-block mt-1">
+                                                    <i class="fa fa-broadcast-tower me-1"></i>Integrated with downstream service
+                                                </small>
+                                            </div>
+                                            {% endif %}
+                                            
                                             <div class="mb-3">
                                                 <p class="text-muted mb-1">
                                                     <i class="fa fa-info-circle me-1"></i>{{ source.info }}
@@ -150,7 +160,7 @@
                                                 <!-- File Source Access Token -->
                                                 {% if source.type == 'file' and source.access_token and source.status == 'ready' %}
                                                 <p class="text-muted mb-1">
-                                                    <i class="fa fa-key me-1"></i>Token: <code>{{ source.access_token|truncatechars:12 }}</code>
+                                                    <i class="fa fa-key me-1"></i>Token: <code class="text-info">{{ source.access_token|truncatechars:12 }}</code>
                                                 </p>
                                                 {% endif %}
                                             </div>
@@ -191,9 +201,9 @@
                             {% else %}
                                 <div class="text-center py-5">
                                     <i class="fa fa-video fa-3x text-muted mb-3"></i>
-                                    <h5 class="text-muted">No video sources found</h5>
+                                    <h6 class="text-muted">No video sources found</h6>
                                     <p class="text-muted">Get started by adding your first video source.</p>
-                                    <a href="{% url 'source_management:source_create' %}?type=file" class="btn btn-primary">
+                                    <a href="{% url 'source_management:source_create' %}?type=file" class="btn btn-primary btn-sm">
                                         <i class="fa fa-plus me-2"></i>Add Your First Source
                                     </a>
                                 </div>

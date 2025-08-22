@@ -24,6 +24,8 @@ def source_create(request):
     """Create a new source"""
     if request.method == 'POST':
         source_type = request.POST.get('source_type', 'file')
+        logger.info(f"Form submitted for source type: {source_type}")
+        logger.info(f"POST data: {request.POST}")
         
         if source_type == 'file':
             form = FileSourceForm(request.POST, request.FILES)
@@ -161,29 +163,58 @@ def source_create(request):
                         return redirect('source_management:file_detail', source_id=file_source.source_id)
                     
                     else:
+                        # For camera and stream sources
+                        logger.info(f"Creating {source_type} source: {source.name}")
                         source.save()
-                        messages.success(request, f'{source_type.title()} source "{source.name}" created successfully.')
+                        
+                        # Check if stream processor integration was successful
+                        try:
+                            if source_type in ['camera', 'stream'] and source.is_active:
+                                # Test the integration by getting processor status
+                                processor_status = source.get_processor_status()
+                                if processor_status.get('success', False):
+                                    messages.success(request, f'{source_type.title()} source "{source.name}" created successfully and integrated with stream processor service.')
+                                else:
+                                    messages.warning(request, f'{source_type.title()} source "{source.name}" created but stream processor integration failed: {processor_status.get("error", "Unknown error")}')
+                            else:
+                                messages.success(request, f'{source_type.title()} source "{source.name}" created successfully.')
+                        except Exception as e:
+                            logger.error(f"Error checking stream processor integration for {source_type} source {source.source_id}: {e}")
+                            messages.warning(request, f'{source_type.title()} source "{source.name}" created but there was an issue with stream processor integration.')
+                        
                         return redirect('source_management:' + source_type + '_detail', source_id=source.source_id)
                         
             except Exception as e:
                 messages.error(request, f'Error creating {source_type} source: {str(e)}')
                 return redirect('source_management:source_list')
         else:
+            # Form validation failed - log the errors for debugging
+            logger.error(f"Form validation failed for {source_type} source. Errors: {form.errors}")
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
             messages.error(request, 'Please correct the errors below.')
     else:
         source_type = request.GET.get('type', 'file')
+        logger.info(f"Creating form for source type: {source_type}")
+        # Validate source_type parameter
+        if source_type not in ['file', 'camera', 'stream']:
+            messages.error(request, 'Invalid source type specified.')
+            return redirect('source_management:source_list')
+            
         if source_type == 'file':
-            form = FileSourceForm()
+            form = FileSourceForm(instance=None)
         elif source_type == 'camera':
-            form = CameraSourceForm()
+            form = CameraSourceForm(instance=None)
         elif source_type == 'stream':
-            form = StreamSourceForm()
+            form = StreamSourceForm(instance=None)
         else:
-            form = FileSourceForm()
+            form = FileSourceForm(instance=None)
     
     context = {
         'form': form,
         'source_type': source_type,
+        'is_edit': False,  # Explicitly set this for add operations
     }
     
     try:
@@ -231,6 +262,15 @@ def source_detail(request, source_id):
         'source_type': source_type,
     }
     
+    # Add stream processor service status for camera and stream sources
+    if source_type in ['camera', 'stream'] and source.is_active:
+        try:
+            processor_status = source.get_processor_status()
+            context['processor_status'] = processor_status
+        except Exception as e:
+            logger.error(f"Error getting processor status for {source_type} source {source.source_id}: {e}")
+            context['processor_status'] = {'success': False, 'error': str(e)}
+    
     return render(request, 'source_management/source_detail.html', context)
 
 
@@ -272,7 +312,22 @@ def source_update(request, source_id):
         form = form_class(request.POST, request.FILES, instance=source)
         if form.is_valid():
             form.save()
-            messages.success(request, f'{source_type.title()} source "{source.name}" updated successfully.')
+            
+            # Check if stream processor integration was successful for camera/stream sources
+            try:
+                if source_type in ['camera', 'stream'] and source.is_active:
+                    # Test the integration by getting processor status
+                    processor_status = source.get_processor_status()
+                    if processor_status.get('success', False):
+                        messages.success(request, f'{source_type.title()} source "{source.name}" updated successfully and stream processor service updated.')
+                    else:
+                        messages.warning(request, f'{source_type.title()} source "{source.name}" updated but stream processor integration failed: {processor_status.get("error", "Unknown error")}')
+                else:
+                    messages.success(request, f'{source_type.title()} source "{source.name}" updated successfully.')
+            except Exception as e:
+                logger.error(f"Error checking stream processor integration for {source_type} source {source.source_id}: {e}")
+                messages.warning(request, f'{source_type.title()} source "{source.name}" updated but there was an issue with stream processor integration.')
+            
             return redirect('source_management:' + source_type + '_detail', source_id=source.source_id)
         else:
             messages.error(request, 'Please correct the errors below.')
@@ -283,6 +338,7 @@ def source_update(request, source_id):
         'form': form,
         'source': source,
         'source_type': source_type,
+        'is_edit': True,  # Explicitly set this for edit operations
     }
     return render(request, 'source_management/source_form.html', context)
 

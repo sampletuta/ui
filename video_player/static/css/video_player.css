@@ -99,6 +99,63 @@
     transition: left 0.5s;
 }
 
+/* Camera tabs header */
+.camera-tabs-header {
+    margin-bottom: 16px;
+    padding: 16px;
+    background-color: var(--secondary-surface);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.camera-tabs-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.camera-tabs-header p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* Enhanced camera tab styling */
+.camera-tabs button.camera-tab-btn {
+    background-color: var(--secondary-surface);
+    border: 2px solid transparent;
+    color: var(--text-secondary);
+    padding: 12px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    min-width: 120px;
+    text-align: center;
+}
+
+.camera-tabs button.camera-tab-btn:hover {
+    background-color: var(--primary);
+    color: var(--text-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(235, 22, 22, 0.3);
+}
+
+.camera-tabs button.camera-tab-btn.active {
+    background-color: var(--primary);
+    color: var(--text-primary);
+    border-color: var(--accent-red-hover);
+    box-shadow: 0 4px 20px rgba(235, 22, 22, 0.4);
+}
+
+.camera-tabs button.camera-tab-btn.active::before {
+    left: 100%;
+}
+
 .camera-tabs button:hover::before {
     left: 100%;
 }

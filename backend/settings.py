@@ -307,3 +307,28 @@ LOGGING = {
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://192.168.86.65:8000']
+
+# Downstream Service Configuration
+# Configuration for sending stream data to external services for processing, analytics, or recording
+STREAM_PROCESSSING_SERVICE = {
+    'ENABLED': os.environ.get('STREAM_PROCESSSING_SERVICE_ENABLED', 'false').lower() == 'true',
+    'URL': os.environ.get('STREAM_PROCESSSING_SERVICE_URL', 'https://your-downstream-service.com/api/streams'),
+    'API_TOKEN': os.environ.get('STREAM_PROCESSSING_SERVICE_TOKEN', ''),
+    'TIMEOUT': int(os.environ.get('STREAM_PROCESSSING_SERVICE_TIMEOUT', 10)),  # Request timeout in seconds
+    'RETRY_ATTEMPTS': int(os.environ.get('STREAM_PROCESSSING_SERVICE_RETRY_ATTEMPTS', 3)),
+    'BATCH_SIZE': int(os.environ.get('STREAM_PROCESSSING_SERVICE_BATCH_SIZE', 100)),
+    'ENABLE_ANALYTICS': os.environ.get('STREAM_PROCESSSING_SERVICE_ENABLE_ANALYTICS', 'true').lower() == 'true',
+    'ENABLE_EVENTS': os.environ.get('STREAM_PROCESSSING_SERVICE_ENABLE_EVENTS', 'true').lower() == 'true',
+}
+
+# Individual settings for backward compatibility
+STREAM_PROCESSSING_SERVICE_URL = os.environ.get('STREAM_PROCESSSING_SERVICE_URL', 'https://your-downstream-service.com/api/streams')
+STREAM_PROCESSSING_SERVICE_TOKEN = os.environ.get('STREAM_PROCESSSING_SERVICE_TOKEN', '')
+
+# Stream Processor Service Configuration
+STREAM_PROCESSOR_CONFIG = {
+    'BASE_URL': 'http://localhost:8002',
+    'EXTERNAL_SERVICE_ID': 'django-source-management',
+    'TIMEOUT': 30,
+    'ENABLED': True,
+}

@@ -689,27 +689,63 @@ def quick_search(request):
 
 @login_required
 def milvus_search(request):
-    """Milvus vector search interface"""
+    """Milvus vector search interface for face similarity search"""
     if request.method == 'POST':
-        form = MilvusSearchForm(request.POST)
+        form = MilvusSearchForm(request.POST, request.FILES)
         if form.is_valid():
-            collection_name = form.cleaned_data['collection_name']
-            partition_name = form.cleaned_data['partition_name']
-            top_k = form.cleaned_data['top_k']
-            distance_threshold = form.cleaned_data['distance_threshold']
-            
-            # Execute Milvus search
-            results = execute_milvus_search(collection_name, partition_name, top_k, distance_threshold)
-            
-            return render(request, 'milvus_search_results.html', {
-                'results': results,
-                'collection_name': collection_name,
-                'top_k': top_k
-            })
+            try:
+                # Import the face search service
+                from face_ai.services.face_search_service import FaceSearchService
+                
+                # Initialize the service
+                face_search_service = FaceSearchService()
+                
+                # Get form data
+                face_image = form.cleaned_data['face_image']
+                top_k = form.cleaned_data['top_k']
+                confidence_threshold = form.cleaned_data['confidence_threshold']
+                
+                # Perform face search
+                search_result = face_search_service.search_faces_in_image(
+                    face_image, 
+                    top_k=top_k, 
+                    confidence_threshold=confidence_threshold
+                )
+                
+                if search_result['success']:
+                    # Get search statistics
+                    stats = face_search_service.get_search_statistics()
+                    
+                    return render(request, 'milvus_search_results.html', {
+                        'search_result': search_result,
+                        'stats': stats,
+                        'form': form,
+                        'uploaded_image': face_image
+                    })
+                else:
+                    messages.error(request, f'Search failed: {search_result["error"]}')
+                    
+            except ImportError as e:
+                messages.error(request, f'Face search service not available: {e}')
+            except Exception as e:
+                logger.error(f"Face search error: {e}")
+                messages.error(request, f'An error occurred during face search: {str(e)}')
     else:
         form = MilvusSearchForm()
     
-    return render(request, 'milvus_search.html', {'form': form})
+    # Get basic statistics for display
+    try:
+        from face_ai.services.face_search_service import FaceSearchService
+        face_search_service = FaceSearchService()
+        stats = face_search_service.get_search_statistics()
+    except Exception as e:
+        logger.warning(f"Could not get search statistics: {e}")
+        stats = {'success': False, 'error': str(e)}
+    
+    return render(request, 'milvus_search.html', {
+        'form': form, 
+        'stats': stats
+    })
 
 @login_required
 def search_results_advanced(request, search_id):

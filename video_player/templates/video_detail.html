@@ -10,15 +10,6 @@
         <div class="video-panel">
             <div class="video-header">
                 <h1>Video Player</h1>
-                <div class="video-info" style="margin-bottom: 10px;">
-                    <span id="videoSourceInfo" class="text-muted">
-                        {% if sources_count %}
-                            {{ sources_count }} video source{{ sources_count|pluralize }} available
-                        {% else %}
-                            No video sources available
-                        {% endif %}
-                    </span>
-                </div>
                 <div class="camera-tabs" id="cameraTabs">
                     <!-- Camera tabs will be populated by JavaScript -->
                 </div>
@@ -38,7 +29,7 @@
             <div class="video-player-container">
                 {% if sources_count > 0 %}
                 <div class="video-player">
-                    <video id="zmPlayer" preload="metadata">
+                    <video id="zmPlayer" preload="metadata" controls>
                         <source src="" type="video/mp4">
                         Your browser does not support the video tag.
                     </video>
@@ -200,16 +191,36 @@
     <script src="{% static 'js/video_player.js' %}"></script>
     <script>
         // Initialize data from Django context
-        window.videoStreams = JSON.parse('{{ video_streams|escapejs }}');
+        console.log('Raw video_streams from Django:', '{{ video_streams|escapejs }}');
+        console.log('Raw current_camera from Django:', '{{ current_camera }}');
+        console.log('Raw detection_events from Django:', '{{ detection_events|escapejs }}');
+        
+        try {
+            window.videoStreams = JSON.parse('{{ video_streams|escapejs }}');
+            console.log('Parsed videoStreams:', window.videoStreams);
+        } catch (e) {
+            console.error('Failed to parse video_streams:', e);
+            window.videoStreams = {};
+        }
+        
         window.currentCamera = '{{ current_camera }}';
-        window.detectionEvents = JSON.parse('{{ detection_events|escapejs }}');
+        console.log('Set currentCamera:', window.currentCamera);
+        
+        try {
+            window.detectionEvents = JSON.parse('{{ detection_events|escapejs }}');
+            console.log('Parsed detectionEvents:', window.detectionEvents);
+        } catch (e) {
+            console.error('Failed to parse detection_events:', e);
+            window.detectionEvents = [];
+        }
+        
         window.initialSeek = {{ initial_seek|default:0 }};
+        console.log('Set initialSeek:', window.initialSeek);
         
         // Debug logging
-        console.log('Video streams data:', videoStreams);
-        console.log('Current camera:', currentCamera);
-        console.log('Detection events:', detectionEvents);
-        console.log('Initial seek (s):', window.initialSeek);
+        console.log('Final window.videoStreams:', window.videoStreams);
+        console.log('Final window.currentCamera:', window.currentCamera);
+        console.log('Final window.detectionEvents:', window.detectionEvents);
     </script>
 </div>
 {% endblock %}
