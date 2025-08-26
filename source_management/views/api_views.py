@@ -4,12 +4,16 @@ Handles API endpoints for source metadata and video access
 """
 
 import os
+import json
 import logging
 from django.http import JsonResponse
+from django.utils import timezone
+from django.contrib.auth import get_user_model
 from .decorators import login_required_source_list
 from .utils import _range_streaming_response
 from ..models import CameraSource, FileSource, StreamSource
 
+User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
@@ -316,3 +320,85 @@ def api_video_stream_public(request, access_token):
         return JsonResponse({'error': 'Video not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def create_notification(request):
+    """
+    API endpoint for external apps to create notifications
+    
+    Expected POST data:
+    - recipient_id: User ID to receive the notification
+    - actor_id: ID of the object performing the action (optional)
+    - verb: Action being performed (e.g., 'uploaded', 'processed', 'failed')
+    - target_id: ID of the object being acted upon (optional)
+    - action_object_id: ID of the action object (optional)
+    - description: Human-readable description of the notification
+    - level: Notification level ('success', 'info', 'warning', 'error')
+    - category: Custom category for the notification (optional)
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    try:
+        # Parse request data
+        data = json.loads(request.body) if request.body else {}
+        
+        # Required fields
+        recipient_id = data.get('recipient_id')
+        verb = data.get('verb')
+        description = data.get('description')
+        level = data.get('level', 'info')
+        
+        if not all([recipient_id, verb, description]):
+            return JsonResponse({
+                'error': 'Missing required fields: recipient_id, verb, description'
+            }, status=400)
+        
+        # Validate recipient exists
+        try:
+            recipient = User.objects.get(id=recipient_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'Recipient user not found'}, status=404)
+        
+        # Validate level
+        valid_levels = ['success', 'info', 'warning', 'error']
+        if level not in valid_levels:
+            return JsonResponse({
+                'error': f'Invalid level. Must be one of: {", ".join(valid_levels)}'
+            }, status=400)
+        
+        # Create notification using django-notifications
+        from notifications.models import Notification
+        
+        notification = Notification.objects.create(
+            recipient=recipient,
+            actor_id=data.get('actor_id'),
+            verb=verb,
+            target_id=data.get('target_id'),
+            action_object_id=data.get('action_object_id'),
+            description=description,
+            level=level,
+            public=True,  # Make it public by default
+            timestamp=timezone.now()
+        )
+        
+        # Add custom category if provided
+        if data.get('category'):
+            # You can extend the notification model or use a custom field
+            # For now, we'll store it in the description or use a custom approach
+            pass
+        
+        return JsonResponse({
+            'success': True,
+            'notification_id': notification.id,
+            'message': 'Notification created successfully'
+        }, status=201)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        logger.error(f"Error creating notification: {e}")
+        return JsonResponse({
+            'error': 'Internal server error',
+            'details': str(e)
+        }, status=500)

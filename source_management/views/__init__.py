@@ -40,6 +40,7 @@ from .callback_views import processing_callback
 from .stream_control_views import (
     stream_create,
     stream_submit,
+    stream_submit_comprehensive,
     stream_start,
     stream_stop,
     stream_status,
@@ -74,6 +75,7 @@ __all__ = [
     'processing_callback',
     'stream_create',
     'stream_submit',
+    'stream_submit_comprehensive',
     'stream_start',
     'stream_stop',
     'stream_status',

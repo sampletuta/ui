@@ -223,23 +223,9 @@ class CameraSource(BaseSource):
         if not self.topic_name:
             self.topic_name = self.generate_topic_name(self.topic_suffix)
         
-        # Check if this is a new camera or existing one
-        # For UUID primary keys, we need to check if the record exists in DB
-        is_new = not self.__class__.objects.filter(pk=self.pk).exists()
-        
         super().save(*args, **kwargs)
-        
-        # Integrate with stream processor service
-        if is_new and self.is_active:
-            # Create new stream in processor service
-            self._create_in_stream_processor()
-        elif not is_new and self.is_active:
-            # Update existing stream in processor service
-            self._update_in_stream_processor()
 
     def delete(self, *args, **kwargs):
-        # Remove from stream processor service first
-        self._delete_from_stream_processor()
         super().delete(*args, **kwargs)
 
     def _create_in_stream_processor(self):
@@ -702,23 +688,9 @@ class StreamSource(BaseSource):
         if not self.topic_name:
             self.topic_name = self.generate_topic_name(self.topic_suffix)
         
-        # Check if this is a new stream or existing one
-        # For UUID primary keys, we need to check if the record exists in DB
-        is_new = not self.__class__.objects.filter(pk=self.pk).exists()
-        
         super().save(*args, **kwargs)
-        
-        # Integrate with stream processor service
-        if is_new and self.is_active:
-            # Create new stream in processor service
-            self._create_in_stream_processor()
-        elif not is_new and self.is_active:
-            # Update existing stream in processor service
-            self._update_in_stream_processor()
 
     def delete(self, *args, **kwargs):
-        # Remove from stream processor service first
-        self._delete_from_stream_processor()
         super().delete(*args, **kwargs)
 
     def _create_in_stream_processor(self):

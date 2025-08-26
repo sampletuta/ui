@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views_main as views
 
 app_name = 'source_management'
 
@@ -62,9 +62,13 @@ urlpatterns = [
     path('api/data-ingestion/health/', views.data_ingestion_health, name='data_ingestion_health'),
     path('api/data-ingestion/status/<uuid:source_id>/', views.data_ingestion_source_status, name='data_ingestion_source_status'),
     
+    # Notification API endpoint for external apps
+    path('api/notifications/create/', views.create_notification, name='create_notification'),
+    
     # Stream Processor Service endpoints
     path('api/stream/<uuid:source_id>/create/', views.stream_create, name='stream_create'),
     path('api/stream/<uuid:source_id>/submit/', views.stream_submit, name='stream_submit'),
+    path('api/stream/<uuid:source_id>/submit-comprehensive/', views.stream_submit_comprehensive, name='stream_submit_comprehensive'),
     path('api/stream/<uuid:source_id>/start/', views.stream_start, name='stream_start'),
     path('api/stream/<uuid:source_id>/stop/', views.stream_stop, name='stream_stop'),
     path('api/stream/<uuid:source_id>/status/', views.stream_status, name='stream_status'),

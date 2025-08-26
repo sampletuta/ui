@@ -281,9 +281,9 @@
                                 <a href="{% url 'source_management:'|add:source_type|add:'_update' source.source_id %}" class="btn btn-primary">
                                     <i class="fa fa-edit me-2"></i>Edit Source
                                 </a>
-                                <a href="{% url 'source_management:'|add:source_type|add:'_delete' source.source_id %}" class="btn btn-danger">
+                                <button type="button" class="btn btn-danger" onclick="showDeleteConfirmation()">
                                     <i class="fa fa-trash me-2"></i>Delete Source
-                                </a>
+                                </button>
                             </div>
                         </div>
 
@@ -327,6 +327,9 @@
                                         <button class="btn btn-info btn-sm" onclick="refreshStreamStatus('{{ source.source_id }}')">
                                             <i class="fa fa-refresh me-2"></i>Refresh Status
                                         </button>
+                                        <button class="btn btn-primary btn-sm" onclick="openComprehensiveSubmission('{{ source.source_id }}')">
+                                            <i class="fa fa-cogs me-2"></i>Comprehensive Submission
+                                        </button>
                                     </div>
                                 </div>
                             {% elif processor_status.not_found %}
@@ -343,6 +346,9 @@
                                         </button>
                                         <button class="btn btn-outline-primary btn-sm" onclick="submitStream('{{ source.source_id }}')">
                                             <i class="fa fa-paper-plane me-2"></i>Submit Stream Data
+                                        </button>
+                                        <button class="btn btn-primary btn-sm" onclick="openComprehensiveSubmission('{{ source.source_id }}')">
+                                            <i class="fa fa-cogs me-2"></i>Comprehensive Submission
                                         </button>
                                     </div>
                                 </div>
@@ -403,6 +409,292 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="closeModalBtn">Close</button>
                 <button type="button" class="btn btn-primary" id="refreshPageBtn" style="display: none;">Refresh Page</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comprehensive Stream Submission Modal -->
+<div class="modal fade" id="comprehensiveSubmissionModal" tabindex="-1" aria-labelledby="comprehensiveSubmissionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="comprehensiveSubmissionModalLabel">
+                    <i class="fa fa-cogs me-2"></i>Comprehensive Stream Submission
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="comprehensiveSubmissionForm">
+                    <div class="row g-3">
+                        <!-- Basic Configuration -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fa fa-cog me-2"></i>Basic Configuration</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Stream ID</label>
+                                        <input type="text" class="form-control" id="stream_id" readonly>
+                                        <div class="form-text">Unique identifier for this stream</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Source URL</label>
+                                        <input type="text" class="form-control" id="source_url" readonly>
+                                        <div class="form-text">Source URL (auto-generated)</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Topic Name</label>
+                                        <input type="text" class="form-control" id="topic_name" readonly>
+                                        <div class="form-text">Topic for downstream subscription</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">External Service ID</label>
+                                        <input type="text" class="form-control" id="external_service_id" value="django-source-management">
+                                        <div class="form-text">Identifier for external service</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Processing Parameters -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fa fa-film me-2"></i>Processing Parameters</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Target FPS</label>
+                                        <input type="number" class="form-control" id="target_fps" step="0.1" min="0.1" max="300" value="1.0">
+                                        <div class="form-text">Target frame rate (0.1-300 FPS)</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Frame Quality</label>
+                                        <input type="number" class="form-control" id="frame_quality" min="1" max="100" value="85">
+                                        <div class="form-text">Frame quality (1-100)</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="resize_enabled">
+                                            <label class="form-check-label" for="resize_enabled">
+                                                Enable Frame Resizing
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <label class="form-label">Target Width</label>
+                                            <input type="number" class="form-control" id="target_width" min="1" max="7680" disabled>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label">Target Height</label>
+                                            <input type="number" class="form-control" id="target_height" min="1" max="4320" disabled>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Authentication -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fa fa-lock me-2"></i>Authentication</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Username</label>
+                                        <input type="text" class="form-control" id="username" placeholder="Optional">
+                                        <div class="form-text">Username for authentication</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Password</label>
+                                        <input type="password" class="form-control" id="password" placeholder="Optional">
+                                        <div class="form-text">Password for authentication</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Audio Configuration -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fa fa-volume-up me-2"></i>Audio Configuration</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="enable_audio">
+                                            <label class="form-check-label" for="enable_audio">
+                                                Enable Audio Processing
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Audio Codec</label>
+                                        <input type="text" class="form-control" id="audio_codec" placeholder="e.g., aac, mp3, opus" disabled>
+                                        <div class="form-text">Audio codec for processing</div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <label class="form-label">Audio Channels</label>
+                                            <input type="number" class="form-control" id="audio_channels" min="1" max="8" value="1" disabled>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label">Sample Rate (Hz)</label>
+                                            <input type="number" class="form-control" id="audio_sample_rate" min="8000" max="192000" value="16000" disabled>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Network & Performance -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fa fa-network-wired me-2"></i>Network & Performance</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <label class="form-label">Buffer Size (ms)</label>
+                                            <input type="number" class="form-control" id="buffer_size" min="100" max="10000" value="1000">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label">Timeout (s)</label>
+                                            <input type="number" class="form-control" id="timeout" min="5" max="300" value="30">
+                                        </div>
+                                    </div>
+                                    <div class="row mt-3">
+                                        <div class="col-6">
+                                            <label class="form-label">Retry Attempts</label>
+                                            <input type="number" class="form-control" id="retry_attempts" min="0" max="10" value="3">
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check mt-4">
+                                                <input class="form-check-input" type="checkbox" id="keepalive" checked>
+                                                <label class="form-check-label" for="keepalive">
+                                                    Keepalive Connections
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Custom Metadata -->
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fa fa-tags me-2"></i>Custom Metadata</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Additional Metadata (JSON)</label>
+                                        <textarea class="form-control" id="custom_metadata" rows="3" placeholder='{"key": "value"}'></textarea>
+                                        <div class="form-text">Additional custom metadata as JSON (optional)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                
+                <!-- Submission Status -->
+                <div id="comprehensiveSubmissionStatus" style="display: none;">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 mb-0">Submitting stream to downstream service...</p>
+                    </div>
+                </div>
+                
+                <!-- Submission Result -->
+                <div id="comprehensiveSubmissionResult" style="display: none;">
+                    <div id="comprehensiveSuccessResult" style="display: none;">
+                        <div class="alert alert-success">
+                            <i class="fa fa-check-circle me-2"></i>
+                            <span id="comprehensiveSuccessMessage"></span>
+                        </div>
+                    </div>
+                    <div id="comprehensiveErrorResult" style="display: none;">
+                        <div class="alert alert-danger">
+                            <i class="fa fa-exclamation-circle me-2"></i>
+                            <span id="comprehensiveErrorMessage"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="closeComprehensiveModalBtn">Close</button>
+                <button type="button" class="btn btn-primary" id="submitComprehensiveBtn">
+                    <i class="fa fa-paper-plane me-2"></i>Submit Stream
+                </button>
+                <button type="button" class="btn btn-success" id="refreshComprehensivePageBtn" style="display: none;">
+                    <i class="fa fa-refresh me-2"></i>Refresh Page
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteConfirmationModalLabel">
+                    <i class="fa fa-exclamation-triangle me-2"></i>Delete Source
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="deleteWarningContent">
+                    <div class="alert alert-warning">
+                        <h6 class="alert-heading">Warning: This action cannot be undone!</h6>
+                        <p class="mb-0">You are about to delete the source <strong>"{{ source.name }}"</strong>.</p>
+                    </div>
+                    
+                    {% if source_type in 'camera,stream' %}
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">Stream Processor Service Cleanup</h6>
+                        <p class="mb-0">This will also remove the stream from the downstream processor service to stop data ingestion.</p>
+                    </div>
+                    {% endif %}
+                    
+                    <p>Are you sure you want to proceed with the deletion?</p>
+                </div>
+                
+                <div id="deleteSuccessContent" style="display: none;">
+                    <div class="alert alert-success">
+                        <h6 class="alert-heading">
+                            <i class="fa fa-check-circle me-2"></i>Source Deleted Successfully
+                        </h6>
+                        <p class="mb-0">The source has been removed from both the database and the stream processor service.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div id="deleteWarningFooter">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="post" action="{% url 'source_management:'|add:source_type|add:'_delete' source.source_id %}" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fa fa-trash me-2"></i>Delete Source
+                        </button>
+                    </form>
+                </div>
+                <div id="deleteSuccessFooter" style="display: none;">
+                    <button type="button" class="btn btn-primary" onclick="window.location.href='{% url 'source_management:source_list' %}'">
+                        <i class="fa fa-arrow-left me-2"></i>Back to Sources
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -599,6 +891,241 @@ function refreshStreamStatus(sourceId) {
     setTimeout(() => {
         location.reload();
     }, 1000);
+}
+
+function showDeleteConfirmation() {
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmationModal'));
+    modal.show();
+}
+
+function openComprehensiveSubmission(sourceId) {
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('comprehensiveSubmissionModal'));
+    modal.show();
+
+    // Reset modal state
+    document.getElementById('comprehensiveSubmissionStatus').style.display = 'none';
+    document.getElementById('comprehensiveSubmissionResult').style.display = 'none';
+    document.getElementById('closeComprehensiveModalBtn').style.display = 'block';
+    document.getElementById('submitComprehensiveBtn').style.display = 'block';
+    document.getElementById('refreshComprehensivePageBtn').style.display = 'none';
+
+    // Populate form with source data
+    populateComprehensiveForm(sourceId);
+}
+
+function populateComprehensiveForm(sourceId) {
+    // Get source data from the page context
+    const sourceType = '{{ source_type }}';
+    const sourceName = '{{ source.name }}';
+    
+    // Set basic fields
+    document.getElementById('stream_id').value = '{{ source.source_id }}';
+    document.getElementById('topic_name').value = '{{ source.topic_name|default:"" }}';
+    
+    // Set source URL based on type
+    if (sourceType === 'camera') {
+        document.getElementById('source_url').value = '{{ source.get_camera_url|default:"" }}';
+        // Pre-populate camera-specific fields
+        if ('{{ source.camera_username }}') {
+            document.getElementById('username').value = '{{ source.camera_username }}';
+        }
+        if ('{{ source.camera_fps }}') {
+            document.getElementById('target_fps').value = '{{ source.camera_fps }}';
+        }
+        if ('{{ source.camera_resolution_width }}' && '{{ source.camera_resolution_height }}') {
+            document.getElementById('resize_enabled').checked = true;
+            document.getElementById('target_width').value = '{{ source.camera_resolution_width }}';
+            document.getElementById('target_height').value = '{{ source.camera_resolution_height }}';
+            document.getElementById('target_width').disabled = false;
+            document.getElementById('target_height').disabled = false;
+        }
+        if ('{{ source.camera_audio_enabled }}' === 'True') {
+            document.getElementById('enable_audio').checked = true;
+            if ('{{ source.camera_audio_codec }}') {
+                document.getElementById('audio_codec').value = '{{ source.camera_audio_codec }}';
+                document.getElementById('audio_codec').disabled = false;
+            }
+            if ('{{ source.camera_audio_channels }}') {
+                document.getElementById('audio_channels').value = '{{ source.camera_audio_channels }}';
+                document.getElementById('audio_channels').disabled = false;
+            }
+            if ('{{ source.camera_audio_sample_rate }}') {
+                document.getElementById('audio_sample_rate').value = '{{ source.camera_audio_sample_rate }}';
+                document.getElementById('audio_sample_rate').disabled = false;
+            }
+        }
+        if ('{{ source.camera_buffer_size }}') {
+            document.getElementById('buffer_size').value = '{{ source.camera_buffer_size }}';
+        }
+        if ('{{ source.camera_timeout }}') {
+            document.getElementById('timeout').value = '{{ source.camera_timeout }}';
+        }
+        if ('{{ source.camera_retry_attempts }}') {
+            document.getElementById('retry_attempts').value = '{{ source.camera_retry_attempts }}';
+        }
+        if ('{{ source.camera_keepalive }}' !== 'None') {
+            document.getElementById('keepalive').checked = '{{ source.camera_keepalive }}' === 'True';
+        }
+    } else if (sourceType === 'stream') {
+        document.getElementById('source_url').value = '{{ source.stream_url }}';
+        if ('{{ source.stream_fps }}') {
+            document.getElementById('target_fps').value = '{{ source.stream_fps }}';
+        }
+        if ('{{ source.stream_resolution_width }}' && '{{ source.stream_resolution_height }}') {
+            document.getElementById('resize_enabled').checked = true;
+            document.getElementById('target_width').value = '{{ source.stream_resolution_width }}';
+            document.getElementById('target_height').value = '{{ source.stream_resolution_height }}';
+            document.getElementById('target_width').disabled = false;
+            document.getElementById('target_height').disabled = false;
+        }
+        if ('{{ source.stream_audio_codec }}') {
+            document.getElementById('enable_audio').checked = true;
+            document.getElementById('audio_codec').value = '{{ source.stream_audio_codec }}';
+            document.getElementById('audio_codec').disabled = false;
+        }
+        if ('{{ source.stream_audio_channels }}') {
+            document.getElementById('audio_channels').value = '{{ source.stream_audio_channels }}';
+            document.getElementById('audio_channels').disabled = false;
+        }
+        if ('{{ source.stream_audio_sample_rate }}') {
+            document.getElementById('audio_sample_rate').value = '{{ source.stream_audio_sample_rate }}';
+            document.getElementById('audio_sample_rate').disabled = false;
+        }
+        if ('{{ source.stream_buffer_size }}') {
+            document.getElementById('buffer_size').value = '{{ source.stream_buffer_size }}';
+        }
+        if ('{{ source.stream_timeout }}') {
+            document.getElementById('timeout').value = '{{ source.stream_timeout }}';
+        }
+        if ('{{ source.stream_retry_attempts }}') {
+            document.getElementById('retry_attempts').value = '{{ source.stream_retry_attempts }}';
+        }
+        if ('{{ source.stream_keepalive }}' !== 'None') {
+            document.getElementById('keepalive').checked = '{{ source.stream_keepalive }}' === 'True';
+        }
+    }
+    
+    // Update modal title
+    document.getElementById('comprehensiveSubmissionModalLabel').innerHTML = `
+        <i class="fa fa-cogs me-2"></i>Comprehensive Stream Submission for ${sourceName}
+    `;
+}
+
+// Add event listeners for form interactions
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle resize enabled checkbox
+    const resizeEnabled = document.getElementById('resize_enabled');
+    const targetWidth = document.getElementById('target_width');
+    const targetHeight = document.getElementById('target_height');
+    
+    if (resizeEnabled && targetWidth && targetHeight) {
+        resizeEnabled.addEventListener('change', function() {
+            targetWidth.disabled = !this.checked;
+            targetHeight.disabled = !this.checked;
+        });
+    }
+    
+    // Handle audio enabled checkbox
+    const enableAudio = document.getElementById('enable_audio');
+    const audioCodec = document.getElementById('audio_codec');
+    const audioChannels = document.getElementById('audio_channels');
+    const audioSampleRate = document.getElementById('audio_sample_rate');
+    
+    if (enableAudio && audioCodec && audioChannels && audioSampleRate) {
+        enableAudio.addEventListener('change', function() {
+            audioCodec.disabled = !this.checked;
+            audioChannels.disabled = !this.checked;
+            audioSampleRate.disabled = !this.checked;
+        });
+    }
+    
+    // Handle comprehensive submission form submission
+    const submitComprehensiveBtn = document.getElementById('submitComprehensiveBtn');
+    if (submitComprehensiveBtn) {
+        submitComprehensiveBtn.addEventListener('click', function() {
+            submitComprehensiveStream('{{ source.source_id }}');
+        });
+    }
+});
+
+function submitComprehensiveStream(sourceId) {
+    // Show loading state
+    document.getElementById('comprehensiveSubmissionForm').style.display = 'none';
+    document.getElementById('comprehensiveSubmissionStatus').style.display = 'block';
+    document.getElementById('comprehensiveSubmissionResult').style.display = 'none';
+    
+    // Collect form data
+    const formData = {
+        stream_id: document.getElementById('stream_id').value,
+        source_url: document.getElementById('source_url').value,
+        topic_name: document.getElementById('topic_name').value,
+        external_service_id: document.getElementById('external_service_id').value,
+        target_fps: parseFloat(document.getElementById('target_fps').value),
+        frame_quality: parseInt(document.getElementById('frame_quality').value),
+        resize_enabled: document.getElementById('resize_enabled').checked,
+        target_width: document.getElementById('resize_enabled').checked ? parseInt(document.getElementById('target_width').value) : null,
+        target_height: document.getElementById('resize_enabled').checked ? parseInt(document.getElementById('target_height').value) : null,
+        username: document.getElementById('username').value || null,
+        password: document.getElementById('password').value || null,
+        enable_audio: document.getElementById('enable_audio').checked,
+        audio_codec: document.getElementById('enable_audio').checked ? document.getElementById('audio_codec').value : null,
+        audio_channels: document.getElementById('enable_audio').checked ? parseInt(document.getElementById('audio_channels').value) : null,
+        audio_sample_rate: document.getElementById('enable_audio').checked ? parseInt(document.getElementById('audio_sample_rate').value) : null,
+        buffer_size: parseInt(document.getElementById('buffer_size').value),
+        timeout: parseInt(document.getElementById('timeout').value),
+        retry_attempts: parseInt(document.getElementById('retry_attempts').value),
+        keepalive: document.getElementById('keepalive').checked,
+        custom_metadata: document.getElementById('custom_metadata').value ? JSON.parse(document.getElementById('custom_metadata').value) : {}
+    };
+    
+    // Submit to comprehensive endpoint
+    fetch(`/source-management/api/stream/${sourceId}/submit-comprehensive/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading state
+        document.getElementById('comprehensiveSubmissionStatus').style.display = 'none';
+        document.getElementById('comprehensiveSubmissionResult').style.display = 'block';
+        
+        if (data.success) {
+            // Show success
+            document.getElementById('comprehensiveSuccessResult').style.display = 'block';
+            document.getElementById('comprehensiveErrorResult').style.display = 'none';
+            document.getElementById('comprehensiveSuccessMessage').textContent = data.message || 'Stream submitted successfully!';
+            document.getElementById('closeComprehensiveModalBtn').style.display = 'none';
+            document.getElementById('submitComprehensiveBtn').style.display = 'none';
+            document.getElementById('refreshComprehensivePageBtn').style.display = 'block';
+        } else {
+            // Show error
+            document.getElementById('comprehensiveSuccessResult').style.display = 'none';
+            document.getElementById('comprehensiveErrorResult').style.display = 'block';
+            document.getElementById('comprehensiveErrorMessage').textContent = data.error || 'Unknown error occurred';
+            document.getElementById('closeComprehensiveModalBtn').style.display = 'block';
+            document.getElementById('submitComprehensiveBtn').style.display = 'block';
+            document.getElementById('refreshComprehensivePageBtn').style.display = 'none';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Hide loading state
+        document.getElementById('comprehensiveSubmissionStatus').style.display = 'none';
+        document.getElementById('comprehensiveSubmissionResult').style.display = 'block';
+        
+        // Show error
+        document.getElementById('comprehensiveSuccessResult').style.display = 'none';
+        document.getElementById('comprehensiveErrorResult').style.display = 'block';
+        document.getElementById('comprehensiveErrorMessage').textContent = 'Network error. Please try again.';
+        document.getElementById('closeComprehensiveModalBtn').style.display = 'block';
+        document.getElementById('submitComprehensiveBtn').style.display = 'block';
+        document.getElementById('refreshComprehensivePageBtn').style.display = 'none';
+    });
 }
 </script>
 {% endif %}

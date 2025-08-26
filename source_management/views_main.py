@@ -21,6 +21,7 @@ from .views.api_views import (
     api_video_metadata_public,
     api_video_download_public,
     api_video_stream_public,
+    create_notification,
 )
 from .views.video_processing_views import (
     submit_video_processing,
@@ -43,6 +44,7 @@ from .views.callback_views import processing_callback
 from .views.stream_control_views import (
     stream_create,
     stream_submit,
+    stream_submit_comprehensive,
     stream_start,
     stream_stop,
     stream_status,
@@ -70,6 +72,9 @@ __all__ = [
     'api_video_download_public',
     'api_video_stream_public',
     
+    # Notification API views
+    'create_notification',
+    
     # Video processing views
     'submit_video_processing',
     'get_processing_status',
@@ -90,6 +95,7 @@ __all__ = [
     # Stream control views
     'stream_create',
     'stream_submit',
+    'stream_submit_comprehensive',
     'stream_start',
     'stream_stop',
     'stream_status',

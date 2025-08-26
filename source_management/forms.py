@@ -541,3 +541,357 @@ class VideoProcessingForm(forms.Form):
         if target_resolution == 'custom':
             return self.cleaned_data.get('custom_resolution')
         return target_resolution 
+
+class StreamSubmissionForm(forms.Form):
+    """Form for submitting streams to downstream services"""
+    
+    # Basic stream configuration
+    stream_id = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'readonly': 'readonly'
+        }),
+        help_text="Unique identifier for this stream (auto-generated)"
+    )
+    
+    source_url = forms.CharField(
+        max_length=500,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'readonly': 'readonly'
+        }),
+        help_text="Source URL (auto-generated from source configuration)"
+    )
+    
+    topic_name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'readonly': 'readonly'
+        }),
+        help_text="Topic name for downstream model subscription (auto-generated)"
+    )
+    
+    external_service_id = forms.CharField(
+        max_length=100,
+        initial='django-source-management',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control'
+        }),
+        help_text="Identifier for the external service"
+    )
+    
+    # Processing parameters
+    target_fps = forms.FloatField(
+        min_value=0.1,
+        max_value=300.0,
+        initial=1.0,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.1',
+            'min': '0.1',
+            'max': '300.0'
+        }),
+        help_text="Target frame rate (0.1-300 FPS)"
+    )
+    
+    frame_quality = forms.IntegerField(
+        min_value=1,
+        max_value=100,
+        initial=85,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '1',
+            'max': '100'
+        }),
+        help_text="Frame quality (1-100)"
+    )
+    
+    resize_enabled = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input'
+        }),
+        help_text="Enable frame resizing"
+    )
+    
+    target_width = forms.IntegerField(
+        min_value=1,
+        max_value=7680,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '1',
+            'max': '7680'
+        }),
+        help_text="Target width in pixels (if resizing enabled)"
+    )
+    
+    target_height = forms.IntegerField(
+        min_value=1,
+        max_value=4320,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '1',
+            'max': '4320'
+        }),
+        help_text="Target height in pixels (if resizing enabled)"
+    )
+    
+    # Authentication (if applicable)
+    username = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control'
+        }),
+        help_text="Username for authentication (if required)"
+    )
+    
+    password = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control'
+        }),
+        help_text="Password for authentication (if required)"
+    )
+    
+    # Advanced configuration
+    enable_audio = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input'
+        }),
+        help_text="Enable audio processing"
+    )
+    
+    audio_codec = forms.CharField(
+        max_length=50,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'e.g., aac, mp3, opus'
+        }),
+        help_text="Audio codec for processing"
+    )
+    
+    audio_channels = forms.IntegerField(
+        min_value=1,
+        max_value=8,
+        required=False,
+        initial=1,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '1',
+            'max': '8'
+        }),
+        help_text="Number of audio channels"
+    )
+    
+    audio_sample_rate = forms.IntegerField(
+        min_value=8000,
+        max_value=192000,
+        required=False,
+        initial=16000,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '8000',
+            'max': '192000'
+        }),
+        help_text="Audio sample rate in Hz"
+    )
+    
+    # Network and performance
+    buffer_size = forms.IntegerField(
+        min_value=100,
+        max_value=10000,
+        required=False,
+        initial=1000,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '100',
+            'max': '10000'
+        }),
+        help_text="Buffer size in milliseconds"
+    )
+    
+    timeout = forms.IntegerField(
+        min_value=5,
+        max_value=300,
+        required=False,
+        initial=30,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '5',
+            'max': '300'
+        }),
+        help_text="Connection timeout in seconds"
+    )
+    
+    retry_attempts = forms.IntegerField(
+        min_value=0,
+        max_value=10,
+        required=False,
+        initial=3,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '0',
+            'max': '10'
+        }),
+        help_text="Number of retry attempts on failure"
+    )
+    
+    keepalive = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input'
+        }),
+        help_text="Use keepalive connections"
+    )
+    
+    # Custom metadata
+    custom_metadata = forms.JSONField(
+        required=False,
+        initial=dict,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 4,
+            'placeholder': '{"key": "value"}'
+        }),
+        help_text="Additional custom metadata as JSON"
+    )
+    
+    def __init__(self, *args, **kwargs):
+        source = kwargs.pop('source', None)
+        super().__init__(*args, **kwargs)
+        
+        if source:
+            # Pre-populate fields based on source configuration
+            self.fields['stream_id'].initial = str(source.source_id)
+            self.fields['topic_name'].initial = source.topic_name or source.generate_topic_name(source.topic_suffix)
+            
+            # Set source URL based on source type
+            if hasattr(source, 'get_camera_url'):
+                self.fields['source_url'].initial = source.get_camera_url()
+            elif hasattr(source, 'stream_url'):
+                self.fields['source_url'].initial = source.stream_url
+            
+            # Pre-populate authentication if available
+            if hasattr(source, 'camera_username') and source.camera_username:
+                self.fields['username'].initial = source.camera_username
+            if hasattr(source, 'camera_password') and source.camera_password:
+                self.fields['password'].initial = source.camera_password
+            
+            # Pre-populate audio settings if available
+            if hasattr(source, 'camera_audio_enabled') and source.camera_audio_enabled:
+                self.fields['enable_audio'].initial = True
+                if hasattr(source, 'camera_audio_codec') and source.camera_audio_codec:
+                    self.fields['audio_codec'].initial = source.camera_audio_codec
+                if hasattr(source, 'camera_audio_channels') and source.camera_audio_channels:
+                    self.fields['audio_channels'].initial = source.camera_audio_channels
+                if hasattr(source, 'camera_audio_sample_rate') and source.camera_audio_sample_rate:
+                    self.fields['audio_sample_rate'].initial = source.camera_audio_sample_rate
+            
+            # Pre-populate performance settings if available
+            if hasattr(source, 'camera_buffer_size') and source.camera_buffer_size:
+                self.fields['buffer_size'].initial = source.camera_buffer_size
+            if hasattr(source, 'camera_timeout') and source.camera_timeout:
+                self.fields['timeout'].initial = source.camera_timeout
+            if hasattr(source, 'camera_retry_attempts') and source.camera_retry_attempts:
+                self.fields['retry_attempts'].initial = source.camera_retry_attempts
+            if hasattr(source, 'camera_keepalive') and source.camera_keepalive is not None:
+                self.fields['keepalive'].initial = source.camera_keepalive
+            
+            # Pre-populate resolution settings if available
+            if hasattr(source, 'camera_resolution_width') and source.camera_resolution_width:
+                self.fields['target_width'].initial = source.camera_resolution_width
+            if hasattr(source, 'camera_resolution_height') and source.camera_resolution_height:
+                self.fields['target_height'].initial = source.camera_resolution_height
+            
+            # Pre-populate FPS if available
+            if hasattr(source, 'camera_fps') and source.camera_fps:
+                self.fields['target_fps'].initial = source.camera_fps
+            elif hasattr(source, 'stream_fps') and source.stream_fps:
+                self.fields['target_fps'].initial = source.stream_fps
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        # Validate resize settings
+        resize_enabled = cleaned_data.get('resize_enabled')
+        target_width = cleaned_data.get('target_width')
+        target_height = cleaned_data.get('target_height')
+        
+        if resize_enabled and (not target_width or not target_height):
+            self.add_error('target_width', 'Width and height are required when resizing is enabled')
+            self.add_error('target_height', 'Width and height are required when resizing is enabled')
+        
+        # Validate audio settings
+        enable_audio = cleaned_data.get('enable_audio')
+        audio_codec = cleaned_data.get('audio_codec')
+        
+        if enable_audio and not audio_codec:
+            self.add_error('audio_codec', 'Audio codec is required when audio is enabled')
+        
+        # Validate custom metadata
+        custom_metadata = cleaned_data.get('custom_metadata')
+        if custom_metadata:
+            try:
+                if isinstance(custom_metadata, str):
+                    import json
+                    json.loads(custom_metadata)
+            except json.JSONDecodeError:
+                self.add_error('custom_metadata', 'Custom metadata must be valid JSON')
+        
+        return cleaned_data
+    
+    def get_submission_payload(self):
+        """Get the complete payload for downstream service submission"""
+        cleaned_data = self.cleaned_data
+        
+        payload = {
+            'stream_id': cleaned_data['stream_id'],
+            'source_url': cleaned_data['source_url'],
+            'topic_name': cleaned_data['topic_name'],
+            'external_service_id': cleaned_data['external_service_id'],
+            'target_fps': cleaned_data['target_fps'],
+            'frame_quality': cleaned_data['frame_quality'],
+            'resize_enabled': cleaned_data['resize_enabled'],
+            'target_width': cleaned_data.get('target_width'),
+            'target_height': cleaned_data.get('target_height'),
+            'username': cleaned_data.get('username'),
+            'password': cleaned_data.get('password'),
+            'metadata': {}
+        }
+        
+        # Add audio configuration if enabled
+        if cleaned_data.get('enable_audio'):
+            payload['metadata']['audio_enabled'] = True
+            payload['metadata']['audio_codec'] = cleaned_data.get('audio_codec')
+            payload['metadata']['audio_channels'] = cleaned_data.get('audio_channels')
+            payload['metadata']['audio_sample_rate'] = cleaned_data.get('audio_sample_rate')
+        else:
+            payload['metadata']['audio_enabled'] = False
+        
+        # Add performance configuration
+        payload['metadata']['buffer_size'] = cleaned_data.get('buffer_size')
+        payload['metadata']['timeout'] = cleaned_data.get('timeout')
+        payload['metadata']['retry_attempts'] = cleaned_data.get('retry_attempts')
+        payload['metadata']['keepalive'] = cleaned_data.get('keepalive')
+        
+        # Add custom metadata
+        if cleaned_data.get('custom_metadata'):
+            if isinstance(cleaned_data['custom_metadata'], str):
+                import json
+                custom_meta = json.loads(cleaned_data['custom_metadata'])
+            else:
+                custom_meta = cleaned_data['custom_metadata']
+            payload['metadata'].update(custom_meta)
+        
+        return payload 

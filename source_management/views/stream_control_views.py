@@ -189,3 +189,84 @@ def stream_status(request, source_id):
             'success': False, 
             'error': f'Internal server error: {str(e)}'
         }, status=500)
+
+
+@login_required_source_list
+def stream_submit_comprehensive(request, source_id):
+    """Comprehensive stream submission to downstream services"""
+    try:
+        # Get the source (camera or stream)
+        source = None
+        source_type = None
+        
+        # Try to get camera source first
+        try:
+            from ..models import CameraSource
+            source = CameraSource.objects.get(source_id=source_id)
+            source_type = 'camera'
+        except CameraSource.DoesNotExist:
+            pass
+        
+        # If not camera, try stream source
+        if not source:
+            try:
+                from ..models import StreamSource
+                source = StreamSource.objects.get(source_id=source_id)
+                source_type = 'stream'
+            except StreamSource.DoesNotExist:
+                pass
+        
+        if not source:
+            return JsonResponse({
+                'success': False,
+                'error': 'Source not found'
+            }, status=404)
+        
+        if request.method == 'POST':
+            from ..forms import StreamSubmissionForm
+            
+            # Create form with source data
+            form = StreamSubmissionForm(request.POST, source=source)
+            
+            if form.is_valid():
+                # Get the submission payload
+                payload = form.get_submission_payload()
+                
+                # Submit to stream processor service
+                result = source._call_stream_processor_api('POST', '/api/external/streams', data=payload)
+                
+                if result['success']:
+                    return JsonResponse({
+                        'success': True,
+                        'message': f'{source_type.title()} stream submitted successfully to downstream service',
+                        'data': result.get('data', {}),
+                        'payload': payload
+                    })
+                else:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Failed to submit to downstream service: {result.get("error")}',
+                        'details': result
+                    })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Form validation failed',
+                    'form_errors': form.errors
+                }, status=400)
+        
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': 'Only POST method is allowed'
+            }, status=405)
+            
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in comprehensive stream submission: {e}")
+        
+        return JsonResponse({
+            'success': False,
+            'error': f'Internal server error: {str(e)}'
+        }, status=500)

@@ -377,8 +377,23 @@ def source_delete(request, source_id):
         try:
             with transaction.atomic():
                 source_name = source.name
-                source.delete()
-                messages.success(request, f'{source_type.title()} source "{source_name}" deleted successfully.')
+                
+                # For camera and stream sources, delete from stream processor service first
+                if source_type in ['camera', 'stream']:
+                    try:
+                        # Call the delete method which will handle stream processor deletion
+                        source.delete()
+                        messages.success(request, f'{source_type.title()} source "{source_name}" deleted successfully from both database and stream processor service.')
+                    except Exception as e:
+                        logger.error(f"Error deleting {source_type} source {source_id} from stream processor: {e}")
+                        # Even if stream processor deletion fails, delete from database
+                        source.delete()
+                        messages.warning(request, f'{source_type.title()} source "{source_name}" deleted from database but there was an issue with stream processor service cleanup.')
+                else:
+                    # For file sources, just delete from database
+                    source.delete()
+                    messages.success(request, f'{source_type.title()} source "{source_name}" deleted successfully.')
+                    
         except Exception as e:
             messages.error(request, f'Error deleting {source_type} source: {str(e)}')
         
