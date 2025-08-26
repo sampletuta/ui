@@ -110,15 +110,83 @@ def custom_login(request):
 
 @login_required
 def logout_view(request):
-    """Logout view"""
-    auth_logout(request)
-    return redirect('login')
+    """Enhanced logout view with comprehensive security logging and cookie clearing"""
+    try:
+        user_email = request.user.email if request.user.is_authenticated else 'Unknown'
+        client_ip = _get_client_ip(request)
+        
+        # Log logout event
+        logger.info(
+            f"User logout initiated - User: {user_email} - IP: {client_ip} - "
+            f"Path: {request.path}"
+        )
+        
+        # Clear all session data
+        if hasattr(request, 'session'):
+            session_key = request.session.session_key
+            logger.info(f"Clearing session data for user {user_email} - Session: {session_key[:8] if session_key else 'None'}...")
+            
+            # Flush session completely
+            request.session.flush()
+            
+            # Delete session from database
+            if session_key:
+                from django.contrib.sessions.models import Session
+                try:
+                    Session.objects.filter(session_key=session_key).delete()
+                    logger.info(f"Session {session_key[:8]}... deleted from database")
+                except Exception as e:
+                    logger.warning(f"Failed to delete session from database: {e}")
+        
+        # Perform Django logout
+        auth_logout(request)
+        
+        # Create response with cookie clearing
+        response = redirect('signin')
+        
+        # Clear all possible cookies
+        cookies_to_clear = [
+            'sessionid',
+            'csrftoken',
+            'sessionid',
+            'auth_token',
+            'remember_me',
+            'user_preferences',
+            'last_activity',
+            'timeout_warning',
+            'timeout_seconds'
+        ]
+        
+        for cookie_name in cookies_to_clear:
+            response.delete_cookie(cookie_name)
+            logger.debug(f"Cleared cookie: {cookie_name}")
+        
+        # Set security headers for logout
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        
+        # Log successful logout
+        logger.info(
+            f"User logout completed successfully - User: {user_email} - "
+            f"IP: {client_ip} - All cookies cleared"
+        )
+        
+        # Add success message
+        messages.success(request, 'You have been successfully logged out. All session data has been cleared.')
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error during logout for user {getattr(request.user, 'email', 'Unknown')}: {e}")
+        # Fallback to basic logout
+        auth_logout(request)
+        messages.error(request, 'An error occurred during logout. Please try again.')
+        return redirect('signin')
 
 def logout(request):
-    """Custom logout view"""
-    auth_logout(request)
-    messages.success(request, 'You have been successfully logged out.')
-    return redirect('login')
+    """Custom logout view with enhanced security"""
+    return logout_view(request)
 
 def signup(request):
     """User registration view"""
@@ -135,7 +203,7 @@ def signup(request):
                     user.save()
                     
                     messages.success(request, 'Account created successfully! You can now login.')
-                    return redirect('login')
+                    return redirect('signin')
             except Exception as e:
                 messages.error(request, f'Error creating account: {str(e)}')
         else:
@@ -192,3 +260,12 @@ def handle_successful_login(user):
     user.last_failed_login = None
     user.locked_until = None
     user.save()
+
+def _get_client_ip(request):
+    """Helper function to get client IP address"""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip

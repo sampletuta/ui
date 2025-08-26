@@ -29,9 +29,18 @@ CACHES = {
     }
 }
 
-# Session configuration for Redis
+# Session configuration for Redis - SECURE SETTINGS
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
+SESSION_COOKIE_AGE = 3600  # 1 hour in seconds
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_MAX_AGE = 3600  # 1 hour maximum
+SESSION_TIMEOUT_WARNING = 300  # Show warning 5 minutes before expiry
+SESSION_TIMEOUT_REDIRECT = 60  # Redirect to login 1 minute before expiry
+SESSION_ABSOLUTE_TIMEOUT = 3600  # Absolute maximum 1 hour
 
 # Celery configuration
 CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')

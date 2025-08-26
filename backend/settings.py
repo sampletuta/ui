@@ -49,14 +49,24 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
+    # Security middlewares (order matters!)
+    # "backendapp.middleware.SecurityMiddleware",  # Custom comprehensive security - TEMPORARILY DISABLED
+    "django.middleware.security.SecurityMiddleware",  # Core security features
     "whitenoise.middleware.WhiteNoiseMiddleware",  # For serving static files
+    
+    # Session and authentication
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    
+    # Additional security middlewares
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    
+    # Custom session monitoring
+    "backendapp.middleware.SessionMonitoringMiddleware",  # Session monitoring and logging
+    "backendapp.middleware.SessionTimeoutMiddleware",  # Session timeout handling
 ]
 
 ROOT_URLCONF = "backend.urls"
@@ -166,13 +176,35 @@ LOGOUT_REDIRECT_URL = '/login/'
 
 # Session Settings
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_AGE = 3600  # 1 hour in seconds (much shorter for security)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
 SESSION_COOKIE_SECURE = not DEBUG  # True in production, False in development
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_SAVE_EVERY_REQUEST = False
 SESSION_COOKIE_NAME = 'sessionid'
+
+# Enhanced Session Configuration - SECURE SETTINGS
+SESSION_COOKIE_MAX_AGE = 3600  # 1 hour maximum
+SESSION_COOKIE_DOMAIN = None  # Set to domain in production
+SESSION_COOKIE_PATH = '/'
+SESSION_COOKIE_AGE_SECONDS = 3600  # For logging clarity
+
+# Session Timeout Configuration - SHORT TIMEOUTS
+SESSION_TIMEOUT_WARNING = 300  # Show warning 5 minutes before expiry
+SESSION_TIMEOUT_REDIRECT = 60  # Redirect to login 1 minute before expiry
+SESSION_ABSOLUTE_TIMEOUT = 3600  # Absolute maximum 1 hour
+
+# Session Security - STRICT SETTINGS
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
+SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
+SESSION_COOKIE_REFRESH_EACH_REQUEST = False  # Don't refresh on every request
+
+# Session Monitoring
+SESSION_MONITORING_ENABLED = True
+SESSION_ACTIVITY_LOGGING = True
+SESSION_EXPIRY_LOGGING = True
 
 # Milvus Configuration (for face AI integration)
 MILVUS_CONFIG = {
@@ -270,9 +302,45 @@ FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+        'session': {
+            'format': '[SESSION] {levelname} {asctime} - {message}',
+            'style': '{',
+        },
+        'auth': {
+            'format': '[AUTH] {levelname} {asctime} - {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'session_file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'sessions.log',
+            'formatter': 'session',
+            'level': 'INFO',
+        },
+        'auth_file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'auth.log',
+            'formatter': 'auth',
+            'level': 'INFO',
+        },
+        'session_console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'session',
+            'level': 'INFO',
         },
     },
     'root': {
@@ -285,28 +353,118 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
+        'django.contrib.sessions': {
+            'handlers': ['session_console', 'session_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.contrib.auth': {
+            'handlers': ['console', 'auth_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'session_monitoring': {
+            'handlers': ['session_console', 'session_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'auth_monitoring': {
+            'handlers': ['console', 'auth_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 
-# # Security settings for production
-# if not DEBUG:
-#     SECURE_BROWSER_XSS_FILTER = True
-#     SECURE_CONTENT_TYPE_NOSNIFF = True
-#     X_FRAME_OPTIONS = 'DENY'
-#     SECURE_HSTS_SECONDS = 31536000
-#     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-#     SECURE_HSTS_PRELOAD = True
-#     SECURE_SSL_REDIRECT = True
-#     CSRF_COOKIE_SECURE = True
-# else:
-#     # Development settings - less strict security
-#     SECURE_SSL_REDIRECT = False
-#     CSRF_COOKIE_SECURE = False
+# Security settings for production
+if not DEBUG:
+    # HTTPS and SSL Security
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # Cookie Security
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    
+    # Content Security
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'  # Prevent clickjacking
+    
+    # Additional Security Headers
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+    
+else:
+    # Development settings - less strict security
+    SECURE_SSL_REDIRECT = False
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = False
+    X_FRAME_OPTIONS = 'SAMEORIGIN'  # Allow same-origin frames in dev
 
-# CSRF settings
+# Security Headers Configuration
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY' if not DEBUG else 'SAMEORIGIN'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# CSRF Protection
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://192.168.86.65:8000']
+
+# Content Security Policy (CSP)
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")  # Allow inline styles for Bootstrap
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'")  # Allow inline scripts for Bootstrap
+CSP_IMG_SRC = ("'self'", "data:", "https:")
+CSP_FONT_SRC = ("'self'", "https:", "data:")
+
+# Rate Limiting
+RATELIMIT_ENABLE = True
+RATELIMIT_USE_CACHE = 'default'
+RATELIMIT_KEY_PREFIX = 'rl'
+
+# Session Security
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_AGE = 3600  # 1 hour
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Authentication Security
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/login/'
+LOGIN_RATELIMIT = '5/m'  # 5 login attempts per minute
+LOGIN_RATELIMIT_BLOCK = True
+
+# Password Security
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'OPTIONS': {
+            'max_similarity': 0.7,
+        }
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 12,  # Increased minimum password length
+        }
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+]
 
 # Downstream Service Configuration
 # Configuration for sending stream data to external services for processing, analytics, or recording

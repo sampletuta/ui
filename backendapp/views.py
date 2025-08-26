@@ -1091,7 +1091,7 @@ def signup(request):
 @login_required
 def logout_view(request):
     auth_logout(request)
-    return redirect('login')
+    return redirect('signin')
 
 def is_admin(user):
     """Check if user is admin"""
@@ -1184,7 +1184,7 @@ def logout(request):
     """Custom logout view"""
     logout(request)
     messages.success(request, 'You have been successfully logged out.')
-    return redirect('login')
+    return redirect('signin')
 
 @login_required
 def user_list(request):

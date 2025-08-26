@@ -176,51 +176,74 @@ class AsyncTargetIntegrationService:
     
     async def process_target_photos_batch_async(self, target_photos: List, target_id: str) -> Dict:
         """
-        Process multiple target photos asynchronously in parallel
+        Process multiple target photos asynchronously and create/update the target's normalized embedding
         
         Args:
             target_photos: List of TargetPhoto instances
-            target_id: ID of the target
+            target_id: ID of the target from Targets_watchlist
             
         Returns:
             Batch processing results dictionary
         """
         try:
+            if not target_photos:
+                return {
+                    'success': True,
+                    'message': 'No photos to process',
+                    'total_photos': 0,
+                    'processed_photos': 0,
+                    'total_embeddings': 0
+                }
+            
             logger.info(f"Processing {len(target_photos)} photos for target {target_id} asynchronously")
             
-            # Process photos in parallel
-            photo_tasks = []
-            for target_photo in target_photos:
-                task = self.process_target_photo_async(target_photo, target_id)
-                photo_tasks.append(task)
+            # Check if target already has a normalized embedding to prevent duplicate processing
+            existing_embedding = await self.milvus_service.get_target_normalized_embedding_async(target_id)
+            if existing_embedding is not None:
+                logger.info(f"Target {target_id} already has normalized embedding, skipping batch processing to prevent duplicates")
+                return {
+                    'success': True,
+                    'message': 'Target already has normalized embedding, skipping duplicate processing',
+                    'total_photos': len(target_photos),
+                    'processed_photos': 0,
+                    'total_embeddings': 1,
+                    'normalized_embedding_id': 'existing',
+                    'embedding_strategy': 'existing',
+                    'skipped_duplicate': True
+                }
             
-            # Wait for all photos to be processed
-            photo_results = await asyncio.gather(*photo_tasks, return_exceptions=True)
+            # Process photos in parallel batches
+            batch_size = 5  # Process 5 photos at a time
+            batches = [target_photos[i:i + batch_size] for i in range(0, len(target_photos), batch_size)]
+            
+            # Process batches in parallel
+            batch_tasks = []
+            for batch in batches:
+                task = self._process_photo_batch_async(batch, target_id)
+                batch_tasks.append(task)
+            
+            # Wait for all batches to complete
+            batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
             
             # Collect results
-            successful_photos = 0
-            failed_photos = 0
             all_embeddings = []
             all_confidence_scores = []
+            processed_photos = 0
+            failed_photos = []
             
-            for i, result in enumerate(photo_results):
+            for result in batch_results:
                 if isinstance(result, Exception):
-                    logger.error(f"Photo {i} failed with exception: {result}")
-                    failed_photos += 1
+                    logger.error(f"Batch processing failed: {result}")
                     continue
                 
                 if result['success']:
-                    successful_photos += 1
-                    # Extract embeddings if available
-                    if 'embeddings_stored' in result and result['embeddings_stored'] > 0:
-                        # Get embeddings from the photo result
-                        photo_embeddings = result.get('embeddings', [])
-                        if photo_embeddings:
-                            all_embeddings.extend(photo_embeddings)
-                            all_confidence_scores.extend([0.8] * len(photo_embeddings))  # Default confidence
+                    if result.get('embeddings'):
+                        all_embeddings.extend(result['embeddings'])
+                        all_confidence_scores.extend(result.get('confidence_scores', []))
+                    processed_photos += result.get('processed_photos', 0)
+                    failed_photos.extend(result.get('failed_photos', []))
                 else:
-                    failed_photos += 1
-                    logger.warning(f"Photo {i} failed: {result.get('error')}")
+                    failed_photos.extend(result.get('failed_photos', []))
             
             # Create/update the target's normalized embedding
             if all_embeddings:
@@ -229,23 +252,21 @@ class AsyncTargetIntegrationService:
                     embedding_strategy = "single" if len(all_embeddings) == 1 else "averaged_normalized"
                     logger.info(f"Target {target_id} has {len(all_embeddings)} photos - using {embedding_strategy} strategy")
                     
-                    milvus_id = await self.milvus_service.insert_face_embeddings_parallel([{
-                        'embedding': all_embeddings[0] if len(all_embeddings) == 1 else self._average_embeddings(all_embeddings),
-                        'target_id': target_id,
-                        'photo_id': f"norm_{target_id[:8]}",
-                        'confidence_score': 0.8,
-                        'created_at': '2024-01-01 00:00:00'
-                    }])
+                    milvus_id = await self.milvus_service.insert_normalized_target_embedding_async(
+                        target_id=target_id,
+                        embeddings=all_embeddings,
+                        confidence_scores=all_confidence_scores
+                    )
                     
                     if milvus_id:
                         logger.info(f"Created/updated embedding for target {target_id} with {len(all_embeddings)} photos using {embedding_strategy} strategy")
                         return {
                             'success': True,
-                            'message': f"Successfully processed {successful_photos}/{len(target_photos)} photos and created embedding using {embedding_strategy} strategy",
+                            'message': f"Successfully processed {processed_photos}/{len(target_photos)} photos and created embedding using {embedding_strategy} strategy",
                             'total_photos': len(target_photos),
-                            'processed_photos': successful_photos,
+                            'processed_photos': processed_photos,
                             'total_embeddings': 1,  # One embedding per target
-                            'normalized_embedding_id': milvus_id[0] if milvus_id else None,
+                            'normalized_embedding_id': milvus_id,
                             'embedding_strategy': embedding_strategy,
                             'failed_photos': failed_photos
                         }
@@ -254,7 +275,7 @@ class AsyncTargetIntegrationService:
                             'success': False,
                             'error': 'Failed to create normalized embedding in Milvus',
                             'total_photos': len(target_photos),
-                            'processed_photos': successful_photos,
+                            'processed_photos': processed_photos,
                             'total_embeddings': 0,
                             'failed_photos': failed_photos
                         }
@@ -265,7 +286,7 @@ class AsyncTargetIntegrationService:
                         'success': False,
                         'error': f"Failed to create normalized embedding: {str(e)}",
                         'total_photos': len(target_photos),
-                        'processed_photos': successful_photos,
+                        'processed_photos': processed_photos,
                         'total_embeddings': 0,
                         'failed_photos': failed_photos
                     }
@@ -274,7 +295,7 @@ class AsyncTargetIntegrationService:
                     'success': False,
                     'error': 'No valid embeddings could be generated from any photos',
                     'total_photos': len(target_photos),
-                    'processed_photos': successful_photos,
+                    'processed_photos': processed_photos,
                     'total_embeddings': 0,
                     'failed_photos': failed_photos
                 }
@@ -285,7 +306,123 @@ class AsyncTargetIntegrationService:
                 'success': False,
                 'error': str(e),
                 'total_photos': len(target_photos),
+                'processed_photos': 0,
                 'total_embeddings': 0
+            }
+    
+    async def _process_photo_batch_async(self, target_photos: List, target_id: str) -> Dict:
+        """
+        Process a batch of target photos asynchronously
+        
+        Args:
+            target_photos: List of TargetPhoto instances in the batch
+            target_id: ID of the target
+            
+        Returns:
+            Batch processing results dictionary
+        """
+        try:
+            batch_embeddings = []
+            batch_confidence_scores = []
+            processed_photos = 0
+            failed_photos = []
+            
+            for target_photo in target_photos:
+                try:
+                    # Get the image path
+                    if not target_photo.image:
+                        failed_photos.append({
+                            'photo_id': target_photo.id,
+                            'error': 'No image file found'
+                        })
+                        continue
+                    
+                    image_path = target_photo.image.path if hasattr(target_photo.image, 'path') else None
+                    
+                    if not image_path or not os.path.exists(image_path):
+                        # Try to get path from storage
+                        try:
+                            from django.core.files.storage import default_storage
+                            image_path = default_storage.path(target_photo.image.name)
+                        except Exception:
+                            failed_photos.append({
+                                'photo_id': target_photo.id,
+                                'error': 'Could not locate image file'
+                            })
+                            continue
+                    
+                    if not os.path.exists(image_path):
+                        failed_photos.append({
+                            'photo_id': target_photo.id,
+                            'error': 'Image file not found on disk'
+                        })
+                        continue
+                    
+                    # Detect faces and generate embeddings
+                    detection_result = await self.face_detection_service.detect_faces_in_image_async(image_path)
+                    
+                    if not detection_result['success']:
+                        failed_photos.append({
+                            'photo_id': target_photo.id,
+                            'error': f"Face detection failed: {detection_result.get('error')}"
+                        })
+                        continue
+                    
+                    if detection_result['faces_detected'] == 0:
+                        logger.info(f"Photo {target_photo.id}: No faces detected")
+                        processed_photos += 1
+                        continue
+                    
+                    # Generate embeddings for detected faces
+                    embedding_result = await self.face_detection_service.generate_face_embeddings_async([image_path])
+                    
+                    if not embedding_result['success']:
+                        failed_photos.append({
+                            'photo_id': target_photo.id,
+                            'error': f"Embedding generation failed: {embedding_result.get('error')}"
+                        })
+                        continue
+                    
+                    # Take the first face embedding from this photo
+                    if embedding_result['embeddings']:
+                        embedding_data = embedding_result['embeddings'][0]
+                        # Convert Python list to numpy array for Milvus service
+                        import numpy as np
+                        embedding_array = np.array(embedding_data['embedding'], dtype=np.float32)
+                        batch_embeddings.append(embedding_array)
+                        batch_confidence_scores.append(embedding_data['confidence_score'])
+                        processed_photos += 1
+                        logger.info(f"Successfully processed photo {target_photo.id}")
+                    else:
+                        failed_photos.append({
+                            'photo_id': target_photo.id,
+                            'error': 'No embeddings generated'
+                        })
+                        
+                except Exception as e:
+                    failed_photos.append({
+                        'photo_id': target_photo.id,
+                        'error': str(e)
+                    })
+                    logger.error(f"Exception processing photo {target_photo.id}: {e}")
+            
+            return {
+                'success': True,
+                'embeddings': batch_embeddings,
+                'confidence_scores': batch_confidence_scores,
+                'processed_photos': processed_photos,
+                'failed_photos': failed_photos
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to process photo batch: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'embeddings': [],
+                'confidence_scores': [],
+                'processed_photos': 0,
+                'failed_photos': []
             }
     
     def _average_embeddings(self, embeddings: List) -> List:

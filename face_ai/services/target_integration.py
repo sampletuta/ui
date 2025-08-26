@@ -185,7 +185,7 @@ class TargetIntegrationService:
             target_id: ID of the target from Targets_watchlist
             
         Returns:
-            Batch processing results
+            Batch processing results dictionary
         """
         try:
             if not target_photos:
@@ -198,6 +198,21 @@ class TargetIntegrationService:
                 }
             
             logger.info(f"Processing {len(target_photos)} photos for target {target_id}")
+            
+            # Check if target already has a normalized embedding to prevent duplicate processing
+            existing_embedding = self.milvus_service.get_target_normalized_embedding(target_id)
+            if existing_embedding is not None:
+                logger.info(f"Target {target_id} already has normalized embedding, skipping batch processing to prevent duplicates")
+                return {
+                    'success': True,
+                    'message': 'Target already has normalized embedding, skipping duplicate processing',
+                    'total_photos': len(target_photos),
+                    'processed_photos': 0,
+                    'total_embeddings': 1,
+                    'normalized_embedding_id': 'existing',
+                    'embedding_strategy': 'existing',
+                    'skipped_duplicate': True
+                }
             
             # Instead of processing each photo individually, we'll process all photos
             # and create one normalized embedding for the target
@@ -405,6 +420,21 @@ class TargetIntegrationService:
                     'target_id': target_id,
                     'embeddings_removed': deleted_count,
                     'total_photos': 0
+                }
+            
+            # Check if target already has a valid normalized embedding
+            existing_embedding = self.milvus_service.get_target_normalized_embedding(target_id)
+            if existing_embedding is not None:
+                logger.info(f"Target {target_id} already has normalized embedding, skipping update to prevent duplicates")
+                return {
+                    'success': True,
+                    'message': 'Target already has normalized embedding, no update needed',
+                    'target_id': target_id,
+                    'normalized_embedding_id': 'existing',
+                    'total_photos': target_photos.count(),
+                    'photos_processed': 0,
+                    'embedding_strategy': 'existing',
+                    'skipped_duplicate': True
                 }
             
             # Collect all embeddings from all photos for this target

@@ -643,6 +643,125 @@ class AsyncMilvusService:
                 'total_queries': len(query_embeddings)
             }
     
+    async def get_target_normalized_embedding_async(self, target_id: str) -> Optional[np.ndarray]:
+        """Get the normalized embedding for a specific target asynchronously"""
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                self.thread_pool,
+                self._get_target_normalized_embedding_sync,
+                target_id
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Failed to get normalized embedding asynchronously for target {target_id}: {e}")
+            return None
+    
+    def _get_target_normalized_embedding_sync(self, target_id: str) -> Optional[np.ndarray]:
+        """Get the normalized embedding for a specific target (synchronous helper)"""
+        try:
+            # Try to load collection if needed
+            try:
+                if self.auto_load_collection:
+                    self.collection.load()
+            except Exception as load_error:
+                logger.warning(f"Failed to load collection, trying without loading: {load_error}")
+            
+            # Search for the target's normalized embedding
+            expr = f'target_id == "{target_id}"'
+            results = self.collection.query(
+                expr=expr,
+                output_fields=["id", "embedding", "target_id", "confidence_score"]
+            )
+            
+            if results and len(results) > 0:
+                # Return the first result's embedding
+                embedding = np.array(results[0]['embedding'])
+                logger.info(f"Found normalized embedding for target {target_id}")
+                return embedding
+            else:
+                logger.warning(f"No normalized embedding found for target {target_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to get normalized embedding for target {target_id}: {e}")
+            return None
+    
+    async def insert_normalized_target_embedding_async(self, target_id: str, embeddings: List[np.ndarray], 
+                                                     confidence_scores: List[float] = None) -> Optional[int]:
+        """Insert a single embedding for a target based on their images asynchronously"""
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                self.thread_pool,
+                self._insert_normalized_target_embedding_sync,
+                target_id,
+                embeddings,
+                confidence_scores
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Failed to insert normalized target embedding asynchronously: {e}")
+            return None
+    
+    def _insert_normalized_target_embedding_sync(self, target_id: str, embeddings: List[np.ndarray], 
+                                               confidence_scores: List[float] = None) -> Optional[int]:
+        """Insert a single embedding for a target based on their images (synchronous helper)"""
+        try:
+            if not embeddings:
+                logger.warning(f"No embeddings provided for target {target_id}")
+                return None
+            
+            # Smart embedding strategy:
+            # - If 1 image: use the single embedding directly
+            # - If 2+ images: average and normalize
+            if len(embeddings) == 1:
+                # Single image: use embedding as-is (no averaging needed)
+                final_embedding = embeddings[0]
+                avg_confidence = confidence_scores[0] if confidence_scores else 0.5
+                logger.info(f"Target {target_id} has 1 image - using single embedding directly")
+            else:
+                # Multiple images: average and normalize for better representation
+                avg_embedding = np.mean(embeddings, axis=0)
+                final_embedding = avg_embedding / np.linalg.norm(avg_embedding)
+                avg_confidence = np.mean(confidence_scores) if confidence_scores else 0.5
+                logger.info(f"Target {target_id} has {len(embeddings)} images - using averaged normalized embedding")
+            
+            # Remove any existing embeddings for this target
+            self.delete_embeddings_by_target_id_sync(target_id)
+            
+            # Insert the embedding
+            # Use a short identifier for normalized embeddings to avoid length issues
+            normalized_photo_id = f"norm_{target_id[:8]}"  # Use first 8 chars of target_id
+            insert_result = self.collection.insert([
+                [final_embedding.tolist()],
+                [target_id],
+                [normalized_photo_id],  # Short identifier for normalized embeddings
+                [avg_confidence],
+                ['']
+            ])
+            
+            logger.info(f"Inserted embedding for target {target_id} based on {len(embeddings)} images")
+            return insert_result.primary_keys[0] if insert_result.primary_keys else None
+            
+        except Exception as e:
+            logger.error(f"Failed to insert normalized target embedding: {e}")
+            return None
+    
+    def delete_embeddings_by_target_id_sync(self, target_id: str) -> int:
+        """Delete all embeddings for a specific target (synchronous helper)"""
+        try:
+            if self.auto_load_collection:
+                self.collection.load()
+            expr = f'target_id == "{target_id}"'
+            delete_result = self.collection.delete(expr)
+            deleted_count = len(delete_result.primary_keys) if delete_result.primary_keys else 0
+            logger.info(f"Deleted {deleted_count} embeddings for target {target_id}")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"Failed to delete embeddings for target {target_id}: {e}")
+            return 0
+    
     def __del__(self):
         """Cleanup thread pool on deletion"""
         if hasattr(self, 'thread_pool'):
