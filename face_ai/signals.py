@@ -32,23 +32,29 @@ def auto_process_target_photo(sender, instance, created, **kwargs):
             # Initialize face AI service (use sync service for signals)
             face_service = TargetIntegrationService()
             
+            # Get count of existing photos for this target
+            from backendapp.models import TargetPhoto
+            existing_photos_count = TargetPhoto.objects.filter(person_id=target_id).count()
+            
+            logger.info(f"Processing {'new' if created else 'updated'} photo for target {target_id} (total photos: {existing_photos_count})")
+            
             # Update the target's normalized embedding with all photos
             result = face_service.update_target_normalized_embedding(target_id)
             
             if result['success']:
                 if result.get('normalized_embedding_id'):
                     logger.info(
-                        f"Auto-updated normalized embedding for target {target_id}: "
-                        f"embedding ID {result['normalized_embedding_id']} with {result.get('total_photos', 0)} photos"
+                        f"Updated normalized embedding for target {target_id}: "
+                        f"embedding ID {result['normalized_embedding_id']} with {result.get('total_photos', 0)} photos "
+                        f"(strategy: {result.get('embedding_strategy', 'unknown')})"
                     )
                 else:
                     logger.info(
-                        f"Auto-updated normalized embedding for target {target_id}: "
-                        f"no photos with faces found"
+                        f"Updated target {target_id} but no faces found in any photos"
                     )
             else:
                 logger.warning(
-                    f"Auto-update of normalized embedding failed for target {target_id}: {result.get('error')}"
+                    f"Update of normalized embedding failed for target {target_id}: {result.get('error')}"
                 )
                 
         except ImportError:
@@ -82,14 +88,21 @@ def auto_update_after_photo_deletion(sender, instance, **kwargs):
         # Initialize face AI service (use sync service for signals)
         face_service = TargetIntegrationService()
         
+        # Get count of remaining photos for this target
+        from backendapp.models import TargetPhoto
+        remaining_photos_count = TargetPhoto.objects.filter(person_id=target_id).count()
+        
+        logger.info(f"Processing deleted photo for target {target_id} (remaining photos: {remaining_photos_count})")
+        
         # Update the target's normalized embedding without the deleted photo
         result = face_service.update_target_normalized_embedding(target_id)
         
         if result['success']:
             if result.get('normalized_embedding_id'):
                 logger.info(
-                    f"Auto-updated normalized embedding for target {target_id} after photo deletion: "
-                    f"embedding ID {result['normalized_embedding_id']} with {result.get('total_photos', 0)} photos"
+                    f"Updated normalized embedding for target {target_id} after deletion: "
+                    f"embedding ID {result['normalized_embedding_id']} with {result.get('total_photos', 0)} photos "
+                    f"(strategy: {result.get('embedding_strategy', 'unknown')})"
                 )
             elif result.get('embeddings_removed'):
                 logger.info(
@@ -98,7 +111,7 @@ def auto_update_after_photo_deletion(sender, instance, **kwargs):
                 )
         else:
             logger.warning(
-                f"Auto-update of normalized embedding failed after photo deletion for target {target_id}: {result.get('error')}"
+                f"Update of normalized embedding failed after deletion for target {target_id}: {result.get('error')}"
             )
             
     except ImportError:
@@ -147,7 +160,9 @@ def auto_process_existing_photos(sender, instance, created, **kwargs):
                     logger.warning(
                         f"Auto-processing existing photos failed for target {target_id}: {result.get('error')}"
                     )
-                    
+            else:
+                logger.info(f"New target {target_id} created with no photos - no processing needed")
+                
         except ImportError:
             logger.warning("Face AI service not available for auto-processing existing photos")
         except Exception as e:
@@ -155,3 +170,32 @@ def auto_process_existing_photos(sender, instance, created, **kwargs):
         finally:
             # Remove target from processing set
             _processing_targets.discard(target_id)
+
+@receiver(pre_delete, sender='backendapp.Targets_watchlist')
+def cleanup_target_embeddings(sender, instance, **kwargs):
+    """
+    Clean up all embeddings for a target when the target is deleted
+    """
+    target_id = str(instance.id)
+    
+    try:
+        from .services.target_integration import TargetIntegrationService
+        
+        # Initialize service
+        face_service = TargetIntegrationService()
+        
+        # Remove all embeddings for this target
+        deleted_count = face_service.milvus_service.delete_embeddings_by_target_id(target_id)
+        
+        logger.info(
+            f"Cleaned up {deleted_count} embeddings for deleted target {target_id}"
+        )
+        
+    except ImportError:
+        logger.warning("Face AI service not available for target deletion cleanup")
+    except Exception as e:
+        logger.error(f"Failed to clean up embeddings for deleted target {target_id}: {e}")
+    finally:
+        # Remove any processing locks for this target
+        global _processing_targets
+        _processing_targets.discard(target_id)

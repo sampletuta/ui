@@ -1,229 +1,399 @@
 import logging
 import cv2
 import numpy as np
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Union
 from PIL import Image
 import os
 import base64
 import io
-import urllib.request
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 class FaceDetectionService:
-    """Service for face detection using OpenCV Yunet model"""
+    """
+    Professional face detection service using OpenCV FaceDetectorYN (YuNet) model.
     
-    def __init__(self, model_path=None, confidence_threshold=0.5, min_face_size=20):
+    This service provides robust face detection capabilities with proper error handling,
+    input validation, and consistent return formats.
+    """
+    
+    # YuNet model output format constants
+    YUNET_BBOX_X = 0
+    YUNET_BBOX_Y = 1
+    YUNET_BBOX_W = 2
+    YUNET_BBOX_H = 3
+    YUNET_RIGHT_EYE_X = 4
+    YUNET_RIGHT_EYE_Y = 5
+    YUNET_LEFT_EYE_X = 6
+    YUNET_LEFT_EYE_Y = 7
+    YUNET_NOSE_X = 8
+    YUNET_NOSE_Y = 9
+    YUNET_RIGHT_MOUTH_X = 10
+    YUNET_RIGHT_MOUTH_Y = 11
+    YUNET_LEFT_MOUTH_X = 12
+    YUNET_LEFT_MOUTH_Y = 13
+    YUNET_SCORE = 14
+    
+    def __init__(self, confidence_threshold: float = 0.5, min_face_size: int = 20):
         """
-        Initialize OpenCV Yunet face detection model
+        Initialize the face detection service.
         
         Args:
-            model_path: Path to Yunet ONNX model file
-            confidence_threshold: Minimum confidence score for face detection
+            confidence_threshold: Minimum confidence score for face detection (0.0-1.0)
             min_face_size: Minimum face size in pixels
+            
+        Raises:
+            FileNotFoundError: If the model file cannot be found
+            RuntimeError: If model initialization fails
         """
+        if not 0.0 <= confidence_threshold <= 1.0:
+            raise ValueError("confidence_threshold must be between 0.0 and 1.0")
+        
+        if min_face_size <= 0:
+            raise ValueError("min_face_size must be positive")
+        
+        self.confidence_threshold = confidence_threshold
+        self.min_face_size = min_face_size
+        
+        # Model path resolution
+        model_path = self._resolve_model_path()
+        
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Yunet model file not found: {model_path}")
+        
         try:
-            self.confidence_threshold = confidence_threshold
-            self.min_face_size = min_face_size
-            self.embedding_dim = 512  # Keep for compatibility
-            
-            # Initialize Yunet model
-            if model_path is None:
-                # Use default model path or download if not exists
-                model_path = self._get_default_model_path()
-            
+            # Initialize FaceDetectorYN with proper parameters based on libfacedetection reference
+            # The key is to use appropriate input size and confidence threshold
             self.yunet_model = cv2.FaceDetectorYN.create(
                 model_path,
                 "",
-                (640, 480),  # Use a more common input size
-                0.9,
-                0.3,
-                5000
+                (1280, 1280),  # Standard input size that works well with YuNet
+                0.5,          # Lower confidence threshold to catch more faces
+                0.3,          # NMS threshold
+                5000          # Maximum faces to detect
             )
             
-            logger.info(f"Initialized OpenCV Yunet model from: {model_path}")
+            logger.info(f"Face detection service initialized successfully with model: {model_path}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize OpenCV Yunet: {e}")
-            raise
+            logger.error(f"Failed to initialize FaceDetectorYN model: {e}")
+            raise RuntimeError(f"Model initialization failed: {e}")
     
-    def _get_default_model_path(self):
-        """Get or download default Yunet model path"""
-        # First check if user has provided a model file
-        user_model = os.path.join(os.path.dirname(__file__), '..', 'face_detection_yunet_2023mar.onnx')
-        if os.path.exists(user_model):
-            logger.info(f"Using user-provided Yunet model: {user_model}")
-            return user_model
+    def _resolve_model_path(self) -> str:
+        """Resolve the path to the Yunet model file."""
+        # Try multiple possible locations
+        possible_paths = [
+            # Current directory
+            "face_detection_yunet_2023mar.onnx",
+            # Parent directory
+            os.path.join(os.path.dirname(__file__), "..", "..", "face_detection_yunet_2023mar.onnx"),
+            # Absolute path from workspace root
+            os.path.join("/home/user/Desktop/ui", "face_detection_yunet_2023mar.onnx")
+        ]
         
-        # Fallback to models directory
-        model_dir = os.path.join(os.path.dirname(__file__), 'models')
-        os.makedirs(model_dir, exist_ok=True)
+        for path in possible_paths:
+            if os.path.exists(path):
+                return os.path.abspath(path)
         
-        model_path = os.path.join(model_dir, 'yunet_n_120_160.onnx')
-        
-        if not os.path.exists(model_path):
-            logger.info("Downloading Yunet model...")
-            self._download_yunet_model(model_path)
-        
-        return model_path
+        # If none found, return the first expected path
+        return possible_paths[1]
     
-    def _download_yunet_model(self, model_path):
-        """Download Yunet model from OpenCV repository"""
-        try:
-            # Use a working OpenCV model URL
-            url = "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/yunet_n_120_160.onnx"
-            
-            # Fallback URLs if the main one fails
-            fallback_urls = [
-                "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/yunet_n_120_160.onnx",
-                "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/yunet_n_160_120.onnx",
-                "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/yunet_n_640_640.onnx"
-            ]
-            
-            for url in fallback_urls:
-                try:
-                    logger.info(f"Attempting to download Yunet model from: {url}")
-                    urllib.request.urlretrieve(url, model_path)
-                    logger.info(f"Downloaded Yunet model to: {model_path}")
-                    return
-                except Exception as e:
-                    logger.warning(f"Failed to download from {url}: {e}")
-                    continue
-            
-            # If all URLs fail, create a minimal placeholder model
-            logger.warning("All download URLs failed, creating placeholder model")
-            self._create_placeholder_model(model_path)
-            
-        except Exception as e:
-            logger.error(f"Failed to download Yunet model: {e}")
-            # Create placeholder model as fallback
-            self._create_placeholder_model(model_path)
-    
-    def _create_placeholder_model(self, model_path):
-        """Create a minimal placeholder ONNX model for testing"""
-        try:
-            # This is a minimal ONNX model structure - not functional but prevents crashes
-            import onnx
-            from onnx import helper, numpy_helper
-            import numpy as np
-            
-            # Create minimal ONNX model
-            X = helper.make_tensor_value_info('input', onnx.TensorProto.FLOAT, [1, 3, 120, 160])
-            Y = helper.make_tensor_value_info('output', onnx.TensorProto.FLOAT, [1, 1, 120, 160])
-            
-            node = helper.make_node('Identity', inputs=['input'], outputs=['output'])
-            
-            graph = helper.make_graph([node], 'yunet_placeholder', [X], [Y])
-            model = helper.make_model(graph, producer_name='opencv_yunet_placeholder')
-            
-            # Save the model
-            onnx.save(model, model_path)
-            logger.info(f"Created placeholder Yunet model at: {model_path}")
-            
-        except ImportError:
-            # If ONNX is not available, create a dummy file
-            with open(model_path, 'w') as f:
-                f.write("# Placeholder Yunet model - not functional\n")
-            logger.warning(f"Created dummy Yunet model file at: {model_path}")
-        except Exception as e:
-            logger.error(f"Failed to create placeholder model: {e}")
-            # Create empty file as last resort
-            open(model_path, 'w').close()
-            logger.warning(f"Created empty Yunet model file at: {model_path}")
-    
-    def _extract_faces_manually(self, image, num_faces):
+    def _set_input_size(self, width: int, height: int) -> None:
         """
-        Extract faces manually when FaceDetectorYN returns count but no data
-        This is a fallback method for when the model detects faces but doesn't provide coordinates
+        Set the input size for the face detection model.
+        
+        Args:
+            width: Image width in pixels
+            height: Image height in pixels
         """
         try:
-            if num_faces <= 0:
-                return np.array([])
-            
-            # For synthetic test images, we can estimate face locations
-            # In real scenarios, you might want to use a different approach
-            height, width = image.shape[:2]
-            
-            # Create estimated face bounding boxes (this is just for testing)
-            # In production, you'd want to use a more sophisticated method
-            estimated_faces = []
-            face_size = min(width, height) // 4  # Estimate face size
-            
-            for i in range(num_faces):
-                # Place faces in a grid pattern
-                row = i // 2
-                col = i % 2
-                x = width // 4 + col * (width // 2)
-                y = height // 4 + row * (height // 2)
-                
-                # Ensure face is within image bounds
-                x = max(0, min(x, width - face_size))
-                y = max(0, min(y, height - face_size))
-                
-                # Format: [x, y, w, h, rx, ry, rw, rh, ...]
-                face_data = [x, y, face_size, face_size, 
-                           x + face_size//4, y + face_size//4, face_size//8, face_size//8]  # Estimated landmarks
-                estimated_faces.append(face_data)
-            
-            logger.debug(f"Manually estimated {len(estimated_faces)} face locations")
-            return np.array(estimated_faces)
-            
+            self.yunet_model.setInputSize((int(width), int(height)))
+            logger.debug(f"Model input size set to {width}x{height}")
         except Exception as e:
-            logger.error(f"Failed to extract faces manually: {e}")
-            return np.array([])
-    
-    def _set_input_size(self, width, height):
-        """Set the input size to match the image dimensions"""
-        try:
-            # FaceDetectorYN.setInputSize expects (width, height) as a tuple
-            self.yunet_model.setInputSize((width, height))
-            logger.debug(f"Set FaceDetectorYN input size to: {width}x{height}")
-        except Exception as e:
-            logger.warning(f"Failed to set input size: {e}")
-            # Fallback: try to set a default size
+            logger.warning(f"Failed to set model input size to {width}x{height}: {e}")
+            # Fallback to default size
             try:
-                self.yunet_model.setInputSize((640, 480))
-                logger.debug("Set FaceDetectorYN to default input size: 640x480")
+                self.yunet_model.setInputSize((320, 320))
+                logger.debug("Model input size set to default 320x320")
             except Exception as fallback_e:
-                logger.warning(f"Failed to set default input size: {fallback_e}")
+                logger.error(f"Failed to set default input size: {fallback_e}")
     
-    def detect_faces_in_image(self, image_path: str) -> Dict:
+    def _validate_image(self, image: np.ndarray) -> bool:
         """
-        Detect faces in an image using OpenCV Yunet model
+        Validate that an image is suitable for face detection.
+        
+        Args:
+            image: Input image as numpy array
+            
+        Returns:
+            True if image is valid, False otherwise
+        """
+        if image is None:
+            return False
+        
+        if len(image.shape) < 2 or len(image.shape) > 3:
+            return False
+        
+        if image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
+            return False
+        
+        return True
+    
+    def _ensure_bgr_u8(self, image: np.ndarray) -> np.ndarray:
+        """Ensure image is 3-channel BGR with uint8 dtype and contiguous memory, without resizing."""
+        try:
+            img = image
+            if img.dtype != np.uint8:
+                # Assume [0,1] floats -> scale to [0,255]
+                if np.issubdtype(img.dtype, np.floating):
+                    img = np.clip(img * 255.0, 0, 255).astype(np.uint8)
+                else:
+                    img = img.astype(np.uint8)
+            # Handle color channels
+            if len(img.shape) == 2:
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            elif len(img.shape) == 3:
+                if img.shape[2] == 4:
+                    # Assume BGRA; if source was PIL RGBA we convert there, but handle here too
+                    try:
+                        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                    except Exception:
+                        img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+                elif img.shape[2] == 3:
+                    # Assume already BGR for cv2.imread; if came from PIL we convert earlier
+                    pass
+                else:
+                    # Unexpected channels, force BGR by dropping extras
+                    img = img[:, :, :3]
+            # Ensure contiguous
+            if not img.flags['C_CONTIGUOUS']:
+                img = np.ascontiguousarray(img)
+            return img
+        except Exception:
+            return np.ascontiguousarray(image)
+    
+    def _process_detection_result(self, detection_result: Tuple, image_shape: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Process the raw detection result from the model.
+
+        Args:
+            detection_result: Raw detection result from FaceDetectorYN.detect()
+            image_shape: Shape of the input image (height, width)
+
+        Returns:
+            Tuple of (faces_array, confidences_array)
+        """
+        # OpenCV YuNet detect() returns either:
+        # - (faces, confidences) in some builds, or
+        # - faces only (Nx15) in others (scores are faces[:, 14]).
+        faces: Optional[np.ndarray] = None
+        confidences: Optional[np.ndarray] = None
+        try:
+            if isinstance(detection_result, tuple):
+                if len(detection_result) == 2:
+                    faces, confidences = detection_result
+                    # Handle case where faces is returned as int (bug in some OpenCV builds)
+                    if isinstance(faces, (int, np.integer)) and confidences is not None:
+                        # If faces is an int but confidences looks like face data (shape ends with 15)
+                        if hasattr(confidences, 'shape') and len(confidences.shape) >= 2 and confidences.shape[-1] == 15:
+                            logger.debug("Detected OpenCV bug: faces returned as int, using confidences as faces data")
+                            faces = confidences
+                            confidences = None
+                        elif isinstance(faces, (int, np.integer)) and faces == 0:
+                            # faces is 0, meaning no faces detected
+                            logger.debug("No faces detected (faces=0)")
+                            faces = np.array([])
+                        else:
+                            logger.warning(f"Unexpected detection result format: faces={type(faces)} value={faces}, confidences shape={confidences.shape if hasattr(confidences, 'shape') else 'no shape'}")
+                            faces = None
+                    elif not isinstance(faces, np.ndarray) and hasattr(faces, '__len__') and len(faces) == 0:
+                        # Empty faces array
+                        faces = np.array([])
+                elif len(detection_result) == 1:
+                    faces = detection_result[0]
+                else:
+                    # Unexpected tuple shape
+                    faces = None
+            else:
+                # Some OpenCV versions return a single ndarray
+                faces = detection_result
+        except Exception as e:
+            logger.error(f"Failed to parse detection result: {e}")
+            return np.array([]), np.array([])
+        
+        # Handle case where no faces are detected
+        if faces is None or (hasattr(faces, '__len__') and len(faces) == 0):
+            logger.debug("No faces detected")
+            return np.array([]), np.array([])
+        
+        # Convert to numpy arrays if needed
+        if not isinstance(faces, np.ndarray):
+            faces = np.array(faces)
+        if confidences is not None and not isinstance(confidences, np.ndarray):
+            confidences = np.array(confidences)
+        
+        # Handle empty arrays
+        if faces.size == 0:
+            return np.array([]), np.array([])
+        
+        # Ensure faces is 2D array
+        if len(faces.shape) == 1:
+            if len(faces) >= 15:
+                faces = faces.reshape(1, -1)
+            else:
+                logger.warning(f"Invalid 1D faces array length: {len(faces)}")
+                return np.array([]), np.array([])
+        
+        # Validate shape
+        if len(faces.shape) != 2 or faces.shape[1] < 15:
+            logger.warning(f"Invalid faces array shape: {faces.shape}")
+            return np.array([]), np.array([])
+        
+        # Handle confidences
+        if confidences is None or (hasattr(confidences, "size") and confidences.size == 0):
+            # Try to extract score from the last column of faces (index 14)
+            try:
+                confidences = faces[:, self.YUNET_SCORE]
+            except Exception:
+                confidences = np.ones(faces.shape[0])
+        elif confidences.shape[0] != faces.shape[0]:
+            confidences = np.ones(faces.shape[0])
+        
+        logger.debug(f"Processed detection: {faces.shape[0]} faces")
+        return faces, confidences
+    
+    def _extract_face_info(self, face_data: np.ndarray, confidence: float, image_shape: Tuple[int, int]) -> Optional[Dict]:
+        """
+        Extract face information from detection data.
+        
+        Args:
+            face_data: Raw face detection data from model
+            confidence: Confidence score for the detection
+            image_shape: Shape of the input image (height, width)
+            
+        Returns:
+            Dictionary with face information or None if face should be filtered out
+        """
+        try:
+            # Debug: Check face_data structure
+            logger.debug(f"Extracting face info from data shape: {face_data.shape if hasattr(face_data, 'shape') else 'no shape'}")
+            logger.debug(f"Face data type: {type(face_data)}")
+            if hasattr(face_data, 'shape'):
+                logger.debug(f"Face data: {face_data}")
+
+            # Extract bounding box coordinates
+            x = int(face_data[self.YUNET_BBOX_X])
+            y = int(face_data[self.YUNET_BBOX_Y])
+            w = int(face_data[self.YUNET_BBOX_W])
+            h = int(face_data[self.YUNET_BBOX_H])
+            
+            # Validate face size
+            if w < self.min_face_size or h < self.min_face_size:
+                logger.debug(f"Face filtered out due to small size: {w}x{h} < {self.min_face_size}")
+                return None
+            
+            # Validate confidence
+            if confidence < self.confidence_threshold:
+                logger.debug(f"Face filtered out due to low confidence: {confidence:.3f} < {self.confidence_threshold}")
+                return None
+            
+            # Clamp bounding box within image bounds (do not discard partially out-of-bounds boxes)
+            logger.debug(f"Image shape: {image_shape}")
+            height, width = image_shape
+            x1 = max(0, x)
+            y1 = max(0, y)
+            x2 = min(width, x + w)
+            y2 = min(height, y + h)
+            # Ensure valid box after clamping
+            if x2 <= x1 or y2 <= y1:
+                logger.debug(f"Clamped bbox invalid, skipping: original [{x}, {y}, {w}, {h}], clamped [{x1}, {y1}, {x2}, {y2}] vs image {width}x{height}")
+                return None
+            
+            # Extract landmarks
+            landmarks = []
+            if len(face_data) >= 15:
+                landmarks = [
+                    [int(face_data[self.YUNET_RIGHT_EYE_X]), int(face_data[self.YUNET_RIGHT_EYE_Y])],
+                    [int(face_data[self.YUNET_LEFT_EYE_X]), int(face_data[self.YUNET_LEFT_EYE_Y])],
+                    [int(face_data[self.YUNET_NOSE_X]), int(face_data[self.YUNET_NOSE_Y])],
+                    [int(face_data[self.YUNET_RIGHT_MOUTH_X]), int(face_data[self.YUNET_RIGHT_MOUTH_Y])],
+                    [int(face_data[self.YUNET_LEFT_MOUTH_X]), int(face_data[self.YUNET_LEFT_MOUTH_Y])]
+                ]
+            
+            return {
+                'bbox': [x1, y1, x2, y2],
+                'confidence': confidence,
+                'landmarks': landmarks,
+                'face_area': w * h,
+                'face_width': w,
+                'face_height': h,
+                'center_x': x + w // 2,
+                'center_y': y + h // 2
+            }
+            
+        except (IndexError, ValueError, TypeError) as e:
+            logger.warning(f"Failed to extract face information: {e}")
+            return None
+    
+    def detect_faces_in_image(self, image_path: Union[str, Path]) -> Dict:
+        """
+        Detect faces in an image file.
         
         Args:
             image_path: Path to the image file
             
         Returns:
-            Dictionary with detection results
+            Dictionary with detection results containing:
+                - success: Boolean indicating if detection was successful
+                - faces_detected: Number of faces detected
+                - faces: List of detected face information
+                - error: Error message if detection failed
+                - message: Success message if detection succeeded
         """
         try:
-            # Load image
-            img = cv2.imread(image_path)
-            if img is None:
+            # Validate input
+            if not image_path or not os.path.exists(image_path):
                 return {
                     'success': False,
-                    'error': f'Failed to load image from {image_path}',
+                    'error': f'Image file not found: {image_path}',
                     'faces_detected': 0,
                     'faces': []
                 }
             
-            # Set input size to match image dimensions
+            # Load image
+            img = cv2.imread(str(image_path))
+            if not self._validate_image(img):
+                return {
+                    'success': False,
+                    'error': f'Failed to load or invalid image: {image_path}',
+                    'faces_detected': 0,
+                    'faces': []
+                }
+            
+            # Ensure correct format (no resizing, preserve aspect ratio)
+            img = self._ensure_bgr_u8(img)
+            
+            # Set model input size to exact image size
             height, width = img.shape[:2]
             self._set_input_size(width, height)
             
-            logger.debug(f"Starting face detection on image with shape: {img.shape}")
+            logger.debug(f"Processing image {image_path} with shape {img.shape}")
+
+            # Perform face detection
+            __, detection_result = self.yunet_model.detect(img)
+            logger.debug(f"Raw detection result type: {type(detection_result)}")
+            if isinstance(detection_result, tuple):
+                logger.debug(f"Detection result tuple length: {len(detection_result)}")
+                for i, item in enumerate(detection_result):
+                    logger.debug(f"  Item {i}: type={type(item)}, value={item}")
+
+            result = self._process_detection_result(detection_result, (height, width))
+            logger.debug(f"Process result type: {type(result)}, length: {len(result) if hasattr(result, '__len__') else 'N/A'}")
+            faces, confidences = result
             
-            # Detect faces - FaceDetectorYN.detect() returns (retval, faces)
-            # retval: number of faces detected
-            # faces: 2D Mat with shape [num_faces, 15] containing face data
-            retval, faces = self.yunet_model.detect(img)
-            
-            logger.debug(f"Detection result: retval={retval}, faces type={type(faces)}")
-            
-            # Check if faces were detected
-            if retval <= 0:
-                logger.info("❌ No faces detected in the image")
+            if len(faces) == 0:
+                logger.info(f"No faces detected in image: {image_path}")
                 return {
                     'success': True,
                     'faces_detected': 0,
@@ -231,205 +401,114 @@ class FaceDetectionService:
                     'message': 'No faces detected in the image'
                 }
             
-            # Handle case where model detects faces but returns None data
-            if faces is None:
-                logger.warning(f"⚠️ Yunet model detected {retval} faces but returned None data")
-                logger.info(f"🎯 FOUND {retval} FACE(S) - Using manual extraction fallback")
-                
-                # Use manual extraction as fallback
-                faces_array = self._extract_faces_manually(img, retval)
-                if len(faces_array) > 0:
-                    logger.info(f"✅ Manual extraction successful: {len(faces_array)} faces extracted")
-                else:
-                    logger.error("❌ Manual extraction failed")
-                    return {
-                        'success': False,
-                        'error': 'Model detected faces but failed to extract face data',
-                        'faces_detected': 0,
-                        'faces': []
-                    }
-            else:
-                # Convert faces to numpy array if it's a Mat
-                if hasattr(faces, 'shape'):
-                    faces_array = np.array(faces)
-                else:
-                    faces_array = faces
-                logger.debug(f"Faces array shape: {faces_array.shape}")
-            
-            logger.info(f"🎯 SUCCESSFULLY DETECTED {retval} FACE(S) in image")
-            
-            # Process detection results
+            # Process detected faces
             processed_faces = []
-            for i in range(min(retval, len(faces_array))):
+            for i in range(len(faces)):
                 try:
-                    face_data = faces_array[i]
-                    logger.debug(f"Processing face {i}: face_data shape={face_data.shape}")
+                    face_data = faces[i]
+                    confidence = confidences[i] if i < len(confidences) else 0.8
                     
-                    # Extract face coordinates and landmarks according to OpenCV docs:
-                    # 0-1: x, y of bbox top left corner
-                    # 2-3: width, height of bbox
-                    # 4-5: x, y of right eye
-                    # 6-7: x, y of left eye
-                    # 8-9: x, y of nose tip
-                    # 10-11: x, y of right corner of mouth
-                    # 12-13: x, y of left corner of mouth
-                    # 14: face score
-                    
-                    x, y = int(face_data[0]), int(face_data[1])
-                    w, h = int(face_data[2]), int(face_data[3])
-                    confidence = float(face_data[14]) if len(face_data) > 14 else 1.0
-                    
-                    bbox = [x, y, x + w, y + h]
-                    face_area = w * h
-                    
-                    # Extract landmarks
-                    landmarks = []
-                    if len(face_data) >= 15:
-                        landmarks = [
-                            [int(face_data[4]), int(face_data[5])],    # Right eye
-                            [int(face_data[6]), int(face_data[7])],    # Left eye
-                            [int(face_data[8]), int(face_data[9])],    # Nose tip
-                            [int(face_data[10]), int(face_data[11])],  # Right mouth corner
-                            [int(face_data[12]), int(face_data[13])]   # Left mouth corner
-                        ]
-                    
-                    face_info = {
-                        'bbox': bbox,
-                        'confidence': confidence,
-                        'landmarks': landmarks,
-                        'face_area': face_area,
-                        'face_width': w,
-                        'face_height': h
-                    }
-                    
-                    logger.info(f"  Face {i+1}: bbox={bbox}, confidence={confidence:.3f}, area={face_area}")
-                    processed_faces.append(face_info)
-                    
+                    face_info = self._extract_face_info(face_data, confidence, (height, width))
+                    if face_info:
+                        processed_faces.append(face_info)
+                        logger.debug(f"Face {i+1}: bbox={face_info['bbox']}, confidence={face_info['confidence']:.3f}")
                 except Exception as e:
-                    logger.error(f"Error processing face {i}: {e}")
+                    logger.warning(f"Failed to process face {i+1}: {e}")
                     continue
             
-            logger.info(f"✅ Face detection completed: {len(processed_faces)} faces processed")
+            logger.info(f"Successfully detected {len(processed_faces)} faces in {image_path}")
             
             return {
                 'success': True,
                 'faces_detected': len(processed_faces),
                 'faces': processed_faces,
-                'total_confidence': float(np.mean([f['confidence'] for f in processed_faces])) if processed_faces else 0.0,
                 'message': f'Successfully detected {len(processed_faces)} faces'
             }
-                
+            
         except Exception as e:
-            logger.error(f"Face detection failed: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            logger.error(f"Face detection failed for {image_path}: {e}")
             return {
                 'success': False,
                 'error': str(e),
                 'faces_detected': 0,
                 'faces': []
             }
-
+    
     def detect_faces_in_image_base64(self, base64_string: str) -> Dict:
         """
-        Detect faces in a base64 encoded image for validation
+        Detect faces in a base64 encoded image.
         
         Args:
             base64_string: Base64 encoded image string
             
         Returns:
-            Dictionary with face detection results
+            Dictionary with detection results
         """
         try:
-            # Convert base64 to image
-            img = self._base64_to_image(base64_string)
-            if img is None:
+            # Validate input
+            if not base64_string or not isinstance(base64_string, str):
                 return {
                     'success': False,
-                    'error': 'Invalid base64 image data',
+                    'error': 'Invalid base64 string provided',
                     'faces_detected': 0,
                     'faces': []
                 }
             
-            # Set input size to match image dimensions
-            self._set_input_size(img)
+            # Convert base64 to image
+            img = self._base64_to_image(base64_string)
+            if not self._validate_image(img):
+                return {
+                    'success': False,
+                    'error': 'Failed to decode base64 image or invalid image data',
+                    'faces_detected': 0,
+                    'faces': []
+                }
             
-            # Detect faces using Yunet
-            try:
-                logger.debug(f"Starting base64 face detection on image with shape: {img.shape}")
-                result = self.yunet_model.detect(img)
-                logger.debug(f"Base64 detection result type: {type(result)}")
-                
-                # Handle different return formats from FaceDetectorYN
-                if isinstance(result, tuple) and len(result) == 2:
-                    num_faces, faces_data = result
-                    logger.debug(f"Base64 FaceDetectorYN returned: num_faces={num_faces}, faces_data={type(faces_data)}")
+            # Ensure correct format (no resizing, preserve aspect ratio)
+            img = self._ensure_bgr_u8(img)
+            
+            # Set model input size to exact image size
+            height, width = img.shape[:2]
+            self._set_input_size(width, height)
+            
+            logger.debug(f"Processing base64 image with shape {img.shape}")
+            
+            # Perform face detection
+            detection_result = self.yunet_model.detect(img)
+            height, width = img.shape[:2]
+            faces, confidences = self._process_detection_result(detection_result, (height, width))
+            
+            if len(faces) == 0:
+                logger.info("No faces detected in base64 image")
+                return {
+                    'success': True,
+                    'faces_detected': 0,
+                    'faces': [],
+                    'message': 'No faces detected in the image'
+                }
+            
+            # Process detected faces
+            processed_faces = []
+            for i in range(len(faces)):
+                try:
+                    face_data = faces[i]
+                    confidence = confidences[i] if i < len(confidences) else 0.8
                     
-                    if isinstance(num_faces, int) and faces_data is None:
-                        # FaceDetectorYN returns (num_faces, None) - this means faces were detected but data is None
-                        # We need to extract faces manually from the image
-                        logger.debug(f"Base64: FaceDetectorYN detected {num_faces} faces but returned None data")
-                        faces = self._extract_faces_manually(img, num_faces)
-                        confidences = np.ones(num_faces) if num_faces > 0 else np.array([])
-                        logger.debug(f"Base64: Manually extracted {len(faces)} faces")
-                    elif isinstance(num_faces, np.ndarray) and isinstance(faces_data, np.ndarray):
-                        # Standard format: (faces_array, confidences_array)
-                        faces = num_faces
-                        confidences = faces_data
-                        logger.debug(f"Base64: Standard format: {len(faces)} faces, {len(confidences)} confidences")
-                    else:
-                        # Unexpected tuple format
-                        logger.warning(f"Base64: Unexpected tuple format: {type(num_faces)}, {type(faces_data)}")
-                        faces, confidences = None, None
-                        
-                elif isinstance(result, np.ndarray):
-                    # If it's a single array, it might contain both faces and confidences
-                    faces = result
-                    confidences = np.ones(len(result)) if len(result) > 0 else np.array([])
-                    logger.debug(f"Base64: Single array format: {len(faces)} faces")
-                else:
-                    logger.warning(f"Base64: Unexpected detection result format: {type(result)}")
-                    faces, confidences = None, None
-                
-                logger.debug(f"Processed base64 result - faces: {type(faces)}, confidences: {type(confidences)}")
-            except Exception as detect_error:
-                logger.error(f"Base64 face detection failed during detect() call: {detect_error}")
-                raise
+                    face_info = self._extract_face_info(face_data, confidence, (height, width))
+                    if face_info:
+                        processed_faces.append(face_info)
+                        logger.debug(f"Face {i+1}: bbox={face_info['bbox']}, confidence={face_info['confidence']:.3f}")
+                except Exception as e:
+                    logger.warning(f"Failed to process face {i+1}: {e}")
+                    continue
             
-            detected_faces = []
-            if faces is not None:
-                for i, (face, confidence) in enumerate(zip(faces, confidences)):
-                    if confidence >= self.confidence_threshold:
-                        # FaceDetectorYN returns [x, y, w, h, rx, ry, rw, rh, ...]
-                        x, y, w, h = int(face[0]), int(face[1]), int(face[2]), int(face[3])
-                        x2, y2 = x + w, y + h
-                        
-                        # Validate face size
-                        if w < self.min_face_size or h < self.min_face_size:
-                            continue
-                        
-                        # Extract landmarks if available
-                        landmarks = []
-                        if len(face) >= 8:
-                            landmarks = [
-                                [int(face[4]), int(face[5])],  # Right eye
-                                [int(face[6]), int(face[7])]   # Left eye
-                            ]
-                        
-                        face_data = {
-                            'bbox': [x, y, x2, y2],
-                            'confidence': float(confidence),
-                            'landmarks': landmarks,
-                            'face_area': w * h
-                        }
-                        
-                        detected_faces.append(face_data)
+            logger.info(f"Successfully detected {len(processed_faces)} faces in base64 image")
             
             return {
                 'success': True,
-                'faces_detected': len(detected_faces),
-                'faces': detected_faces,
-                'message': f"Detected {len(detected_faces)} face(s) in image"
+                'faces_detected': len(processed_faces),
+                'faces': processed_faces,
+                'message': f'Successfully detected {len(processed_faces)} faces'
             }
             
         except Exception as e:
@@ -441,131 +520,252 @@ class FaceDetectionService:
                 'faces': []
             }
     
-    def generate_face_embeddings(self, image_paths: List[str]) -> Dict:
+    def detect_faces_in_images(self, image_paths: List[Union[str, Path]]) -> Dict:
         """
-        API 2: Generate face embeddings for multiple images (all must have faces)
-        Note: This method now only detects faces, embeddings are handled by FaceEmbeddingService
+        Detect faces in multiple images.
         
         Args:
             image_paths: List of image file paths
             
         Returns:
-            Dictionary with detection results (embeddings handled separately)
+            Dictionary with detection results for all images
         """
-        try:
-            if not image_paths:
-                return {
-                    'success': False,
-                    'error': 'No image paths provided',
-                    'embeddings': []
-                }
+        if not image_paths:
+            return {
+                'success': False,
+                'error': 'No image paths provided',
+                'total_detections': 0,
+                'detections': [],
+                'failed_images': []
+            }
+        
+        all_detections = []
+        failed_images = []
+        
+        for image_path in image_paths:
+            detection_result = self.detect_faces_in_image(image_path)
             
-            all_detections = []
-            failed_images = []
+            if not detection_result['success']:
+                failed_images.append({
+                    'image_path': str(image_path),
+                    'error': detection_result['error']
+                })
+                continue
             
-            for image_path in image_paths:
-                # Detect faces in the image
-                detection_result = self.detect_faces_in_image(image_path)
-                
-                if not detection_result['success']:
-                    failed_images.append({
-                        'image_path': image_path,
-                        'error': detection_result['error']
-                    })
-                    continue
-                
-                if detection_result['faces_detected'] == 0:
-                    failed_images.append({
-                        'image_path': image_path,
-                        'error': 'No faces detected in image'
-                    })
-                    continue
-                
-                # Store detection results for embedding generation
+            if detection_result['faces_detected'] > 0:
                 for face in detection_result['faces']:
                     detection_data = {
-                        'image_path': image_path,
+                        'image_path': str(image_path),
                         'bbox': face['bbox'],
-                        'confidence_score': face['confidence'],
-                        'face_area': face['face_area']
+                        'confidence': face['confidence'],
+                        'face_area': face['face_area'],
+                        'landmarks': face['landmarks']
                     }
                     all_detections.append(detection_data)
-            
-            return {
-                'success': True,
-                'total_detections': len(all_detections),
-                'detections': all_detections,
-                'failed_images': failed_images,
-                'message': f"Detected {len(all_detections)} faces from {len(image_paths)} images"
-            }
-            
+        
+        return {
+            'success': True,
+            'total_detections': len(all_detections),
+            'detections': all_detections,
+            'failed_images': failed_images,
+            'message': f"Processed {len(image_paths)} images, detected {len(all_detections)} faces"
+        }
+
+    def detect_and_generate_embeddings(self, image_path: Union[str, Path], max_faces: int = 1) -> Dict:
+        """
+        Detect faces in a single image and generate embeddings for up to max_faces.
+        Returns a dictionary with embeddings and associated metadata.
+        """
+        try:
+            detection = self.detect_faces_in_image(image_path)
+            if not detection.get('success'):
+                return {
+                    'success': False,
+                    'error': detection.get('error', 'Face detection failed'),
+                    'embeddings': []
+                }
+
+            if detection.get('faces_detected', 0) == 0:
+                return {
+                    'success': True,
+                    'embeddings': [],
+                    'message': 'No faces detected'
+                }
+
+            # Prepare detections for embedding service
+            detections: List[Dict] = []
+            for face in detection['faces'][: max(1, int(max_faces))]:
+                detections.append({
+                    'image_path': str(image_path),
+                    'bbox': face['bbox'],
+                    'confidence_score': float(face.get('confidence', 0.0)),
+                    'face_area': int(face.get('face_area', 0))
+                })
+
+            # Lazy import to avoid circular import at module import time
+            from .face_embedding_service import FaceEmbeddingService
+            embedding_service = FaceEmbeddingService()
+            embedding_result = embedding_service.generate_embeddings_from_detections(detections)
+
+            return embedding_result
+
         except Exception as e:
-            logger.error(f"Failed to detect faces: {e}")
+            logger.error(f"detect_and_generate_embeddings failed: {e}")
             return {
                 'success': False,
                 'error': str(e),
-                'detections': []
+                'embeddings': []
+            }
+
+    def detect_and_generate_embeddings_base64(self, base64_string: str, max_faces: int = 1) -> Dict:
+        """
+        Detect faces in a base64 image and generate embeddings for up to max_faces directly from base64.
+        """
+        try:
+            detection = self.detect_faces_in_image_base64(base64_string)
+            if not detection.get('success'):
+                return {
+                    'success': False,
+                    'error': detection.get('error', 'Face detection failed'),
+                    'embeddings': []
+                }
+
+            if detection.get('faces_detected', 0) == 0:
+                return {
+                    'success': True,
+                    'embeddings': [],
+                    'message': 'No faces detected'
+                }
+
+            # Generate embeddings using base64-capable path for each face
+            from .face_embedding_service import FaceEmbeddingService
+            embedding_service = FaceEmbeddingService()
+
+            all_embeddings: List[Dict] = []
+            failed: List[Dict] = []
+            for face in detection['faces'][: max(1, int(max_faces))]:
+                bbox = face['bbox']
+                try:
+                    emb = embedding_service.generate_embedding_from_base64(base64_string, bbox)
+                    if emb is None:
+                        failed.append({'bbox': bbox, 'error': 'Embedding generation failed'})
+                        continue
+                    all_embeddings.append({
+                        'bbox': bbox,
+                        'embedding': emb.tolist(),
+                        'embedding_dim': getattr(embedding_service, 'embedding_dim', 512),
+                        'confidence_score': float(face.get('confidence', 0.0)),
+                        'face_area': int(face.get('face_area', 0))
+                    })
+                except Exception as e:
+                    failed.append({'bbox': bbox, 'error': str(e)})
+
+            return {
+                'success': True,
+                'total_embeddings': len(all_embeddings),
+                'embeddings': all_embeddings,
+                'failed_detections': failed,
+                'message': f"Generated {len(all_embeddings)} embeddings from {detection.get('faces_detected', 0)} detections"
+            }
+
+        except Exception as e:
+            logger.error(f"detect_and_generate_embeddings_base64 failed: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'embeddings': []
             }
     
-    def verify_faces(self, image1_base64: str, image2_base64: str, confidence_threshold: float = 50.0) -> Dict:
+    def generate_face_embeddings(self, image_paths: List[Union[str, Path]]) -> Dict:
         """
-        API 3: Face verification (detection only, embeddings handled separately)
+        Legacy method for backward compatibility.
+        This method only performs face detection - embeddings should be generated 
+        using the FaceEmbeddingService separately.
+        
+        Args:
+            image_paths: List of image file paths
+            
+        Returns:
+            Dictionary with detection results formatted for embedding generation
+        """
+        logger.warning("generate_face_embeddings is deprecated. Use detect_faces_in_images() and FaceEmbeddingService.generate_embeddings_from_detections() instead.")
+        
+        # Use the new detection method
+        detection_result = self.detect_faces_in_images(image_paths)
+        
+        if not detection_result['success']:
+            return {
+                'success': False,
+                'error': detection_result['error'],
+                'embeddings': []
+            }
+        
+        # Format results for backward compatibility
+        embeddings_data = []
+        for detection in detection_result['detections']:
+            embeddings_data.append({
+                'image_path': detection['image_path'],
+                'bbox': detection['bbox'],
+                'confidence_score': detection['confidence'],
+                'face_area': detection['face_area'],
+                # Note: No actual embedding - this needs to be generated by FaceEmbeddingService
+                'embedding': None  # Placeholder - actual embedding generation happens elsewhere
+            })
+        
+        return {
+            'success': True,
+            'total_detections': len(embeddings_data),
+            'embeddings': embeddings_data,
+            'failed_images': detection_result['failed_images'],
+            'message': f"Face detection completed for {len(image_paths)} images. Use FaceEmbeddingService for actual embedding generation."
+        }
+    
+    def verify_faces(self, image1_base64: str, image2_base64: str) -> Dict:
+        """
+        Verify that faces are present in two images (detection only).
         
         Args:
             image1_base64: Base64 encoded first image
             image2_base64: Base64 encoded second image
-            confidence_threshold: Detection confidence threshold
             
         Returns:
-            Dictionary with detection results
+            Dictionary with verification results
         """
         try:
-            # Convert base64 to images
-            img1 = self._base64_to_image(image1_base64)
-            img2 = self._base64_to_image(image2_base64)
+            # Detect faces in both images
+            result1 = self.detect_faces_in_image_base64(image1_base64)
+            result2 = self.detect_faces_in_image_base64(image2_base64)
             
-            if img1 is None or img2 is None:
+            if not result1['success'] or not result2['success']:
                 return {
                     'success': False,
-                    'error': 'Invalid base64 image data'
+                    'error': f"Face detection failed: Image 1: {result1.get('error', 'Unknown')}, Image 2: {result2.get('error', 'Unknown')}"
                 }
             
-            # Detect faces in both images
-            faces1, conf1 = self.yunet_model.detect(img1)
-            faces2, conf2 = self.yunet_model.detect(img2)
-            
-            if faces1 is None or len(faces1) == 0 or faces2 is None or len(faces2) == 0:
+            if result1['faces_detected'] == 0 or result2['faces_detected'] == 0:
                 return {
                     'success': False,
-                    'error': 'No faces detected in one or both images'
+                    'error': f"No faces detected in one or both images: Image 1: {result1['faces_detected']}, Image 2: {result2['faces_detected']}"
                 }
             
             # Get the first detected face from each image
-            face1 = faces1[0] if faces1 is not None and len(faces1) > 0 else None
-            face2 = faces2[0] if faces2 is not None and len(faces2) > 0 else None
-            
-            if face1 is None or face2 is None:
-                return {
-                    'success': False,
-                    'error': 'Failed to extract faces from images'
-                }
-            
-            # Extract face information
-            x1, y1, w1, h1 = int(face1[0]), int(face1[1]), int(face1[2]), int(face1[3])
-            x2, y2, w2, h2 = int(face2[0]), int(face2[1]), int(face2[2]), int(face2[3])
+            face1 = result1['faces'][0]
+            face2 = result2['faces'][0]
             
             return {
                 'success': True,
                 'faces_detected': True,
                 'face1': {
-                    'bbox': [x1, y1, x1 + w1, y1 + h1],
-                    'confidence': float(conf1[0]) if conf1 is not None and len(conf1) > 0 else 0.0
+                    'bbox': face1['bbox'],
+                    'confidence': face1['confidence'],
+                    'landmarks': face1['landmarks']
                 },
                 'face2': {
-                    'bbox': [x2, y2, x2 + w2, y2 + h2],
-                    'confidence': float(conf2[0]) if conf2 is not None and len(conf2) > 0 else 0.0
+                    'bbox': face2['bbox'],
+                    'confidence': face2['confidence'],
+                    'landmarks': face2['landmarks']
                 },
-                'message': "Faces detected in both images (verification requires embedding service)"
+                'message': 'Faces detected in both images (face verification requires embedding comparison)'
             }
             
         except Exception as e:
@@ -576,7 +776,15 @@ class FaceDetectionService:
             }
     
     def _base64_to_image(self, base64_string: str) -> Optional[np.ndarray]:
-        """Convert base64 string to numpy image array"""
+        """
+        Convert base64 string to numpy image array.
+        
+        Args:
+            base64_string: Base64 encoded image string
+            
+        Returns:
+            Numpy array representation of the image or None if conversion fails
+        """
         try:
             # Remove data URL prefix if present
             if base64_string.startswith('data:image'):
@@ -584,14 +792,18 @@ class FaceDetectionService:
             
             # Decode base64
             image_data = base64.b64decode(base64_string)
-            image = Image.open(io.BytesIO(image_data))
+            image = Image.open(io.BytesIO(image_data)).convert('RGBA') if True else Image.open(io.BytesIO(image_data))
             
             # Convert to numpy array
             image_array = np.array(image)
             
-            # Convert RGB to BGR if needed
-            if len(image_array.shape) == 3 and image_array.shape[2] == 3:
+            # Convert to BGR
+            if len(image_array.shape) == 3 and image_array.shape[2] == 4:
+                image_array = cv2.cvtColor(image_array, cv2.COLOR_RGBA2BGR)
+            elif len(image_array.shape) == 3 and image_array.shape[2] == 3:
                 image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+            elif len(image_array.shape) == 2:
+                image_array = cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
             
             return image_array
             
@@ -600,24 +812,90 @@ class FaceDetectionService:
             return None
     
     def image_to_base64(self, image_field) -> str:
-        """Convert Django ImageField to base64 string"""
+        """
+        Convert Django ImageField to base64 string.
+        
+        Args:
+            image_field: Django ImageField instance
+            
+        Returns:
+            Base64 encoded string representation of the image
+            
+        Raises:
+            ValueError: If the image field is invalid
+            IOError: If the image cannot be read
+        """
         try:
-            # Open the image file
+            if not image_field:
+                raise ValueError("Image field is required")
+            
             with image_field.open('rb') as image_file:
-                # Read the image data
                 image_data = image_file.read()
-                # Encode to base64
                 base64_string = base64.b64encode(image_data).decode('utf-8')
                 return base64_string
+                
         except Exception as e:
             logger.error(f"Failed to convert image to base64: {e}")
             raise
     
     def get_model_info(self) -> Dict:
-        """Get information about the loaded model"""
+        """
+        Get information about the loaded face detection model.
+        
+        Returns:
+            Dictionary containing model information
+        """
         return {
-            'model_name': 'OpenCV FaceDetectorYN',
-            'embedding_dimension': self.embedding_dim,
+            'model_name': 'OpenCV FaceDetectorYN (Yunet)',
+            'model_version': '2023mar',
             'confidence_threshold': self.confidence_threshold,
-            'min_face_size': self.min_face_size
+            'min_face_size': self.min_face_size,
+            'input_size': (320, 320),
+            'max_faces': 5000
         }
+    
+    def update_confidence_threshold(self, new_threshold: float) -> bool:
+        """
+        Update the confidence threshold for face detection.
+        
+        Args:
+            new_threshold: New confidence threshold (0.0-1.0)
+            
+        Returns:
+            True if threshold was updated successfully, False otherwise
+        """
+        try:
+            if not 0.0 <= new_threshold <= 1.0:
+                logger.error(f"Invalid confidence threshold: {new_threshold}. Must be between 0.0 and 1.0")
+                return False
+            
+            self.confidence_threshold = new_threshold
+            logger.info(f"Confidence threshold updated to {new_threshold}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update confidence threshold: {e}")
+            return False
+    
+    def update_min_face_size(self, new_size: int) -> bool:
+        """
+        Update the minimum face size for detection.
+        
+        Args:
+            new_size: New minimum face size in pixels
+            
+        Returns:
+            True if size was updated successfully, False otherwise
+        """
+        try:
+            if new_size <= 0:
+                logger.error(f"Invalid minimum face size: {new_size}. Must be positive")
+                return False
+            
+            self.min_face_size = new_size
+            logger.info(f"Minimum face size updated to {new_size} pixels")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update minimum face size: {e}")
+            return False

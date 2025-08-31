@@ -1,6 +1,44 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    
+    .results-summary {
+        border-left: 4px solid #007bff;
+    }
+    
+    .error-details {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+    
+    .technical-details {
+        background-color: #212529;
+        color: #f8f9fa;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        padding: 1rem;
+        border-radius: 0.375rem;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    
+    .issue-card {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .issue-card .text-warning {
+        color: #856404 !important;
+    }
+</style>
 <div class="container-fluid pt-4 px-4">
     <div class="row g-4">
         <div class="col-12 col-md-10 col-lg-8 mx-auto">
@@ -22,6 +60,72 @@
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     {% endfor %}
+                {% endif %}
+                
+                <!-- Results Summary Section -->
+                {% if request.session.target_creation_result %}
+                    {% with result=request.session.target_creation_result %}
+                    <div class="alert alert-info results-summary">
+                        <h6 class="mb-2"><i class="fa fa-info-circle me-2"></i>Target Creation Results</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Target:</strong> {{ result.target_name }}<br>
+                                <strong>Images Uploaded:</strong> {{ result.images_uploaded }}<br>
+                                <strong>Status:</strong> 
+                                {% if result.success %}
+                                    <span class="text-success">✅ Success</span>
+                                {% else %}
+                                    <span class="text-danger">❌ Failed</span>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                {% if result.face_ai_processed %}
+                                    <strong>Face AI Processing:</strong> {{ result.face_ai_processed }}<br>
+                                    <strong>Embeddings Created:</strong> {{ result.embeddings_created }}<br>
+                                {% endif %}
+                                {% if result.failed_photos_count %}
+                                    <strong>Failed Photos:</strong> <span class="text-warning">{{ result.failed_photos_count }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if result.error_details %}
+                        <div class="mt-3">
+                            <h6 class="text-warning mb-2"><i class="fa fa-exclamation-triangle me-2"></i>Issues Found:</h6>
+                            {% for issue in result.error_details.guidance %}
+                            <div class="issue-card">
+                                <strong>{{ issue.message }}</strong><br>
+                                <small class="text-muted">{{ issue.solution }}</small>
+                                {% if issue.count > 1 %}
+                                    <br><small class="text-info">Affects {{ issue.count }} image(s)</small>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if result.technical_details %}
+                        <div class="mt-3">
+                            <details>
+                                <summary class="text-muted cursor-pointer">
+                                    <i class="fa fa-code me-1"></i>Technical Details (for support)
+                                </summary>
+                                <div class="technical-details">
+                                    {{ result.technical_details }}
+                                </div>
+                            </details>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-3 text-end">
+                            <a href="{% url 'add_target_to_case' case.pk %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="fa fa-times me-1"></i>Clear Results
+                            </a>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    <!-- Clear the session data after displaying -->
+                    {% comment %}This will be cleared by the view{% endcomment %}
                 {% endif %}
                 
                 <form method="post" enctype="multipart/form-data" class="row g-3">
@@ -106,6 +210,39 @@
                                 <i class="fa fa-info-circle me-1"></i>
                                 Select multiple images. At least one image is required for face recognition.
                             </small>
+                        </div>
+                        
+                        <!-- Image Quality Guidelines -->
+                        <div class="mt-3 p-3 bg-light rounded border">
+                            <h6 class="mb-2"><i class="fa fa-lightbulb me-2"></i>Image Quality Guidelines</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="text-success mb-2"><i class="fa fa-check me-1"></i>Recommended:</h6>
+                                    <ul class="small text-muted mb-0">
+                                        <li>High resolution images (at least 200x200 pixels)</li>
+                                        <li>Clear, well-lit faces</li>
+                                        <li>Front-facing or slightly angled faces</li>
+                                        <li>Good contrast and focus</li>
+                                        <li>Natural lighting (avoid heavy filters)</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="text-warning mb-2"><i class="fa fa-exclamation-triangle me-1"></i>Avoid:</h6>
+                                    <ul class="small text-muted mb-0">
+                                        <li>Very small faces (below 100x100 pixels)</li>
+                                        <li>Blurry or low-quality images</li>
+                                        <li>Heavily filtered or edited photos</li>
+                                        <li>Faces in shadow or poor lighting</li>
+                                        <li>Side profiles or obscured faces</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-info">
+                                    <i class="fa fa-info-circle me-1"></i>
+                                    <strong>Note:</strong> Images with faces smaller than 20x20 pixels cannot be processed by the face recognition system.
+                                </small>
+                            </div>
                         </div>
                     </div>
                     

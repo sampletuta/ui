@@ -230,6 +230,11 @@ def add_target_to_case(request, case_pk):
     """Add a target to a specific case"""
     case = get_object_or_404(Case, pk=case_pk, created_by=request.user)
     
+    # Clear previous results if this is a GET request
+    if request.method == 'GET':
+        if 'target_creation_result' in request.session:
+            del request.session['target_creation_result']
+    
     if request.method == 'POST':
         form = TargetsWatchlistForm(request.POST, request.FILES)
         if form.is_valid():
@@ -280,6 +285,20 @@ def add_target_to_case(request, case_pk):
                     # Process all photos for the target
                     processing_result = face_service.process_target_photos_batch(created_photos, str(target.id))
                     
+                    # Store comprehensive results in session for display
+                    session_result = {
+                        'target_name': target.target_name,
+                        'images_uploaded': uploaded_count,
+                        'success': processing_result.get('success', False),
+                        'face_ai_processed': processing_result.get('processed_photos', 0),
+                        'embeddings_created': processing_result.get('total_embeddings', 0),
+                        'failed_photos_count': len(processing_result.get('failed_photos', [])),
+                        'error_details': processing_result.get('error_details', {}),
+                        'technical_details': processing_result.get('technical_details', ''),
+                        'processing_result': processing_result
+                    }
+                    request.session['target_creation_result'] = session_result
+                    
                     if processing_result['success']:
                         total_embeddings = processing_result['total_embeddings']
                         processed_photos = processing_result['processed_photos']
@@ -304,29 +323,205 @@ def add_target_to_case(request, case_pk):
                                 request, 
                                 f'{failed_count} photos failed face processing. Check logs for details.'
                             )
-                            
+                        
+                        # Redirect to show results summary
+                        return redirect('add_target_to_case', case_pk=case_pk)
                     else:
-                        messages.warning(
-                            request, 
-                            f'Target "{target.target_name}" added successfully with {uploaded_count} images, '
-                            f'but face AI processing failed: {processing_result.get("error", "Unknown error")}'
-                        )
+                        # Enhanced error handling with specific user guidance
+                        error_message = processing_result.get("error", "Unknown error")
+                        
+                        if "Face too small" in error_message or "minimum 20x20" in error_message:
+                            messages.error(
+                                request, 
+                                f'Target "{target.target_name}" was created but face AI processing failed. '
+                                f'One or more images contain faces that are too small (below 20x20 pixels). '
+                                f'Please upload higher resolution images with larger, clearer faces.'
+                            )
+                        elif "Failed to extract face" in error_message:
+                            messages.error(
+                                request, 
+                                f'Target "{target.target_name}" was created but face AI processing failed. '
+                                f'One or more images could not be processed for face detection. '
+                                f'Please ensure images contain clear, well-lit faces and are in supported formats (JPG, PNG).'
+                            )
+                        elif "No valid embeddings" in error_message:
+                            messages.error(
+                                request, 
+                                f'Target "{target.target_name}" was created but face AI processing failed. '
+                                f'No valid face embeddings could be generated from the uploaded images. '
+                                f'Please upload images with clear, front-facing faces.'
+                            )
+                        elif "DataNotMatchException" in error_message or "schema fields" in error_message:
+                            messages.error(
+                                request, 
+                                f'Target "{target.target_name}" was created but face AI processing failed due to a system configuration issue. '
+                                f'This is a technical problem that requires administrator attention. '
+                                f'Please contact support with the error details.'
+                            )
+                        elif "MilvusException" in error_message or "RPC error" in error_message:
+                            messages.error(
+                                request, 
+                                f'Target "{target.target_name}" was created but face AI processing failed due to a database connection issue. '
+                                f'This may be a temporary problem. Please try again later or contact support if the issue persists.'
+                            )
+                        else:
+                            messages.error(
+                                request, 
+                                f'Target "{target.target_name}" was created but face AI processing failed: {error_message}. '
+                                f'Please check your images and try again.'
+                            )
+                        
+                        # Show detailed failure information if available
+                        if processing_result.get('failed_photos'):
+                            failed_photos = processing_result['failed_photos']
+                            failed_count = len(failed_photos)
+                            
+                            # Show summary of what failed
+                            messages.warning(
+                                request, 
+                                f'Processing Summary: {failed_count} out of {uploaded_count} images failed face AI processing.'
+                            )
+                            
+                            # Show specific guidance for each type of failure
+                            error_types = {}
+                            for photo in failed_photos:
+                                error_msg = photo.get('error', 'Unknown error')
+                                if 'Face too small' in error_msg:
+                                    error_types['face_too_small'] = error_types.get('face_too_small', 0) + 1
+                                elif 'Failed to extract face' in error_msg:
+                                    error_types['face_extraction_failed'] = error_types.get('face_extraction_failed', 0) + 1
+                                elif 'No faces detected' in error_msg:
+                                    error_types['no_faces_detected'] = error_types.get('no_faces_detected', 0) + 1
+                                else:
+                                    error_types['other'] = error_types.get('other', 0) + 1
+                            
+                            # Provide specific guidance for each error type
+                            if 'face_too_small' in error_types:
+                                messages.info(
+                                    request, 
+                                    f'💡 {error_types["face_too_small"]} image(s) have faces that are too small. '
+                                    f'Use images where faces are at least 100x100 pixels.'
+                                )
+                            
+                            if 'face_extraction_failed' in error_types:
+                                messages.info(
+                                    request, 
+                                    f'💡 {error_types["face_extraction_failed"]} image(s) failed face extraction. '
+                                    f'Ensure images have clear, well-lit faces without heavy filters.'
+                                )
+                            
+                            if 'no_faces_detected' in error_types:
+                                messages.info(
+                                    request, 
+                                    f'💡 {error_types["no_faces_detected"]} image(s) had no faces detected. '
+                                    f'Use images with clear, front-facing faces and good lighting.'
+                                )
+                            
+                            if 'other' in error_types:
+                                messages.info(
+                                    request, 
+                                    f'💡 {error_types["other"]} image(s) had other processing errors. '
+                                    f'Check image quality and format.'
+                                )
+                        
+                        # Provide specific guidance for common issues
+                        if any("Face too small" in str(photo.get('error', '')) for photo in processing_result.get('failed_photos', [])):
+                            messages.info(
+                                request, 
+                                '💡 Tip: For best results, use images where faces are at least 100x100 pixels. '
+                                'Avoid images where faces are very small or blurry.'
+                            )
+                        elif any("Failed to extract face" in str(photo.get('error', '')) for photo in processing_result.get('failed_photos', [])):
+                            messages.info(
+                                request, 
+                                '💡 Tip: Ensure images have good lighting, clear focus, and faces are not obscured. '
+                                'Avoid heavily filtered or low-quality images.'
+                            )
+                        
+                        # Redirect to show results summary
+                        return redirect('add_target_to_case', case_pk=case_pk)
                         
                 except ImportError:
+                    # Store results for import error
+                    request.session['target_creation_result'] = {
+                        'target_name': target.target_name,
+                        'images_uploaded': uploaded_count,
+                        'success': True,
+                        'face_ai_processed': 0,
+                        'embeddings_created': 0,
+                        'failed_photos_count': 0,
+                        'error_details': {},
+                        'technical_details': 'Face AI service not available',
+                        'processing_result': {'success': False, 'error': 'Face AI service not available'}
+                    }
+                    
                     messages.warning(
                         request, 
                         f'Target "{target.target_name}" added successfully with {uploaded_count} images, '
                         f'but face AI service is not available.'
                     )
+                    
+                    # Redirect to show results summary
+                    return redirect('add_target_to_case', case_pk=case_pk)
                 except Exception as e:
                     logger.error(f"Face AI processing failed for target {target.id}: {e}")
-                    messages.warning(
-                        request, 
-                        f'Target "{target.target_name}" added successfully with {uploaded_count} images, '
-                        f'but face AI processing encountered an error.'
-                    )
+                    
+                    # Store results for exception
+                    request.session['target_creation_result'] = {
+                        'target_name': target.target_name,
+                        'images_uploaded': uploaded_count,
+                        'success': False,
+                        'face_ai_processed': 0,
+                        'embeddings_created': 0,
+                        'failed_photos_count': uploaded_count,
+                        'error_details': {'guidance': [{'message': 'Unexpected error occurred', 'solution': 'Please contact support', 'count': 1}]},
+                        'technical_details': str(e),
+                        'processing_result': {'success': False, 'error': str(e)}
+                    }
+                    
+                    # Provide specific guidance based on exception type
+                    if "MilvusException" in str(e) or "DataNotMatchException" in str(e):
+                        messages.error(
+                            request, 
+                            f'Target "{target.target_name}" was created with {uploaded_count} images, '
+                            f'but face AI processing failed due to a database configuration issue. '
+                            f'This requires administrator attention. Please contact support.'
+                        )
+                    elif "Connection" in str(e) or "RPC" in str(e):
+                        messages.error(
+                            request, 
+                            f'Target "{target.target_name}" was created with {uploaded_count} images, '
+                            f'but face AI processing failed due to a connection issue. '
+                            f'Please try again later or contact support if the issue persists.'
+                        )
+                    else:
+                        messages.error(
+                            request, 
+                            f'Target "{target.target_name}" was created with {uploaded_count} images, '
+                            f'but face AI processing encountered an unexpected error: {str(e)}. '
+                            f'Please contact support if this issue persists.'
+                        )
+                    
+                    # Redirect to show results summary
+                    return redirect('add_target_to_case', case_pk=case_pk)
             else:
+                # Store results for no images case
+                request.session['target_creation_result'] = {
+                    'target_name': target.target_name,
+                    'images_uploaded': 0,
+                    'success': False,
+                    'face_ai_processed': 0,
+                    'embeddings_created': 0,
+                    'failed_photos_count': 0,
+                    'error_details': {'guidance': [{'message': 'No images uploaded', 'solution': 'At least one image is required for face recognition', 'count': 1}]},
+                    'technical_details': 'No images provided',
+                    'processing_result': {'success': False, 'error': 'No images uploaded'}
+                }
+                
                 messages.warning(request, f'Target "{target.target_name}" added to case "{case.case_name}", but no images were uploaded.')
+                
+                # Redirect to show results summary
+                return redirect('add_target_to_case', case_pk=case_pk)
             
             return redirect('case_detail', pk=case.pk)
         else:

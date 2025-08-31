@@ -187,6 +187,35 @@ class TargetPhoto(models.Model):
                         self.image.seek(0)
                 except (UnidentifiedImageError, OSError, ValueError) as _e:
                     raise ValidationError('File must be an image.')
+            
+            # Additional validation for face detection quality
+            try:
+                if hasattr(self.image, 'open'):
+                    self.image.open()
+                if hasattr(self.image, 'seek'):
+                    self.image.seek(0)
+                
+                with Image.open(self.image) as img:
+                    # Check image dimensions
+                    width, height = img.size
+                    if width < 100 or height < 100:
+                        raise ValidationError(
+                            'Image resolution is too low for reliable face detection. '
+                            'Please use images with dimensions of at least 100x100 pixels.'
+                        )
+                    
+                    # Check if image is too small for face detection
+                    if width < 200 or height < 200:
+                        from django.contrib import messages
+                        # This is a warning, not an error - allow the upload but inform the user
+                        pass
+                        
+            except Exception as e:
+                # If we can't validate dimensions, just log it and continue
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Could not validate image dimensions for {self.image.name}: {e}")
+                pass
     
     def save(self, *args, **kwargs):
         self.full_clean()

@@ -289,7 +289,7 @@ class FaceEmbeddingService:
             face_height = y2 - y1
             if face_width < 20 or face_height < 20:
                 logger.error(f"❌ Face too small: {face_width}x{face_height} (minimum 20x20)")
-                return None
+                raise ValueError(f"Face too small: {face_width}x{face_height} pixels (minimum 20x20). Please use higher resolution images with larger faces.")
             
             logger.debug(f"✂️ Cropping face region: {face_width}x{face_height}")
             # Crop face region
@@ -297,7 +297,7 @@ class FaceEmbeddingService:
             
             if face_region.size == 0:
                 logger.error(f"❌ Cropped face region is empty")
-                return None
+                raise ValueError("Failed to crop face region from image. The detected face coordinates may be invalid.")
             
             logger.info(f"✅ Face region cropped: shape={face_region.shape}")
             
@@ -316,7 +316,12 @@ class FaceEmbeddingService:
             logger.error(f"  Bbox: {bbox}")
             import traceback
             logger.error(f"  Traceback: {traceback.format_exc()}")
-            return None
+            
+            # Re-raise with more context for better error handling
+            if "Face too small" in str(e):
+                raise e  # Re-raise the specific error we created
+            else:
+                raise ValueError(f"Failed to extract face from image: {str(e)}. Please ensure the image contains a clear, well-lit face.")
     
     def _crop_face_from_array(self, image_array: np.ndarray, bbox: List[int]) -> Optional[Image.Image]:
         """Crop face from numpy array using bounding box"""

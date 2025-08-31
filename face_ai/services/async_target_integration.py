@@ -109,9 +109,26 @@ class AsyncTargetIntegrationService:
             embedding_result = await self.face_detection_service.generate_face_embeddings_parallel([image_path])
             
             if not embedding_result['success']:
+                error_msg = embedding_result.get('error', 'Unknown error')
+                
+                # Provide specific guidance based on error type
+                if 'Face too small' in error_msg:
+                    user_guidance = (
+                        'One or more faces in the image are too small for processing. '
+                        'Please upload higher resolution images where faces are at least 100x100 pixels.'
+                    )
+                elif 'Failed to extract face' in error_msg:
+                    user_guidance = (
+                        'Face extraction failed. Please ensure images contain clear, well-lit faces '
+                        'and are not heavily filtered or low quality.'
+                    )
+                else:
+                    user_guidance = 'Please check your images and try again.'
+                
                 return {
                     'success': False,
-                    'error': f"Embedding generation failed: {embedding_result.get('error')}",
+                    'error': f"Embedding generation failed: {error_msg}",
+                    'user_guidance': user_guidance,
                     'target_photo_id': target_photo.id
                 }
             
@@ -282,18 +299,35 @@ class AsyncTargetIntegrationService:
                         
                 except Exception as e:
                     logger.error(f"Failed to create normalized embedding: {e}")
+                    
+                    # Provide specific error details for common Milvus issues
+                    error_msg = str(e)
+                    if "DataNotMatchException" in error_msg or "schema fields" in error_msg:
+                        detailed_error = "Milvus schema mismatch - the data structure doesn't match the expected schema. This requires system administrator attention."
+                    elif "MilvusException" in error_msg or "RPC error" in error_msg:
+                        detailed_error = "Milvus database connection or communication error. This may be a temporary issue."
+                    elif "Connection" in error_msg:
+                        detailed_error = "Database connection failed. Please check if the Milvus service is running."
+                    else:
+                        detailed_error = f"Database error: {error_msg}"
+                    
                     return {
                         'success': False,
-                        'error': f"Failed to create normalized embedding: {str(e)}",
+                        'error': f"Failed to create normalized embedding: {detailed_error}",
+                        'technical_details': error_msg,
                         'total_photos': len(target_photos),
                         'processed_photos': processed_photos,
                         'total_embeddings': 0,
                         'failed_photos': failed_photos
                     }
             else:
+                # Analyze failed photos to provide better error guidance
+                error_analysis = await self._analyze_failed_photos_async(failed_photos)
+                
                 return {
                     'success': False,
                     'error': 'No valid embeddings could be generated from any photos',
+                    'error_details': error_analysis,
                     'total_photos': len(target_photos),
                     'processed_photos': processed_photos,
                     'total_embeddings': 0,
@@ -377,14 +411,31 @@ class AsyncTargetIntegrationService:
                     embedding_result = await self.face_detection_service.generate_face_embeddings_async([image_path])
                     
                     if not embedding_result['success']:
+                        error_msg = embedding_result.get('error', 'Unknown error')
+                        
+                        # Provide specific guidance based on error type
+                        if 'Face too small' in error_msg:
+                            user_guidance = (
+                                'One or more faces in the image are too small for processing. '
+                                'Please upload higher resolution images where faces are at least 100x100 pixels.'
+                            )
+                        elif 'Failed to extract face' in error_msg:
+                            user_guidance = (
+                                'Face extraction failed. Please ensure images contain clear, well-lit faces '
+                                'and are not heavily filtered or low quality.'
+                            )
+                        else:
+                            user_guidance = 'Please check your images and try again.'
+                        
                         failed_photos.append({
                             'photo_id': target_photo.id,
-                            'error': f"Embedding generation failed: {embedding_result.get('error')}"
+                            'error': f"Embedding generation failed: {error_msg}",
+                            'user_guidance': user_guidance
                         })
                         continue
                     
-                    # Take the first face embedding from this photo
-                    if embedding_result['embeddings']:
+                    # Check if embedding generation was successful and has embeddings
+                    if embedding_result.get('success', False) and embedding_result.get('embeddings'):
                         embedding_data = embedding_result['embeddings'][0]
                         # Convert Python list to numpy array for Milvus service
                         import numpy as np
@@ -394,10 +445,12 @@ class AsyncTargetIntegrationService:
                         processed_photos += 1
                         logger.info(f"Successfully processed photo {target_photo.id}")
                     else:
+                        error_msg = embedding_result.get('error', 'Unknown embedding error')
                         failed_photos.append({
                             'photo_id': target_photo.id,
-                            'error': 'No embeddings generated'
+                            'error': f'Embedding generation failed: {error_msg}'
                         })
+                        logger.warning(f"Failed to generate embeddings for photo {target_photo.id}: {error_msg}")
                         
                 except Exception as e:
                     failed_photos.append({
@@ -540,3 +593,90 @@ class AsyncTargetIntegrationService:
                 'error': str(e),
                 'target_id': target_id
             }
+
+    async def _analyze_failed_photos_async(self, failed_photos: List[Dict]) -> Dict:
+        """
+        Analyze failed photos to provide better error guidance (async version)
+        
+        Args:
+            failed_photos: List of failed photo dictionaries
+            
+        Returns:
+            Analysis results with user guidance
+        """
+        if not failed_photos:
+            return {}
+        
+        # Count different types of errors
+        error_counts = {}
+        error_examples = {}
+        
+        for photo in failed_photos:
+            error_msg = photo.get('error', 'Unknown error')
+            
+            # Categorize errors
+            if 'Face too small' in error_msg:
+                error_type = 'face_too_small'
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                if error_type not in error_examples:
+                    error_examples[error_type] = photo
+            elif 'Failed to extract face' in error_msg:
+                error_type = 'face_extraction_failed'
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                if error_type not in error_examples:
+                    error_examples[error_type] = photo
+            elif 'No faces detected' in error_msg:
+                error_type = 'no_faces_detected'
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                if error_type not in error_examples:
+                    error_examples[error_type] = photo
+            else:
+                error_type = 'other'
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                if error_type not in error_examples:
+                    error_examples[error_type] = photo
+        
+        # Generate user guidance based on error analysis
+        guidance = []
+        
+        if 'face_too_small' in error_counts:
+            guidance.append({
+                'type': 'face_too_small',
+                'count': error_counts['face_too_small'],
+                'message': 'One or more images contain faces that are too small for processing.',
+                'solution': 'Please upload higher resolution images where faces are at least 100x100 pixels.',
+                'example_error': error_examples['face_too_small'].get('error', '')
+            })
+        
+        if 'face_extraction_failed' in error_counts:
+            guidance.append({
+                'type': 'face_extraction_failed',
+                'count': error_counts['face_extraction_failed'],
+                'message': 'Face extraction failed for some images.',
+                'solution': 'Please ensure images contain clear, well-lit faces and are not heavily filtered or low quality.',
+                'example_error': error_examples['face_extraction_failed'].get('error', '')
+            })
+        
+        if 'no_faces_detected' in error_counts:
+            guidance.append({
+                'type': 'no_faces_detected',
+                'count': error_counts['no_faces_detected'],
+                'message': 'No faces were detected in some images.',
+                'solution': 'Please ensure images contain clear, front-facing faces with good lighting.',
+                'example_error': error_examples['no_faces_detected'].get('error', '')
+            })
+        
+        if 'other' in error_counts:
+            guidance.append({
+                'type': 'other',
+                'count': error_counts['other'],
+                'message': 'Other processing errors occurred.',
+                'solution': 'Please check your images and try again.',
+                'example_error': error_examples['other'].get('error', '')
+            })
+        
+        return {
+            'error_counts': error_counts,
+            'guidance': guidance,
+            'total_failed': len(failed_photos)
+        }

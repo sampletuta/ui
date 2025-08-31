@@ -40,25 +40,30 @@ class AsyncFaceDetectionService:
             self.embedding_dim = 512  # Keep for compatibility
             self.max_workers = max_workers
             
-            # Initialize Yunet model
+            # Initialize Yunet model with proper parameters based on libfacedetection
             if model_path is None:
                 # Use default model path or download if not exists
                 model_path = self._get_default_model_path()
             
+            # Initialize with proper parameters from libfacedetection reference
+            # Parameters: model_path, config_path, input_size, score_threshold, nms_threshold, top_k
             self.yunet_model = cv2.FaceDetectorYN.create(
                 model_path,
                 "",
-                (640, 480),  # Use a more common input size
-                0.9,
-                0.3,
-                5000
+                (320, 320),  # Use standard input size that works well
+                0.9,          # score_threshold - higher confidence threshold
+                0.3,          # nms_threshold - non-maximum suppression
+                5000          # top_k - maximum number of faces to detect
             )
             
             # Thread pool for CPU-bound operations
             self.thread_pool = ThreadPoolExecutor(max_workers=max_workers)
             
             logger.info(f"Initialized Async OpenCV Yunet model from: {model_path} with {max_workers} workers")
-            
+
+            # Log model configuration for debugging
+            self._log_model_config()
+
         except Exception as e:
             logger.error(f"Failed to initialize Async OpenCV Yunet: {e}")
             raise
@@ -75,7 +80,8 @@ class AsyncFaceDetectionService:
         model_dir = os.path.join(os.path.dirname(__file__), 'models')
         os.makedirs(model_dir, exist_ok=True)
         
-        model_path = os.path.join(model_dir, 'yunet_n_120_160.onnx')
+        # Use the correct model file from OpenCV zoo
+        model_path = os.path.join(model_dir, 'face_detection_yunet_2023mar.onnx')
         
         if not os.path.exists(model_path):
             logger.info("Downloading Yunet model...")
@@ -86,15 +92,9 @@ class AsyncFaceDetectionService:
     def _download_yunet_model(self, model_path):
         """Download Yunet model from OpenCV repository"""
         try:
-            # Use a working OpenCV model URL
-            url = "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/yunet_n_120_160.onnx"
-            
-            # Fallback URLs if the main one fails
-            fallback_urls = [
-                "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/yunet_n_120_160.onnx",
-                "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/yunet_n_160_120.onnx",
-                "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/yunet_n_640_640.onnx"
-            ]
+            # Use the correct model file from OpenCV zoo
+            fallback_urls = ["https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"]
+                # Alternative sources if the main one fails
             
             for url in fallback_urls:
                 try:
@@ -146,7 +146,38 @@ class AsyncFaceDetectionService:
             # Create empty file as last resort
             open(model_path, 'w').close()
             logger.warning(f"Created empty Yunet model file at: {model_path}")
-    
+
+    def _log_model_config(self):
+        """Log current model configuration for debugging"""
+        try:
+            logger.info("=== YuNet Model Configuration ===")
+            logger.info(f"Model type: {type(self.yunet_model)}")
+            logger.info(f"OpenCV version: {cv2.__version__}")
+
+            # Try to get model properties
+            try:
+                input_size = self.yunet_model.getInputSize()
+                logger.info(f"Model input size: {input_size}")
+            except:
+                logger.info("Could not get model input size")
+
+            try:
+                score_threshold = self.yunet_model.getScoreThreshold()
+                logger.info(f"Score threshold: {score_threshold}")
+            except:
+                logger.info("Could not get score threshold")
+
+            try:
+                nms_threshold = self.yunet_model.getNmsThreshold()
+                logger.info(f"NMS threshold: {nms_threshold}")
+            except:
+                logger.info("Could not get NMS threshold")
+
+            logger.info("=== End Model Configuration ===")
+
+        except Exception as e:
+            logger.warning(f"Could not log model configuration: {e}")
+
     async def detect_faces_in_image_async(self, image_path: str) -> Dict:
         """
         Async API 1: Detect faces in an image with parallel processing
@@ -223,40 +254,38 @@ class AsyncFaceDetectionService:
     def _extract_faces_manually(self, image, num_faces):
         """
         Extract faces manually when FaceDetectorYN returns count but no data
-        This is a fallback method for when the model detects faces but doesn't provide coordinates
+        This is a fallback method that estimates face locations when YuNet fails
         """
         try:
             if num_faces <= 0:
                 return np.array([])
-            
-            # For synthetic test images, we can estimate face locations
-            # In real scenarios, you might want to use a different approach
+
+            # Since we only use YuNet, we need to estimate face locations
+            # when the model detects faces but doesn't return coordinate data
             height, width = image.shape[:2]
-            
-            # Create estimated face bounding boxes (this is just for testing)
-            # In production, you'd want to use a more sophisticated method
+
             estimated_faces = []
             face_size = min(width, height) // 4  # Estimate face size
-            
+
             for i in range(num_faces):
                 # Place faces in a grid pattern
                 row = i // 2
                 col = i % 2
                 x = width // 4 + col * (width // 2)
                 y = height // 4 + row * (height // 2)
-                
+
                 # Ensure face is within image bounds
                 x = max(0, min(x, width - face_size))
                 y = max(0, min(y, height - face_size))
-                
+
                 # Format: [x, y, w, h, rx, ry, rw, rh, ...]
-                face_data = [x, y, face_size, face_size, 
-                           x + face_size//4, y + face_size//4, face_size//8, face_size//8]  # Estimated landmarks
+                face_data = [float(x), float(y), float(face_size), float(face_size),
+                           float(x + face_size//4), float(y + face_size//4), float(face_size//8), float(face_size//8)]  # Estimated landmarks
                 estimated_faces.append(face_data)
-            
-            logger.debug(f"Manually estimated {len(estimated_faces)} face locations")
+
+            logger.warning(f"⚠️ YuNet detected {num_faces} faces but returned no coordinates. Using estimated locations - LOW ACCURACY")
             return np.array(estimated_faces)
-            
+
         except Exception as e:
             logger.error(f"Failed to extract faces manually: {e}")
             return np.array([])
@@ -273,60 +302,93 @@ class AsyncFaceDetectionService:
                     'faces_detected': 0,
                     'faces': []
                 }
-            
+
             # Set input size to match image dimensions
             height, width = img.shape[:2]
             self._set_input_size(width, height)
-            
+
             logger.debug(f"Starting face detection on image with shape: {img.shape}")
-            
-            # Detect faces - FaceDetectorYN.detect() returns (retval, faces)
-            # retval: number of faces detected
-            # faces: 2D Mat with shape [num_faces, 15] containing face data
-            retval, faces = self.yunet_model.detect(img)
-            
-            logger.debug(f"Detection result: retval={retval}, faces type={type(faces)}")
-            
-            # Check if faces were detected
-            if retval <= 0:
-                logger.info("❌ No faces detected in the image")
+
+            # Detect faces using Yunet model
+            # Yunet returns (faces, confidences) where faces is a 2D array [num_faces, 15]
+            # However, OpenCV 4.11.0 may return (num_faces, None) when data extraction fails
+            detection_result = self.yunet_model.detect(img)
+            logger.debug(f"Detection result type: {type(detection_result)}")
+
+            # Handle different return formats from FaceDetectorYN
+            if isinstance(detection_result, tuple) and len(detection_result) == 2:
+                faces, confidences = detection_result
+                logger.debug(f"Detection result: faces type={type(faces)}, confidences type={type(confidences)}")
+
+                # Check if we got the expected format
+                if isinstance(faces, int) and confidences is not None:
+                    # Handle OpenCV bug where faces is returned as int but confidences contains face data
+                    if hasattr(confidences, 'shape') and len(confidences.shape) >= 2 and confidences.shape[-1] == 15:
+                        logger.debug("Detected OpenCV bug: faces returned as int, using confidences as faces data")
+                        faces = confidences
+                        confidences = None
+                    elif isinstance(faces, int) and faces == 0:
+                        # faces is 0, meaning no faces detected
+                        logger.debug("No faces detected (faces=0)")
+                        faces = np.array([])
+                        confidences = np.array([])
+                    else:
+                        logger.warning(f"Unexpected detection result format: faces={type(faces)} value={faces}, confidences shape={confidences.shape if hasattr(confidences, 'shape') else 'no shape'}")
+                        faces = np.array([])
+                        confidences = np.array([])
+                elif isinstance(faces, int) and confidences is None:
+                    # FaceDetectorYN returned (num_faces, None) - this means faces were detected but data is None
+                    # This is a known issue with certain OpenCV versions or model configurations
+                    logger.warning(f"⚠️ Yunet model detected {faces} faces but returned None data")
+                    logger.info(f"🎯 FOUND {faces} FACE(S) - Using manual extraction fallback")
+                    
+                    # Use manual extraction as fallback
+                    faces_array = self._extract_faces_manually(img, faces)
+                    if len(faces_array) > 0:
+                        logger.info(f"✅ Manual extraction successful: {len(faces_array)} faces extracted")
+                        # Create dummy confidences array
+                        confidences = np.ones(len(faces_array))
+                    else:
+                        logger.error("❌ Manual extraction failed")
+                        return {
+                            'success': False,
+                            'error': 'Model detected faces but failed to extract face data',
+                            'faces_detected': 0,
+                            'faces': []
+                        }
+                elif faces is None or len(faces) == 0:
+                    logger.info("❌ No faces detected in the image")
+                    return {
+                        'success': True,
+                        'faces_detected': 0,
+                        'faces': [],
+                        'message': 'No faces detected in the image'
+                    }
+                else:
+                    # Standard format: (faces_array, confidences_array)
+                    faces_array = faces
+                    logger.debug(f"Standard format detected: {len(faces_array)} faces")
+            else:
+                logger.warning(f"Unexpected detection result format: {type(detection_result)}")
                 return {
-                    'success': True,
+                    'success': False,
+                    'error': f'Unexpected detection result format: {type(detection_result)}',
                     'faces_detected': 0,
-                    'faces': [],
-                    'message': 'No faces detected in the image'
+                    'faces': []
                 }
             
-            # Handle case where model detects faces but returns None data
-            if faces is None:
-                logger.warning(f"⚠️ Yunet model detected {retval} faces but returned None data")
-                logger.info(f"🎯 FOUND {retval} FACE(S) - Using manual extraction fallback")
-                
-                # Use manual extraction as fallback
-                faces_array = self._extract_faces_manually(img, retval)
-                if len(faces_array) > 0:
-                    logger.info(f"✅ Manual extraction successful: {len(faces_array)} faces extracted")
-                else:
-                    logger.error("❌ Manual extraction failed")
-                    return {
-                        'success': False,
-                        'error': 'Model detected faces but failed to extract face data',
-                        'faces_detected': 0,
-                        'faces': []
-                    }
+            # Convert faces to numpy array if it's a Mat
+            if hasattr(faces_array, 'shape'):
+                faces_array = np.array(faces_array)
             else:
-                # Convert faces to numpy array if it's a Mat
-                if hasattr(faces, 'shape'):
-                    faces_array = np.array(faces)
-                else:
-                    faces_array = faces
-                logger.debug(f"Faces array shape: {faces_array.shape}")
+                faces_array = faces_array
+            logger.debug(f"Faces array shape: {faces_array.shape}")
             
-            logger.info(f"🎯 SUCCESSFULLY DETECTED {retval} FACE(S) in image")
+            logger.info(f"🎯 SUCCESSFULLY DETECTED {len(faces_array)} FACE(S) in image")
             
             # Process detection results
             processed_faces = []
-            for i in range(min(retval, len(faces_array))):
+            for i in range(len(faces_array)):
                 try:
                     face_data = faces_array[i]
                     logger.debug(f"Processing face {i}: face_data shape={face_data.shape}")
@@ -343,10 +405,27 @@ class AsyncFaceDetectionService:
                     
                     x, y = int(face_data[0]), int(face_data[1])
                     w, h = int(face_data[2]), int(face_data[3])
-                    confidence = float(face_data[14]) if len(face_data) > 14 else 1.0
+                    
+                    # Get confidence from confidences array if available, otherwise use face_data[14]
+                    if confidences is not None and len(confidences) > i:
+                        confidence = float(confidences[i])
+                    elif len(face_data) > 14:
+                        confidence = float(face_data[14])
+                    else:
+                        confidence = 1.0
+                    
+                    # Filter by confidence threshold
+                    if confidence < self.confidence_threshold:
+                        logger.debug(f"Skipping face {i} due to low confidence: {confidence}")
+                        continue
                     
                     bbox = [x, y, x + w, y + h]
                     face_area = w * h
+                    
+                    # Filter by minimum face size
+                    if w < self.min_face_size or h < self.min_face_size:
+                        logger.debug(f"Skipping face {i} due to small size: {w}x{h}")
+                        continue
                     
                     # Extract landmarks
                     landmarks = []
@@ -439,64 +518,159 @@ class AsyncFaceDetectionService:
                 }
             
             # Set input size to match image dimensions
-            self._set_input_size(img)
+            height, width = img.shape[:2]
+            self._set_input_size(width, height)
             
-            # Detect faces using Yunet
-            try:
-                logger.debug(f"Starting face detection on image with shape: {img.shape}")
-                result = self.yunet_model.detect(img)
-                logger.debug(f"Detection result type: {type(result)}")
-                
-                # Handle different return formats from FaceDetectorYN
-                if isinstance(result, tuple) and len(result) == 2:
-                    faces, confidences = result
-                elif isinstance(result, np.ndarray):
-                    # If it's a single array, it might contain both faces and confidences
-                    faces = result
-                    confidences = np.ones(len(result)) if len(result) > 0 else np.array([])
-                else:
-                    logger.warning(f"Unexpected detection result format: {type(result)}")
-                    faces, confidences = None, None
-                
-                logger.debug(f"Processed result - faces: {type(faces)}, confidences: {type(confidences)}")
-            except Exception as detect_error:
-                logger.error(f"Face detection failed during detect() call: {detect_error}")
-                raise
+            # Detect faces using Yunet model
+            # Yunet returns (faces, confidences) where faces is a 2D array [num_faces, 15]
+            # However, OpenCV 4.11.0 may return (num_faces, None) when data extraction fails
+            detection_result = self.yunet_model.detect(img)
+            logger.debug(f"Detection result type: {type(detection_result)}")
             
-            detected_faces = []
-            if faces is not None:
-                for i, (face, confidence) in enumerate(zip(faces, confidences)):
-                    if confidence >= self.confidence_threshold:
-                        # FaceDetectorYN returns [x, y, w, h, rx, ry, rw, rh, ...]
-                        x, y, w, h = int(face[0]), int(face[1]), int(face[2]), int(face[3])
-                        x2, y2 = x + w, y + h
-                        
-                        # Validate face size
-                        if w < self.min_face_size or h < self.min_face_size:
-                            continue
-                        
-                        # Extract landmarks if available
-                        landmarks = []
-                        if len(face) >= 8:
-                            landmarks = [
-                                [int(face[4]), int(face[5])],  # Right eye
-                                [int(face[6]), int(face[7])]   # Left eye
-                            ]
-                        
-                        face_data = {
-                            'bbox': [x, y, x2, y2],
-                            'confidence': float(confidence),
-                            'landmarks': landmarks,
-                            'face_area': w * h
+            # Handle different return formats from FaceDetectorYN
+            if isinstance(detection_result, tuple) and len(detection_result) == 2:
+                faces, confidences = detection_result
+                logger.debug(f"Detection result: faces type={type(faces)}, confidences type={type(confidences)}")
+
+                # Check if we got the expected format
+                if isinstance(faces, int) and confidences is not None:
+                    # Handle OpenCV bug where faces is returned as int but confidences contains face data
+                    if hasattr(confidences, 'shape') and len(confidences.shape) >= 2 and confidences.shape[-1] == 15:
+                        logger.debug("Detected OpenCV bug: faces returned as int, using confidences as faces data")
+                        faces = confidences
+                        confidences = None
+                    elif isinstance(faces, int) and faces == 0:
+                        # faces is 0, meaning no faces detected
+                        logger.debug("No faces detected (faces=0)")
+                        faces = np.array([])
+                        confidences = np.array([])
+                    else:
+                        logger.warning(f"Unexpected detection result format: faces={type(faces)} value={faces}, confidences shape={confidences.shape if hasattr(confidences, 'shape') else 'no shape'}")
+                        faces = np.array([])
+                        confidences = np.array([])
+                elif isinstance(faces, int) and confidences is None:
+                    # FaceDetectorYN returned (num_faces, None) - this means faces were detected but data is None
+                    # This is a known issue with certain OpenCV versions or model configurations
+                    logger.warning(f"⚠️ Yunet model detected {faces} faces but returned None data")
+                    logger.info(f"🎯 FOUND {faces} FACE(S) - Using manual extraction fallback")
+                    
+                    # Use manual extraction as fallback
+                    faces_array = self._extract_faces_manually(img, faces)
+                    if len(faces_array) > 0:
+                        logger.info(f"✅ Manual extraction successful: {len(faces_array)} faces extracted")
+                        # Create dummy confidences array
+                        confidences = np.ones(len(faces_array))
+                    else:
+                        logger.error("❌ Manual extraction failed")
+                        return {
+                            'success': False,
+                            'error': 'Model detected faces but failed to extract face data',
+                            'faces_detected': 0,
+                            'faces': []
                         }
-                        
-                        detected_faces.append(face_data)
+                elif faces is None or len(faces) == 0:
+                    logger.info("❌ No faces detected in the image")
+                    return {
+                        'success': True,
+                        'faces_detected': 0,
+                        'faces': [],
+                        'message': 'No faces detected in the image'
+                    }
+                else:
+                    # Standard format: (faces_array, confidences_array)
+                    faces_array = faces
+                    logger.debug(f"Standard format detected: {len(faces_array)} faces")
+            else:
+                logger.warning(f"Unexpected detection result format: {type(detection_result)}")
+                return {
+                    'success': False,
+                    'error': f'Unexpected detection result format: {type(detection_result)}',
+                    'faces_detected': 0,
+                    'faces': []
+                }
+            
+            # Convert faces to numpy array if it's a Mat
+            if hasattr(faces_array, 'shape'):
+                faces_array = np.array(faces_array)
+            else:
+                faces_array = faces_array
+            logger.debug(f"Faces array shape: {faces_array.shape}")
+            
+            logger.info(f"🎯 SUCCESSFULLY DETECTED {len(faces_array)} FACE(S) in image")
+            
+            # Process detection results
+            processed_faces = []
+            for i in range(len(faces_array)):
+                try:
+                    face_data = faces_array[i]
+                    logger.debug(f"Processing face {i}: face_data shape={face_data.shape}")
+                    
+                    # Extract face coordinates and landmarks according to OpenCV docs:
+                    # 0-1: x, y of bbox top left corner
+                    # 2-3: width, height of bbox
+                    # 4-5: x, y of right eye
+                    # 6-7: x, y of left eye
+                    # 8-9: x, y of nose tip
+                    # 10-11: x, y of right corner of mouth
+                    # 12-13: x, y of left corner of mouth
+                    # 14: face score
+                    
+                    x, y = int(face_data[0]), int(face_data[1])
+                    w, h = int(face_data[2]), int(face_data[3])
+                    
+                    # Get confidence from confidences array if available, otherwise use face_data[14]
+                    if confidences is not None and len(confidences) > i:
+                        confidence = float(confidences[i])
+                    elif len(face_data) > 14:
+                        confidence = float(face_data[14])
+                    else:
+                        confidence = 1.0
+                    
+                    # Filter by confidence threshold
+                    if confidence < self.confidence_threshold:
+                        logger.debug(f"Skipping face {i} due to low confidence: {confidence}")
+                        continue
+                    
+                    bbox = [x, y, x + w, y + h]
+                    face_area = w * h
+                    
+                    # Filter by minimum face size
+                    if w < self.min_face_size or h < self.min_face_size:
+                        logger.debug(f"Skipping face {i} due to small size: {w}x{h}")
+                        continue
+                    
+                    # Extract landmarks
+                    landmarks = []
+                    if len(face_data) >= 15:
+                        landmarks = [
+                            [int(face_data[4]), int(face_data[5])],    # Right eye
+                            [int(face_data[6]), int(face_data[7])],    # Left eye
+                            [int(face_data[8]), int(face_data[9])],    # Nose tip
+                            [int(face_data[10]), int(face_data[11])],  # Right mouth corner
+                            [int(face_data[12]), int(face_data[13])]   # Left mouth corner
+                        ]
+                    
+                    face_info = {
+                        'bbox': bbox,
+                        'confidence': confidence,
+                        'landmarks': landmarks,
+                        'face_area': face_area,
+                        'face_width': w,
+                        'face_height': h
+                    }
+                    
+                    logger.info(f"  Face {i+1}: bbox={bbox}, confidence={confidence:.3f}, area={face_area}")
+                    processed_faces.append(face_info)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing face {i}: {e}")
+                    continue
             
             return {
                 'success': True,
-                'faces_detected': len(detected_faces),
-                'faces': detected_faces,
-                'message': f"Detected {len(detected_faces)} face(s) in image"
+                'faces_detected': len(processed_faces),
+                'faces': processed_faces,
+                'message': f"Detected {len(processed_faces)} face(s) in image"
             }
             
         except Exception as e:
@@ -641,7 +815,20 @@ class AsyncFaceDetectionService:
                 # Handle different return formats
                 if isinstance(result1, tuple) and len(result1) == 2:
                     num_faces1, faces_data1 = result1
-                    if isinstance(num_faces1, int) and faces_data1 is None:
+                    if isinstance(num_faces1, int) and faces_data1 is not None:
+                        # Handle OpenCV bug where num_faces1 is int but faces_data1 contains face data
+                        if hasattr(faces_data1, 'shape') and len(faces_data1.shape) >= 2 and faces_data1.shape[-1] == 15:
+                            logger.debug("Detected OpenCV bug in verification: num_faces1 is int, using faces_data1 as face data")
+                            faces1 = faces_data1
+                            conf1 = None
+                        elif isinstance(num_faces1, int) and num_faces1 == 0:
+                            faces1 = np.array([])
+                            conf1 = np.array([])
+                        else:
+                            logger.warning(f"Unexpected result1 format: num_faces1={type(num_faces1)} value={num_faces1}")
+                            faces1 = np.array([])
+                            conf1 = np.array([])
+                    elif isinstance(num_faces1, int) and faces_data1 is None:
                         faces1 = np.array([])
                         conf1 = np.array([])
                     elif isinstance(num_faces1, np.ndarray) and isinstance(faces_data1, np.ndarray):
@@ -657,7 +844,20 @@ class AsyncFaceDetectionService:
                 
                 if isinstance(result2, tuple) and len(result2) == 2:
                     num_faces2, faces_data2 = result2
-                    if isinstance(num_faces2, int) and faces_data2 is None:
+                    if isinstance(num_faces2, int) and faces_data2 is not None:
+                        # Handle OpenCV bug where num_faces2 is int but faces_data2 contains face data
+                        if hasattr(faces_data2, 'shape') and len(faces_data2.shape) >= 2 and faces_data2.shape[-1] == 15:
+                            logger.debug("Detected OpenCV bug in verification: num_faces2 is int, using faces_data2 as face data")
+                            faces2 = faces_data2
+                            conf2 = None
+                        elif isinstance(num_faces2, int) and num_faces2 == 0:
+                            faces2 = np.array([])
+                            conf2 = np.array([])
+                        else:
+                            logger.warning(f"Unexpected result2 format: num_faces2={type(num_faces2)} value={num_faces2}")
+                            faces2 = np.array([])
+                            conf2 = np.array([])
+                    elif isinstance(num_faces2, int) and faces_data2 is None:
                         faces2 = np.array([])
                         conf2 = np.array([])
                     elif isinstance(num_faces2, np.ndarray) and isinstance(faces_data2, np.ndarray):

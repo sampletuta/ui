@@ -1,10 +1,12 @@
 import logging
 import os
+import numpy as np
 from typing import List, Dict, Optional
 from django.conf import settings
 from django.core.files.storage import default_storage
 
 from .face_detection import FaceDetectionService
+from .face_embedding_service import FaceEmbeddingService
 from .milvus_service import MilvusService
 
 logger = logging.getLogger(__name__)
@@ -14,6 +16,7 @@ class TargetIntegrationService:
     
     def __init__(self):
         self.face_detection_service = FaceDetectionService()
+        self.face_embedding_service = FaceEmbeddingService()
         self.milvus_service = MilvusService()
         self._ensure_milvus_collection()
     
@@ -67,9 +70,9 @@ class TargetIntegrationService:
                     'target_photo_id': target_photo.id
                 }
             
-            logger.info(f"Processing target photo {target_photo.id} for target {target_id}")
+            logger.info(f"Processing single target photo {target_photo.id} for target {target_id}")
             
-            # Step 1: Detect faces in the image
+            # Step 1: Detect faces in the single image
             detection_result = self.face_detection_service.detect_faces_in_image(image_path)
             
             if not detection_result['success']:
@@ -80,91 +83,96 @@ class TargetIntegrationService:
                 }
             
             if detection_result['faces_detected'] == 0:
+                # No faces in this image, but we still need to update the target's embedding
+                # based on other photos they might have
+                logger.info(f"No faces detected in photo {target_photo.id}, updating target embedding from other photos")
+                result = self.update_target_normalized_embedding(target_id)
                 return {
                     'success': True,
-                    'message': 'No faces detected in image',
+                    'message': 'No faces detected in this image',
                     'target_photo_id': target_photo.id,
                     'faces_detected': 0,
-                    'embeddings_stored': 0
+                    'embeddings_stored': 1 if result.get('success') else 0
                 }
             
-            # Step 2: Generate embeddings for detected faces
-            embedding_result = self.face_detection_service.generate_face_embeddings([image_path])
+            # Step 2: Generate embeddings for detected faces in this single image
+            # First detect faces, then generate embeddings
+            detections = []
+            for face in detection_result['faces']:
+                detections.append({
+                    'image_path': image_path,
+                    'bbox': face['bbox'],
+                    'confidence_score': face['confidence']
+                })
             
-            if not embedding_result['success']:
+            # Generate embeddings using the embedding service
+            embedding_result = self.face_embedding_service.generate_embeddings_from_detections(detections)
+            
+            if not embedding_result['success'] or not embedding_result['embeddings']:
+                error_msg = embedding_result.get('error', 'No embeddings generated')
+                
+                # Provide specific guidance based on error type
+                if 'Face too small' in error_msg:
+                    user_guidance = (
+                        'One or more faces in the image are too small for processing. '
+                        'Please upload higher resolution images where faces are at least 100x100 pixels.'
+                    )
+                elif 'Failed to extract face' in error_msg:
+                    user_guidance = (
+                        'Face extraction failed. Please ensure images contain clear, well-lit faces '
+                        'and are not heavily filtered or low quality.'
+                    )
+                else:
+                    user_guidance = 'Please check your images and try again.'
+                
                 return {
                     'success': False,
-                    'error': f"Embedding generation failed: {embedding_result.get('error')}",
+                    'error': f"Embedding generation failed: {error_msg}",
+                    'user_guidance': user_guidance,
                     'target_photo_id': target_photo.id
                 }
             
-            # Step 3: Update target's normalized embedding with new photo
-            # Instead of storing individual embeddings, we'll update the target's normalized embedding
+            # Insert per-photo embeddings into Milvus (store raw embedding for the uploaded photo)
             try:
-                # Get all photos for this target to compute normalized embedding
-                from backendapp.models import TargetPhoto
-                target_photos = TargetPhoto.objects.filter(person_id=target_id)
-                
-                # Collect all embeddings from all photos for this target
-                all_embeddings = []
-                all_confidence_scores = []
-                
-                for photo in target_photos:
-                    if photo.image and hasattr(photo.image, 'path') and os.path.exists(photo.image.path):
-                        try:
-                            # Generate embedding for this photo
-                            photo_embedding_result = self.face_detection_service.generate_face_embeddings([photo.image.path])
-                            if photo_embedding_result['success'] and photo_embedding_result['embeddings']:
-                                # Take the first face embedding from each photo
-                                embedding_data = photo_embedding_result['embeddings'][0]
-                                all_embeddings.append(embedding_data['embedding'])
-                                all_confidence_scores.append(embedding_data['confidence_score'])
-                        except Exception as e:
-                            logger.warning(f"Failed to process photo {photo.id} for normalization: {e}")
-                            continue
-                
-                if all_embeddings:
-                    # Update the target's embedding in Milvus
-                    # Strategy: 1 image = direct embedding, 2+ images = averaged normalized
-                    embedding_strategy = "single" if len(all_embeddings) == 1 else "averaged_normalized"
-                    logger.info(f"Target {target_id} has {len(all_embeddings)} photos - using {embedding_strategy} strategy")
-                    
-                    milvus_id = self.milvus_service.insert_normalized_target_embedding(
-                        target_id=target_id,
-                        embeddings=all_embeddings,
-                        confidence_scores=all_confidence_scores
-                    )
-                    
-                    if milvus_id:
-                        logger.info(f"Updated embedding for target {target_id} with {len(all_embeddings)} photos using {embedding_strategy} strategy")
-                        return {
-                            'success': True,
-                            'message': f"Successfully updated target's embedding with {len(all_embeddings)} photos using {embedding_strategy} strategy",
-                            'target_photo_id': target_photo.id,
-                            'faces_detected': detection_result['faces_detected'],
-                            'embeddings_stored': 1,  # One embedding per target
-                            'normalized_embedding_id': milvus_id,
-                            'total_photos_processed': len(all_embeddings),
-                            'embedding_strategy': embedding_strategy
-                        }
-                    else:
-                        return {
-                            'success': False,
-                            'error': 'Failed to update normalized embedding in Milvus',
-                            'target_photo_id': target_photo.id
-                        }
-                else:
-                    return {
-                        'success': False,
-                        'error': 'No valid embeddings could be generated from any photos',
-                        'target_photo_id': target_photo.id
-                    }
-                    
+                embeddings_data = []
+                for emb in embedding_result['embeddings']:
+                    embeddings_data.append({
+                        'embedding': emb['embedding'],
+                        'target_id': target_id,
+                        'photo_id': str(target_photo.id),
+                        'confidence_score': float(emb.get('confidence_score', 0.0)),
+                        'created_at': ''
+                    })
+                if embeddings_data:
+                    self.milvus_service.insert_face_embeddings(embeddings_data)
             except Exception as e:
-                logger.error(f"Failed to update normalized embedding: {e}")
+                logger.warning(f"Failed to insert per-photo embeddings for photo {target_photo.id}: {e}")
+            
+            # Step 3: Update target's normalized embedding
+            # Get count of photos for this target to determine strategy
+            from backendapp.models import TargetPhoto
+            target_photos_count = TargetPhoto.objects.filter(person_id=target_id).count()
+            
+            logger.info(f"Target {target_id} now has {target_photos_count} photo(s) total")
+            
+            # Update the normalized embedding for the entire target
+            result = self.update_target_normalized_embedding(target_id)
+            
+            if result['success']:
+                return {
+                    'success': True,
+                    'message': f"Successfully processed 1 photo. Target now has {target_photos_count} photo(s) total.",
+                    'target_photo_id': target_photo.id,
+                    'faces_detected': detection_result['faces_detected'],
+                    'embeddings_stored': 1,  # One embedding per target
+                    'normalized_embedding_id': result.get('normalized_embedding_id'),
+                    'total_photos_for_target': target_photos_count,
+                    'embedding_strategy': result.get('embedding_strategy', 'single')
+                }
+            else:
                 return {
                     'success': False,
-                    'error': f"Failed to update normalized embedding: {str(e)}",
+                    'error': f"Failed to update target embedding: {result.get('error')}",
                     'target_photo_id': target_photo.id
                 }
             
@@ -251,7 +259,7 @@ class TargetIntegrationService:
                         })
                         continue
                     
-                    # Detect faces and generate embeddings
+                    # Step 1: Detect faces
                     detection_result = self.face_detection_service.detect_faces_in_image(image_path)
                     
                     if not detection_result['success']:
@@ -266,24 +274,58 @@ class TargetIntegrationService:
                         processed_photos += 1
                         continue
                     
-                    # Generate embeddings for detected faces
-                    embedding_result = self.face_detection_service.generate_face_embeddings([image_path])
+                    # Step 2: Generate embeddings for detected faces
+                    detections = []
+                    for face in detection_result['faces']:
+                        detections.append({
+                            'image_path': image_path,
+                            'bbox': face['bbox'],
+                            'confidence_score': face['confidence']
+                        })
+                    
+                    embedding_result = self.face_embedding_service.generate_embeddings_from_detections(detections)
                     
                     if not embedding_result['success']:
+                        error_msg = embedding_result.get('error', 'Unknown error')
+                        
+                        # Provide specific guidance based on error type
+                        if 'Face too small' in error_msg:
+                            user_guidance = (
+                                'One or more faces in the image are too small for processing. '
+                                'Please upload higher resolution images where faces are at least 100x100 pixels.'
+                            )
+                        elif 'Failed to extract face' in error_msg:
+                            user_guidance = (
+                                'Face extraction failed. Please ensure images contain clear, well-lit faces '
+                                'and are not heavily filtered or low quality.'
+                            )
+                        else:
+                            user_guidance = 'Please check your images and try again.'
+                        
                         failed_photos.append({
                             'photo_id': target_photo.id,
-                            'error': f"Embedding generation failed: {embedding_result.get('error')}"
+                            'error': f"Embedding generation failed: {error_msg}",
+                            'user_guidance': user_guidance
                         })
                         continue
                     
                     # Take the first face embedding from this photo
                     if embedding_result['embeddings']:
                         embedding_data = embedding_result['embeddings'][0]
-                        # Convert Python list to numpy array for Milvus service
-                        import numpy as np
                         embedding_array = np.array(embedding_data['embedding'], dtype=np.float32)
                         all_embeddings.append(embedding_array)
-                        all_confidence_scores.append(embedding_data['confidence_score'])
+                        all_confidence_scores.append(embedding_data.get('confidence_score', 0.0))
+                        # Insert per-photo embedding into Milvus
+                        try:
+                            self.milvus_service.insert_face_embeddings([{
+                                'embedding': embedding_data['embedding'],
+                                'target_id': target_id,
+                                'photo_id': str(target_photo.id),
+                                'confidence_score': float(embedding_data.get('confidence_score', 0.0)),
+                                'created_at': ''
+                            }])
+                        except Exception as e:
+                            logger.warning(f"Failed to insert per-photo embedding for photo {target_photo.id}: {e}")
                         processed_photos += 1
                         logger.info(f"Successfully processed photo {target_photo.id}")
                     else:
@@ -336,18 +378,35 @@ class TargetIntegrationService:
                         
                 except Exception as e:
                     logger.error(f"Failed to create normalized embedding: {e}")
+                    
+                    # Provide specific error details for common Milvus issues
+                    error_msg = str(e)
+                    if "DataNotMatchException" in error_msg or "schema fields" in error_msg:
+                        detailed_error = "Milvus schema mismatch - the data structure doesn't match the expected schema. This requires system administrator attention."
+                    elif "MilvusException" in error_msg or "RPC error" in error_msg:
+                        detailed_error = "Milvus database connection or communication error. This may be a temporary issue."
+                    elif "Connection" in error_msg:
+                        detailed_error = "Database connection failed. Please check if the Milvus service is running."
+                    else:
+                        detailed_error = f"Database error: {error_msg}"
+                    
                     return {
                         'success': False,
-                        'error': f"Failed to create normalized embedding: {str(e)}",
+                        'error': f"Failed to create normalized embedding: {detailed_error}",
+                        'technical_details': error_msg,
                         'total_photos': len(target_photos),
                         'processed_photos': processed_photos,
                         'total_embeddings': 0,
                         'failed_photos': failed_photos
                     }
             else:
+                # Analyze failed photos to provide better error guidance
+                error_analysis = self._analyze_failed_photos(failed_photos)
+                
                 return {
                     'success': False,
                     'error': 'No valid embeddings could be generated from any photos',
+                    'error_details': error_analysis,
                     'total_photos': len(target_photos),
                     'processed_photos': processed_photos,
                     'total_embeddings': 0,
@@ -363,6 +422,93 @@ class TargetIntegrationService:
                 'processed_photos': 0,
                 'total_embeddings': 0
             }
+    
+    def _analyze_failed_photos(self, failed_photos: List[Dict]) -> Dict:
+        """
+        Analyze failed photos to provide better error guidance
+        
+        Args:
+            failed_photos: List of failed photo dictionaries
+            
+        Returns:
+            Analysis results with user guidance
+        """
+        if not failed_photos:
+            return {}
+        
+        # Count different types of errors
+        error_counts = {}
+        error_examples = {}
+        
+        for photo in failed_photos:
+            error_msg = photo.get('error', 'Unknown error')
+            
+            # Categorize errors
+            if 'Face too small' in error_msg:
+                error_type = 'face_too_small'
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                if error_type not in error_examples:
+                    error_examples[error_type] = photo
+            elif 'Failed to extract face' in error_msg:
+                error_type = 'face_extraction_failed'
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                if error_type not in error_examples:
+                    error_examples[error_type] = photo
+            elif 'No faces detected' in error_msg:
+                error_type = 'no_faces_detected'
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                if error_type not in error_examples:
+                    error_examples[error_type] = photo
+            else:
+                error_type = 'other'
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                if error_type not in error_examples:
+                    error_examples[error_type] = photo
+        
+        # Generate user guidance based on error analysis
+        guidance = []
+        
+        if 'face_too_small' in error_counts:
+            guidance.append({
+                'type': 'face_too_small',
+                'count': error_counts['face_too_small'],
+                'message': 'One or more images contain faces that are too small for processing.',
+                'solution': 'Please upload higher resolution images where faces are at least 100x100 pixels.',
+                'example_error': error_examples['face_too_small'].get('error', '')
+            })
+        
+        if 'face_extraction_failed' in error_counts:
+            guidance.append({
+                'type': 'face_extraction_failed',
+                'count': error_counts['face_extraction_failed'],
+                'message': 'Face extraction failed for some images.',
+                'solution': 'Please ensure images contain clear, well-lit faces and are not heavily filtered or low quality.',
+                'example_error': error_examples['face_extraction_failed'].get('error', '')
+            })
+        
+        if 'no_faces_detected' in error_counts:
+            guidance.append({
+                'type': 'no_faces_detected',
+                'count': error_counts['no_faces_detected'],
+                'message': 'No faces were detected in some images.',
+                'solution': 'Please ensure images contain clear, front-facing faces with good lighting.',
+                'example_error': error_examples['no_faces_detected'].get('error', '')
+            })
+        
+        if 'other' in error_counts:
+            guidance.append({
+                'type': 'other',
+                'count': error_counts['other'],
+                'message': 'Other processing errors occurred.',
+                'solution': 'Please check your images and try again.',
+                'example_error': error_examples['other'].get('error', '')
+            })
+        
+        return {
+            'error_counts': error_counts,
+            'guidance': guidance,
+            'total_failed': len(failed_photos)
+        }
     
     def get_target_face_summary(self, target_id: str) -> Dict:
         """
@@ -444,16 +590,42 @@ class TargetIntegrationService:
             for photo in target_photos:
                 if photo.image and hasattr(photo.image, 'path') and os.path.exists(photo.image.path):
                     try:
-                        # Generate embedding for this photo
-                        photo_embedding_result = self.face_detection_service.generate_face_embeddings([photo.image.path])
-                        if photo_embedding_result['success'] and photo_embedding_result['embeddings']:
+                        # Step 1: Detect faces in the photo
+                        detection_result = self.face_detection_service.detect_faces_in_image(photo.image.path)
+                        
+                        if not detection_result['success'] or detection_result['faces_detected'] == 0:
+                            logger.warning(f"No faces detected in photo {photo.id}, skipping")
+                            continue
+                        
+                        # Step 2: Generate embeddings for detected faces
+                        detections = []
+                        for face in detection_result['faces']:
+                            detections.append({
+                                'image_path': photo.image.path,
+                                'bbox': face['bbox'],
+                                'confidence_score': face['confidence']
+                            })
+                        
+                        embedding_result = self.face_embedding_service.generate_embeddings_from_detections(detections)
+                        
+                        if embedding_result['success'] and embedding_result['embeddings']:
                             # Take the first face embedding from each photo
-                            embedding_data = photo_embedding_result['embeddings'][0]
-                            # Convert Python list to numpy array for Milvus service
-                            import numpy as np
+                            embedding_data = embedding_result['embeddings'][0]
                             embedding_array = np.array(embedding_data['embedding'], dtype=np.float32)
                             all_embeddings.append(embedding_array)
-                            all_confidence_scores.append(embedding_data['confidence_score'])
+                            all_confidence_scores.append(embedding_data.get('confidence_score', 0.0))
+                            # Insert per-photo embedding into Milvus as well (optional, keeps per-photo vectors)
+                            try:
+                                self.milvus_service.insert_face_embeddings([{
+                                    'embedding': embedding_data['embedding'],
+                                    'target_id': target_id,
+                                    'photo_id': str(photo.id),
+                                    'confidence_score': float(embedding_data.get('confidence_score', 0.0)),
+                                    'created_at': ''
+                                }])
+                            except Exception as e:
+                                logger.warning(f"Failed to insert per-photo embedding for photo {photo.id}: {e}")
+                            
                     except Exception as e:
                         logger.warning(f"Failed to process photo {photo.id} for normalization: {e}")
                         continue

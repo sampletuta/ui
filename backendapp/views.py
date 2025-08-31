@@ -37,8 +37,33 @@ import logging
 from notifications.signals import notify
 from notifications.models import Notification
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+import time
+import hashlib
 
 logger = logging.getLogger(__name__)
+
+def _is_duplicate_upload_request(request, file_list):
+    """Simple session-based guard to prevent duplicate image uploads from rapid double-submits."""
+    try:
+        files_info = [
+            (getattr(f, 'name', ''), int(getattr(f, 'size', 0)))
+            for f in (file_list or []) if getattr(f, 'name', None)
+        ]
+        if not files_info:
+            return False
+        payload = json.dumps(files_info, sort_keys=True)
+        digest = hashlib.sha256(payload.encode('utf-8')).hexdigest()
+        now = int(time.time())
+        last_digest = request.session.get('last_upload_digest')
+        last_ts = int(request.session.get('last_upload_ts') or 0)
+        # Treat as duplicate if same files submitted within 10 seconds
+        if last_digest == digest and (now - last_ts) < 10:
+            return True
+        request.session['last_upload_digest'] = digest
+        request.session['last_upload_ts'] = now
+        return False
+    except Exception:
+        return False
 
 def login(request):
     logger.info("Login view called")
@@ -202,6 +227,11 @@ def target_profile(request, pk):
 def edit_target(request, pk):
     target = get_object_or_404(Targets_watchlist, pk=pk)
     if request.method == 'POST':
+        # Duplicate upload guard (pre-validate to avoid double-create)
+        pending_images = request.FILES.getlist('images') or []
+        if _is_duplicate_upload_request(request, pending_images):
+            messages.warning(request, 'Duplicate upload detected; ignoring repeated submission.')
+            return redirect('target_profile', pk=pk)
         # Include request.FILES so optional image uploads are handled correctly
         form = TargetsWatchlistForm(request.POST, request.FILES, instance=target)
         if form.is_valid():
@@ -400,6 +430,10 @@ def add_images(request, pk):
     target = get_object_or_404(Targets_watchlist, pk=pk)
     if request.method == 'POST':
         images = request.FILES.getlist('images')
+        # Duplicate upload guard
+        if _is_duplicate_upload_request(request, images):
+            messages.warning(request, 'Duplicate upload detected; ignoring repeated submission.')
+            return redirect('target_profile', pk=pk)
         if images:
             uploaded_count = 0
             for image in images:
@@ -1476,6 +1510,10 @@ def add_target_to_case(request, case_pk):
         if form.is_valid():
             # Check if at least one image is provided
             images = form.cleaned_data.get('images') or []
+            # Duplicate upload guard
+            if _is_duplicate_upload_request(request, images):
+                messages.warning(request, 'Duplicate upload detected; ignoring repeated submission.')
+                return render(request, 'add_target_to_case.html', {'form': form, 'case': case})
             if not images:
                 messages.error(request, 'At least one image is required for each target.')
                 return render(request, 'add_target_to_case.html', {'form': form, 'case': case})
