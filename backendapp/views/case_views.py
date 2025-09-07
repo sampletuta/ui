@@ -31,8 +31,8 @@ def case_create(request):
             case.save()
             messages.success(request, f'Case "{case.case_name}" created successfully!')
             try:
-                from notifications.signals import notify
-                notify.send(request.user, recipient=request.user, verb='created case', target=case)
+                from backendapp.utils.notifications import notify
+                notify(recipient=request.user, actor=request.user, verb='created case', target=case)
             except Exception:
                 pass
             return redirect('case_detail', pk=case.pk)
@@ -58,8 +58,8 @@ def case_edit(request, pk):
             form.save()
             messages.success(request, f'Case "{case.case_name}" updated successfully!')
             try:
-                from notifications.signals import notify
-                notify.send(request.user, recipient=request.user, verb='updated case', target=case)
+                from backendapp.utils.notifications import notify
+                notify(recipient=request.user, actor=request.user, verb='updated case', target=case)
             except Exception:
                 pass
             return redirect('case_detail', pk=case.pk)
@@ -108,8 +108,8 @@ def case_delete(request, pk):
             
             # Step 3: Send notification about case deletion
             try:
-                from notifications.signals import notify
-                notify.send(request.user, recipient=case.created_by, verb='deleted case', target=case, description=f'Case "{case_name}" deleted')
+                from backendapp.utils.notifications import notify
+                notify(recipient=case.created_by, actor=request.user, verb='deleted case', target=case, description=f'Case "{case_name}" deleted')
             except Exception as e:
                 logger.warning(f"Failed to send notification: {e}")
             
@@ -249,8 +249,8 @@ def add_target_to_case(request, case_pk):
             target.created_by = request.user
             target.save()
             try:
-                from notifications.signals import notify
-                notify.send(request.user, recipient=case.created_by, verb='added target', target=target, action_object=case)
+                from backendapp.utils.notifications import notify
+                notify(recipient=case.created_by, actor=request.user, verb='added target', target=target, action_object=case)
             except Exception:
                 pass
             

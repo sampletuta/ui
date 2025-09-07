@@ -132,45 +132,14 @@ class AsyncTargetIntegrationService:
                     'target_photo_id': target_photo.id
                 }
             
-            # Step 3: Store embeddings in Milvus
-            embeddings = embedding_result.get('embeddings', [])
-            if not embeddings:
-                return {
-                    'success': False,
-                    'error': 'No embeddings generated',
-                    'target_photo_id': target_photo.id
-                }
-            
-            # Store individual photo embeddings
-            photo_embeddings_data = []
-            for i, embedding in enumerate(embeddings):
-                photo_embeddings_data.append({
-                    'embedding': embedding,
-                    'target_id': target_id,
-                    'photo_id': str(target_photo.id),
-                    'confidence_score': 0.8,  # Default confidence
-                    'created_at': '2024-01-01 00:00:00'  # Placeholder
-                })
-            
-            # Insert photo embeddings asynchronously
-            milvus_ids = await self.milvus_service.insert_face_embeddings_parallel(photo_embeddings_data)
-            
-            if not milvus_ids:
-                return {
-                    'success': False,
-                    'error': 'Failed to store photo embeddings in Milvus',
-                    'target_photo_id': target_photo.id
-                }
-            
-            # Step 4: Update target's normalized embedding
+            # Step 3: Update target's normalized embedding
             normalized_result = await self.update_target_normalized_embedding_async(target_id)
             
             if not normalized_result['success']:
                 return {
                     'success': False,
                     'error': f"Failed to update normalized embedding: {normalized_result.get('error')}",
-                    'target_photo_id': target_photo.id,
-                    'embeddings_stored': len(milvus_ids)
+                    'target_photo_id': target_photo.id
                 }
             
             return {
@@ -178,9 +147,8 @@ class AsyncTargetIntegrationService:
                 'message': f"Successfully processed photo with {detection_result['faces_detected']} faces",
                 'target_photo_id': target_photo.id,
                 'faces_detected': detection_result['faces_detected'],
-                'embeddings_stored': len(milvus_ids),
                 'normalized_embedding_updated': True,
-                'milvus_ids': milvus_ids
+                'embeddings_stored': 1
             }
             
         except Exception as e:

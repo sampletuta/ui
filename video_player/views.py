@@ -19,7 +19,7 @@ from urllib.parse import unquote
 
 # Global storage for real-time data
 video_streams_data = {}
-detection_events_data = []
+_detection_events_data = []
 data_lock = threading.Lock()
 
 @login_required
@@ -112,8 +112,8 @@ def api_receive_detection_events(request):
             }, status=400)
         
         with data_lock:
-            global detection_events_data
-            detection_events_data = data
+            global _detection_events_data
+            _detection_events_data = data
         
         return JsonResponse({
             'status': 'success',
@@ -155,7 +155,7 @@ def api_get_detection_events(request):
     with data_lock:
         return JsonResponse({
             'status': 'success',
-            'data': detection_events_data,
+            'data': _detection_events_data,
             'timestamp': time.time()
         })
 
@@ -205,12 +205,12 @@ def api_add_detection_event(request):
         data = json.loads(request.body)
         
         with data_lock:
-            global detection_events_data
-            detection_events_data.append(data)
+            global _detection_events_data
+            _detection_events_data.append(data)
             
             # Keep only last 50 events to prevent memory issues
-            if len(detection_events_data) > 50:
-                detection_events_data = detection_events_data[-50:]
+            if len(_detection_events_data) > 50:
+                _detection_events_data = _detection_events_data[-50:]
         
         return JsonResponse({
             'status': 'success',
@@ -238,9 +238,9 @@ def api_clear_data(request):
     API endpoint to clear all video streams and detection events
     """
     with data_lock:
-        global video_streams_data, detection_events_data
+        global video_streams_data, _detection_events_data
         video_streams_data.clear()
-        detection_events_data.clear()
+        _detection_events_data.clear()
     
     return JsonResponse({
         'status': 'success',
@@ -520,15 +520,19 @@ def stream_video(request, source_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @login_required
 def play_from_url(request):
-    """Play a single video by direct URL (for integrations like search results).
+    """Play a single video/stream by direct URL with optional tags and detections.
 
     Query params:
     - url: required, the media URL to play (mp4, webm, m3u8, etc.)
     - name: optional, display name (default: "External Video")
     - t: optional, initial seek seconds (float or int)
+    - status: optional, 'live'|'recorded' (default: recorded)
+    - camera_id: optional id to use (default: external_1)
+    - timeTags / tags: optional JSON array of time tag objects
+    - bookmarks: optional JSON array of bookmarks
+    - detections / detection_events: optional JSON array of detection events
     """
     try:
         url = request.GET.get('url')
@@ -546,7 +550,33 @@ def play_from_url(request):
         except ValueError:
             initial_seek = 0
 
-        camera_id = 'external_1'
+        # Helpers to parse JSON safely from query string
+        def parse_json_param(param_names, default_value):
+            raw = None
+            for p in param_names:
+                raw = request.GET.get(p)
+                if raw:
+                    break
+            if not raw:
+                return default_value
+            # Limit size to mitigate abuse
+            if len(raw) > 200000:  # ~200 KB
+                return default_value
+            try:
+                parsed = json.loads(raw)
+                return parsed if isinstance(parsed, (list, dict)) else default_value
+            except Exception:
+                return default_value
+
+        time_tags = parse_json_param(['timeTags', 'tags'], [])
+        bookmarks = parse_json_param(['bookmarks'], [])
+        detections = parse_json_param(['detections', 'detection_events'], [])
+
+        # Optional status and camera id
+        status = request.GET.get('status') or 'recorded'
+        status = status if status in ('live', 'recorded', 'warning', 'inactive') else 'recorded'
+        camera_id = request.GET.get('camera_id') or 'external_1'
+
         video_streams = {
             camera_id: {
                 'id': camera_id,
@@ -554,18 +584,22 @@ def play_from_url(request):
                 'type': 'external',
                 'liveUrl': url,
                 'archiveUrl': url,
-                'status': 'recorded',
+                'status': status,
                 'location': 'External',
                 'last_detection': '',
                 'duration': 0,
-                'timeTags': [],
-                'bookmarks': []
+                'timeTags': time_tags if isinstance(time_tags, list) else [],
+                'bookmarks': bookmarks if isinstance(bookmarks, list) else []
             }
         }
 
+        # Ensure detections is a list for server-side rendering and client JSON
+        if not isinstance(detections, list):
+            detections = []
+
         context = {
             'video_streams': json.dumps(video_streams),
-            'detection_events': [],
+            'detection_events': detections,
             'current_camera': camera_id,
             'sources_count': 1,
             'initial_seek': initial_seek,
@@ -575,7 +609,6 @@ def play_from_url(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @login_required
 def source_streaming_integration(request):
@@ -607,7 +640,6 @@ def source_streaming_integration(request):
         'sources': sources
     })
 
-
 @csrf_exempt
 def rtsp_proxy(request):
     """Proxy endpoint to convert RTSP streams to HTTP streams."""
@@ -626,7 +658,6 @@ def rtsp_proxy(request):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 def rtmp_proxy(request):

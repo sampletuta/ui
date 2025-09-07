@@ -82,22 +82,26 @@ class FaceDetectionService:
     
     def _resolve_model_path(self) -> str:
         """Resolve the path to the Yunet model file."""
-        # Try multiple possible locations
+        # Try multiple possible locations, preferring non-quantized version for compatibility
         possible_paths = [
-            # Current directory
-            "face_detection_yunet_2023mar.onnx",
-            # Parent directory
-            os.path.join(os.path.dirname(__file__), "..", "..", "face_detection_yunet_2023mar.onnx"),
-            # Absolute path from workspace root
-            os.path.join("/home/user/Desktop/ui", "face_detection_yunet_2023mar.onnx")
+            # Parent face_ai directory (non-quantized version - preferred for compatibility)
+            os.path.join(os.path.dirname(__file__), "..", "face_detection_yunet_2023mar.onnx"),
+            # Current services directory (quantized version - fallback)
+            os.path.join(os.path.dirname(__file__), "face_detection_yunet_2023mar_int8bq.onnx"),
+            # Absolute path from workspace root (non-quantized)
+            os.path.join("/home/user/Desktop/ui/face_ai", "face_detection_yunet_2023mar.onnx"),
+            # Absolute path from workspace root (quantized)
+            os.path.join("/home/user/Desktop/ui", "face_detection_yunet_2023mar_int8bq.onnx"),
         ]
         
         for path in possible_paths:
             if os.path.exists(path):
+                logger.info(f"Found Yunet model at: {path}")
                 return os.path.abspath(path)
         
-        # If none found, return the first expected path
-        return possible_paths[1]
+        # If none found, log the attempted paths and return the first expected path
+        logger.error(f"Yunet model not found in any of these paths: {possible_paths}")
+        return possible_paths[0]
     
     def _set_input_size(self, width: int, height: int) -> None:
         """

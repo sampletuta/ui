@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 import json
 from django.utils import timezone
-from notifications.signals import notify
+from backendapp.utils.notifications import notify
 import requests
 import logging
 from django.conf import settings
@@ -425,7 +425,7 @@ class FileSource(BaseSource):
         try:
             # Notify creator when file source becomes ready
             if self.status == 'ready':
-                notify.send(self.created_by, recipient=self.created_by, verb='processing_ready', target=self)
+                notify(recipient=self.created_by, actor=self.created_by, verb='processing_ready', target=self)
         except Exception:
             pass
 
@@ -921,10 +921,10 @@ class VideoProcessingJob(models.Model):
         # Send notifications on status transitions
         try:
             if new_status == 'processing':
-                notify.send(self.source.created_by, recipient=self.source.created_by, verb='processing_started', target=self)
+                notify(recipient=self.source.created_by, actor=self.source.created_by, verb='processing_started', target=self)
             elif new_status == 'completed':
-                notify.send(self.source.created_by, recipient=self.source.created_by, verb='processing_ready', target=self)
+                notify(recipient=self.source.created_by, actor=self.source.created_by, verb='processing_ready', target=self)
             elif new_status == 'failed':
-                notify.send(self.source.created_by, recipient=self.source.created_by, verb='processing_failed', target=self)
+                notify(recipient=self.source.created_by, actor=self.source.created_by, verb='processing_failed', target=self)
         except Exception:
             pass

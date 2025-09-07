@@ -31,8 +31,8 @@ class AsyncMilvusService:
         self.dimension = milvus_config.get('DIMENSION', 512)
         self.metric_type = milvus_config.get('METRIC_TYPE', 'COSINE')
         self.index_type = milvus_config.get('INDEX_TYPE', 'IVF_FLAT')
-        self.index_params = milvus_config.get('INDEX_PARAMS', {'nlist': 1024})
-        self.search_params = milvus_config.get('SEARCH_PARAMS', {'nprobe': 10})
+        self.index_params = milvus_config.get('INDEX_PARAMS', {'nlist': 2048})
+        self.search_params = milvus_config.get('SEARCH_PARAMS', {'nprobe': 32})
         self.auto_create_collection = milvus_config.get('AUTO_CREATE_COLLECTION', True)
         self.auto_load_collection = milvus_config.get('AUTO_LOAD_COLLECTION', True)
         self.max_workers = max_workers
@@ -100,9 +100,8 @@ class AsyncMilvusService:
             
             # Define collection schema
             fields = [
-                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
                 FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=self.dimension),
-                FieldSchema(name="target_id", dtype=DataType.VARCHAR, max_length=36),
+                FieldSchema(name="target_id", dtype=DataType.VARCHAR, is_primary=True, max_length=36),
                 FieldSchema(name="photo_id", dtype=DataType.VARCHAR, max_length=36),
                 FieldSchema(name="confidence_score", dtype=DataType.FLOAT),
                 FieldSchema(name="created_at", dtype=DataType.VARCHAR, max_length=50)
@@ -368,14 +367,14 @@ class AsyncMilvusService:
                 'ids': []
             }
     
-    async def delete_face_embeddings_parallel(self, vector_ids: List[int]) -> int:
-        """Delete face embeddings from Milvus by vector IDs with parallel processing"""
+    async def delete_face_embeddings_parallel(self, target_ids: List[str]) -> int:
+        """Delete face embeddings from Milvus by target_id with parallel processing"""
         try:
             start_time = time.time()
             
             # Process deletions in parallel batches
             batch_size = 100
-            batches = [vector_ids[i:i + batch_size] for i in range(0, len(vector_ids), batch_size)]
+            batches = [target_ids[i:i + batch_size] for i in range(0, len(target_ids), batch_size)]
             
             # Process batches in parallel
             batch_tasks = []
@@ -409,16 +408,16 @@ class AsyncMilvusService:
             logger.error(f"Error in parallel embedding deletion: {e}")
             return 0
     
-    async def delete_face_embeddings_sequential(self, vector_ids: List[int]) -> int:
-        """Delete face embeddings from Milvus by vector IDs sequentially"""
+    async def delete_face_embeddings_sequential(self, target_ids: List[str]) -> int:
+        """Delete face embeddings from Milvus by target_id sequentially"""
         try:
             start_time = time.time()
             
             # Process deletions sequentially
             total_deleted = 0
             
-            for vector_id in vector_ids:
-                result = await self._delete_single_embedding_async(vector_id)
+            for target_id in target_ids:
+                result = await self._delete_single_embedding_async(target_id)
                 if result['success']:
                     total_deleted += result.get('deleted_count', 0)
             
@@ -432,14 +431,14 @@ class AsyncMilvusService:
             logger.error(f"Error in sequential embedding deletion: {e}")
             return 0
     
-    async def _delete_batch_async(self, batch_ids: List[int]) -> Dict:
-        """Delete a batch of embeddings asynchronously"""
+    async def _delete_batch_async(self, batch_target_ids: List[str]) -> Dict:
+        """Delete a batch of embeddings by target_id asynchronously"""
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 self.thread_pool,
                 self._delete_batch_sync,
-                batch_ids
+                batch_target_ids
             )
             return result
         except Exception as e:
@@ -450,14 +449,14 @@ class AsyncMilvusService:
                 'deleted_count': 0
             }
     
-    async def _delete_single_embedding_async(self, vector_id: int) -> Dict:
-        """Delete a single embedding asynchronously"""
+    async def _delete_single_embedding_async(self, target_id: str) -> Dict:
+        """Delete a single embedding by target_id asynchronously"""
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 self.thread_pool,
                 self._delete_single_embedding_sync,
-                vector_id
+                target_id
             )
             return result
         except Exception as e:
@@ -468,20 +467,21 @@ class AsyncMilvusService:
                 'deleted_count': 0
             }
     
-    def _delete_batch_sync(self, batch_ids: List[int]) -> Dict:
-        """Delete a batch of embeddings (synchronous)"""
+    def _delete_batch_sync(self, batch_target_ids: List[str]) -> Dict:
+        """Delete a batch of embeddings by target_id (synchronous)"""
         try:
             if not hasattr(self, 'collection'):
                 self.collection = Collection(self.collection_name)
             
-            # Delete by IDs
-            expr = f"id in {batch_ids}"
+            # Delete by target_id list
+            quoted_ids = ", ".join([f'"{tid}"' for tid in batch_target_ids])
+            expr = f"target_id in [{quoted_ids}]"
             result = self.collection.delete(expr)
             
             return {
                 'success': True,
-                'deleted_count': len(batch_ids),
-                'batch_size': len(batch_ids)
+                'deleted_count': len(batch_target_ids),
+                'batch_size': len(batch_target_ids)
             }
             
         except Exception as e:
@@ -492,14 +492,14 @@ class AsyncMilvusService:
                 'deleted_count': 0
             }
     
-    def _delete_single_embedding_sync(self, vector_id: int) -> Dict:
-        """Delete a single embedding (synchronous)"""
+    def _delete_single_embedding_sync(self, target_id: str) -> Dict:
+        """Delete a single embedding by target_id (synchronous)"""
         try:
             if not hasattr(self, 'collection'):
                 self.collection = Collection(self.collection_name)
             
-            # Delete by ID
-            expr = f"id == {vector_id}"
+            # Delete by target_id
+            expr = f'target_id == "{target_id}"'
             result = self.collection.delete(expr)
             
             return {
@@ -568,7 +568,7 @@ class AsyncMilvusService:
             for hits in results:
                 for hit in hits:
                     search_results.append({
-                        'id': hit.id,
+                        # No explicit numeric id field in schema; return target_id as identifier
                         'distance': hit.distance,
                         'score': hit.score,
                         'target_id': hit.entity.get('target_id', ''),
@@ -671,7 +671,7 @@ class AsyncMilvusService:
             expr = f'target_id == "{target_id}"'
             results = self.collection.query(
                 expr=expr,
-                output_fields=["id", "embedding", "target_id", "confidence_score"]
+                output_fields=["embedding", "target_id", "confidence_score"]
             )
             
             if results and len(results) > 0:

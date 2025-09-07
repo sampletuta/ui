@@ -20,13 +20,29 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', "django-secure-8k9x2!v#m@3$qwe4rt5y6ui7op8as9df0gh1jk2lz3xc4vb5nm6@#$%^&*()_+=-[]{}|")
+# SECURITY: Environment-based configuration
+ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development').lower()
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
-DEBUG = True
-ALLOWED_HOSTS = ['*']
+DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+
+# SECURITY: Production mode detection
+if ENVIRONMENT == 'production':
+    # Load production settings if in production environment
+    try:
+        from .settings_production import *
+    except ImportError:
+        print("WARNING: Production settings file not found. Using default settings.")
+else:
+    # Development mode
+    # SECURITY: Use env-provided key or generate ephemeral dev key (no hardcoding)
+    SECRET_KEY = (
+        os.environ.get('SECRET_KEY')
+        or os.environ.get('DJANGO_SECRET_KEY')
+    )
+
+    # SECURITY: Restrict allowed hosts even in development
+    ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,192.168.86.65').split(',')
 
 # ALLOWED_HOSTS = os.environ.get('*', 'localhost,127.0.0.1').split(',')
 
@@ -45,28 +61,29 @@ INSTALLED_APPS = [
     "notifications",
     "video_player",
     "source_management",  # Added for video source management
-    "face_ai"
+    "face_ai",
+    "reports",
 ]
 
 MIDDLEWARE = [
-    # Security middlewares (order matters!)
-    # "backendapp.middleware.SecurityMiddleware",  # Custom comprehensive security - TEMPORARILY DISABLED
-    "django.middleware.security.SecurityMiddleware",  # Core security features
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # For serving static files
-    
-    # Session and authentication
+    # SECURITY: Core security middleware (order is critical!)
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+
+    # SECURITY: Session and authentication
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    
-    # Additional security middlewares
+
+    # SECURITY: Browser security headers
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    
-    # Custom session monitoring
-    "backendapp.middleware.SessionMonitoringMiddleware",  # Session monitoring and logging
-    "backendapp.middleware.SessionTimeoutMiddleware",  # Session timeout handling
+
+    # SECURITY: Custom security middleware
+    "backendapp.middleware.SessionMonitoringMiddleware",
+    "backendapp.middleware.SessionTimeoutMiddleware",
+    "backendapp.middleware.SecurityMiddleware",
 ]
 
 ROOT_URLCONF = "backend.urls"
@@ -155,6 +172,11 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Static files configuration for production
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# WhiteNoise configuration for serving media files in development
+if DEBUG:
+    WHITENOISE_USE_FINDERS = True
+    WHITENOISE_AUTOREFRESH = True
+
 # Media files (User uploaded files)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -174,34 +196,30 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
 
-# Session Settings
+# SECURITY: Session configuration (enhanced)
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_AGE = 3600  # 1 hour in seconds (much shorter for security)
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
-SESSION_COOKIE_SECURE = not DEBUG  # True in production, False in development
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_AGE = 1800 if ENVIRONMENT == 'production' else 3600  # 30 min production, 1 hour dev
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_SECURE = ENVIRONMENT == 'production'  # HTTPS only in production
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
+SESSION_COOKIE_SAMESITE = 'Strict' if ENVIRONMENT == 'production' else 'Lax'
 SESSION_SAVE_EVERY_REQUEST = False
-SESSION_COOKIE_NAME = 'sessionid'
+SESSION_COOKIE_NAME = 'faceai_session'
 
-# Enhanced Session Configuration - SECURE SETTINGS
-SESSION_COOKIE_MAX_AGE = 3600  # 1 hour maximum
-SESSION_COOKIE_DOMAIN = None  # Set to domain in production
-SESSION_COOKIE_PATH = '/'
-SESSION_COOKIE_AGE_SECONDS = 3600  # For logging clarity
+# SECURITY: CSRF protection (enhanced)
+CSRF_COOKIE_SECURE = ENVIRONMENT == 'production'
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Strict' if ENVIRONMENT == 'production' else 'Lax'
+CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
+if ENVIRONMENT == 'production' and 'http://' in ','.join(CSRF_TRUSTED_ORIGINS):
+    print("WARNING: CSRF_TRUSTED_ORIGINS contains HTTP URLs in production!")
 
-# Session Timeout Configuration - SHORT TIMEOUTS
+# SECURITY: Session monitoring and timeouts
 SESSION_TIMEOUT_WARNING = 300  # Show warning 5 minutes before expiry
 SESSION_TIMEOUT_REDIRECT = 60  # Redirect to login 1 minute before expiry
-SESSION_ABSOLUTE_TIMEOUT = 3600  # Absolute maximum 1 hour
+SESSION_ABSOLUTE_TIMEOUT = 1800 if ENVIRONMENT == 'production' else 3600  # 30 min prod, 1 hour dev
 
-# Session Security - STRICT SETTINGS
-SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
-SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
-SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
-SESSION_COOKIE_REFRESH_EACH_REQUEST = False  # Don't refresh on every request
-
-# Session Monitoring
+# SECURITY: Session monitoring
 SESSION_MONITORING_ENABLED = True
 SESSION_ACTIVITY_LOGGING = True
 SESSION_EXPIRY_LOGGING = True
@@ -376,51 +394,42 @@ LOGGING = {
     },
 }
 
-# Security settings for production
-if not DEBUG:
-    # HTTPS and SSL Security
-    SECURE_SSL_REDIRECT = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    
-    # Cookie Security
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    
-    # Content Security
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'  # Prevent clickjacking
-    
-    # Additional Security Headers
-    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
-    
-else:
-    # Development settings - less strict security
-    SECURE_SSL_REDIRECT = False
-    CSRF_COOKIE_SECURE = False
-    SESSION_COOKIE_SECURE = False
-    X_FRAME_OPTIONS = 'SAMEORIGIN'  # Allow same-origin frames in dev
+# SECURITY: Production-grade security headers
+SECURE_SSL_REDIRECT = ENVIRONMENT == 'production' and not DEBUG
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Security Headers Configuration
+# SECURITY: HTTP Strict Transport Security (HSTS)
+SECURE_HSTS_SECONDS = 31536000 if ENVIRONMENT == 'production' else 0  # 1 year in production
+SECURE_HSTS_INCLUDE_SUBDOMAINS = ENVIRONMENT == 'production'
+SECURE_HSTS_PRELOAD = ENVIRONMENT == 'production'
+
+# SECURITY: Browser security headers
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY' if not DEBUG else 'SAMEORIGIN'
+X_FRAME_OPTIONS = 'DENY' if ENVIRONMENT == 'production' else 'SAMEORIGIN'
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
-# CSRF Protection
-CSRF_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://192.168.86.65:8000']
+# SECURITY: Cross-origin policies
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin' if ENVIRONMENT == 'production' else None
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
 
-# Content Security Policy (CSP)
+# SECURITY: Content Security Policy (CSP) - Enhanced
 CSP_DEFAULT_SRC = ("'self'",)
-CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")  # Allow inline styles for Bootstrap
-CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'")  # Allow inline scripts for Bootstrap
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com")
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://code.jquery.com")
 CSP_IMG_SRC = ("'self'", "data:", "https:")
-CSP_FONT_SRC = ("'self'", "https:", "data:")
+CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "data:")
+CSP_CONNECT_SRC = ("'self'",)
+CSP_FRAME_SRC = ("'none'",)
+CSP_OBJECT_SRC = ("'none'",)
+CSP_BASE_URI = ("'self'",)
+CSP_FORM_ACTION = ("'self'",)
+
+# SECURITY: Additional CSP for production
+if ENVIRONMENT == 'production':
+    CSP_UPGRADE_INSECURE_REQUESTS = True
+    CSP_BLOCK_ALL_MIXED_CONTENT = True
 
 # Rate Limiting
 RATELIMIT_ENABLE = True

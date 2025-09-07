@@ -153,8 +153,8 @@ def delete_target(request, pk):
             
             # Step 3: Send notification
             try:
-                from notifications.signals import notify
-                notify.send(request.user, recipient=target.created_by or request.user, verb='deleted target', target=target)
+                from backendapp.utils.notifications import notify
+                notify(recipient=target.created_by or request.user, actor=request.user, verb='deleted target', target=target)
             except Exception as e:
                 logger.warning(f"Failed to send notification: {e}")
             
@@ -228,8 +228,8 @@ def add_images(request, pk):
                         TargetPhoto.objects.create(person=target, image=image, uploaded_by=request.user)
                         uploaded_count += 1
                         try:
-                            from notifications.signals import notify
-                            notify.send(request.user, recipient=target.created_by or request.user, verb='uploaded images', target=target)
+                            from backendapp.utils.notifications import notify
+                            notify(recipient=target.created_by or request.user, actor=request.user, verb='uploaded images', target=target)
                         except Exception:
                             pass
                     except Exception as e:
@@ -280,8 +280,8 @@ def delete_image(request, pk, image_id):
             
             # Send notification
             try:
-                from notifications.signals import notify
-                notify.send(request.user, recipient=target.created_by or request.user, verb='deleted image', target=target, action_object=image)
+                from backendapp.utils.notifications import notify
+                notify(recipient=target.created_by or request.user, actor=request.user, verb='deleted image', target=target, action_object=image)
             except Exception:
                 pass
             

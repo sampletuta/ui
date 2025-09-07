@@ -1,0 +1,49 @@
+[Unit]
+Description=ClearSight Face AI Application
+After=network.target
+Requires=redis-server.service postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/your/app
+Environment=PATH=/path/to/your/app/venv_prod/bin
+Environment=DJANGO_SETTINGS_MODULE=backend.settings_production
+Environment=PYTHONPATH=/path/to/your/app
+ExecStart=/path/to/your/app/venv_prod/bin/gunicorn backend.wsgi:application \
+    --bind 127.0.0.1:8000 \
+    --workers 4 \
+    --threads 2 \
+    --max-requests 1000 \
+    --timeout 30 \
+    --access-logfile /var/log/clearsight/access.log \
+    --error-logfile /var/log/clearsight/error.log \
+    --log-level info
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+RestartSec=5
+Restart=always
+
+# Security settings
+NoNewPrivileges=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/path/to/your/app /var/log/clearsight
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=1G
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+

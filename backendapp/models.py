@@ -9,7 +9,7 @@ import uuid
 import json
 from django.conf import settings
 from django.urls import reverse
-from notifications.signals import notify
+from backendapp.utils.notifications import notify
 
 # Create your models here.
 from datetime import timedelta
@@ -340,9 +340,9 @@ class SearchResult(models.Model):
             try:
                 actor = self.search_query.user
                 recipient = self.search_query.user
-                notify.send(
-                    actor,
+                notify(
                     recipient=recipient,
+                    actor=actor,
                     verb='detected',
                     target=self.target,
                     action_object=self,

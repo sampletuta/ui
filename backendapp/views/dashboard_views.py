@@ -80,8 +80,8 @@ def backend(request):
             watchlist.save()
             
             try:
-                from notifications.signals import notify
-                notify.send(request.user, recipient=watchlist.created_by, verb='added target', target=watchlist)
+                from backendapp.utils.notifications import notify
+                notify(recipient=watchlist.created_by, actor=request.user, verb='added target', target=watchlist)
             except Exception:
                 pass
             
@@ -94,7 +94,7 @@ def backend(request):
                         TargetPhoto.objects.create(person=watchlist, image=image, uploaded_by=request.user)
                         uploaded_count += 1
                         try:
-                            notify.send(request.user, recipient=watchlist.created_by, verb='uploaded images', target=watchlist, action_object=watchlist)
+                            notify(recipient=watchlist.created_by, actor=request.user, verb='uploaded images', target=watchlist, action_object=watchlist)
                         except Exception:
                             pass
                     except Exception as e:

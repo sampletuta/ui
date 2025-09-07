@@ -8,11 +8,13 @@
             <div class="d-flex gap-2 flex-wrap">
                 <a href="{% url 'mark_all_notifications_read' %}" class="btn btn-sm btn-primary">Mark all as read</a>
                 <button type="button" class="btn btn-sm btn-outline-light" id="btn-clear-read">Clear read</button>
-                <button type="button" class="btn btn-sm btn-outline-light" id="btn-clear-older-7">Clear older than 7 days</button>
+                <button type="button" class="btn btn-sm btn-outline-light" id="btn-clear-older-77">Clear older than 77 days</button>
                 <button type="button" class="btn btn-sm btn-outline-light" id="btn-keep-100">Keep latest 100 (read)</button>
                 <button type="button" class="btn btn-sm btn-outline-danger" id="btn-clear-all">Clear all</button>
             </div>
 		</div>
+        <!-- CSRF token holder for AJAX (robust) -->
+        <form id="csrf-form" style="display:none;">{% csrf_token %}</form>
         {% if notifications and notifications|length > 0 %}
 			<div class="table-responsive">
 				<table class="table table-dark table-hover align-middle mb-0">
@@ -99,8 +101,12 @@
                 var xhr = new XMLHttpRequest();
                 xhr.open('POST', url, true);
                 xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
-                var m = document.cookie.match('(?:^|; )csrftoken=([^;]*)');
-                var token = m ? decodeURIComponent(m[1]) : '';
+                var tokenEl = document.querySelector('#csrf-form input[name="csrfmiddlewaretoken"]');
+                var token = tokenEl && tokenEl.value ? tokenEl.value : '';
+                if (!token){
+                    var m = document.cookie.match('(?:^|; )csrftoken=([^;]*)');
+                    token = m ? decodeURIComponent(m[1]) : '';
+                }
                 xhr.setRequestHeader('X-CSRFToken', token);
                 xhr.onreadystatechange = function(){ if (xhr.readyState === 4) { if (cb) cb(xhr); } };
                 var body = Object.keys(data).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(data[k]); }).join('&');
@@ -122,17 +128,17 @@
                 if (e.target.closest && e.target.closest('#btn-clear-read')){
                     post('{% url "clear_notifications" %}', { action: 'read' }, function(){ location.reload(); });
                 }
-                if (e.target.closest && e.target.closest('#btn-clear-older-7')){
-                    post('{% url "clear_notifications" %}', { action: 'older_than_days', days: 7 }, function(){ location.reload(); });
+                if (e.target.closest && e.target.closest('#btn-clear-older-77')){
+                    post('{% url "clear_notifications" %}', { action: 'older_than_days', days: 77 }, function(){ location.reload(); });
                 }
                 if (e.target.closest && e.target.closest('#btn-keep-100')){
-                    post('{% url "clear_notifications" %}', { action: 'keep_latest', keep: 100, scope: 'read' }, function(){ location.reload(); });
+                    post('{% url "clear_notifications" %}', { action: 'keep_latest', keep: 100, scope: 'all' }, function(){ location.reload(); });
                 }
                 var clearOneBtn = e.target.closest && e.target.closest('.btn-clear-one');
                 if (clearOneBtn){
                     var nid = clearOneBtn.getAttribute('data-notification-id');
                     if (!nid) return;
-                    post('{% url "mark_notification_read" %}', { id: nid }, function(){
+                    post('{% url "delete_notification" %}', { id: nid }, function(){
                         var row = clearOneBtn.closest('tr');
                         if (row) row.parentNode.removeChild(row);
                         decrementBadge();

@@ -21,7 +21,7 @@ from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 import os
 from django.conf import settings
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth import update_session_auth_hash
@@ -34,8 +34,8 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth.forms import AuthenticationForm
 import logging
-from notifications.signals import notify
-from notifications.models import Notification
+from backendapp.utils.notifications import notify
+from backendapp.utils.notifications import Notification
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 import time
 import hashlib
@@ -160,7 +160,7 @@ def backend(request):
             watchlist.created_by = request.user
             watchlist.save()
             try:
-                notify.send(request.user, recipient=watchlist.created_by, verb='added target', target=watchlist)
+                notify(recipient=watchlist.created_by, actor=request.user, verb='added target', target=watchlist)
             except Exception:
                 pass
             
@@ -173,7 +173,7 @@ def backend(request):
                         TargetPhoto.objects.create(person=watchlist, image=image, uploaded_by=request.user)
                         uploaded_count += 1
                         try:
-                            notify.send(request.user, recipient=watchlist.created_by, verb='uploaded images', target=watchlist, action_object=watchlist)
+                            notify(recipient=watchlist.created_by, actor=request.user, verb='uploaded images', target=watchlist, action_object=watchlist)
                         except Exception:
                             pass
                     except Exception as e:
@@ -363,7 +363,7 @@ def delete_target(request, pk):
             
             # Step 4: Send notification
             try:
-                notify.send(request.user, recipient=target.created_by or request.user, verb='deleted target', target=target)
+                notify(recipient=target.created_by or request.user, actor=request.user, verb='deleted target', target=target)
             except Exception as e:
                 logger.warning(f"Failed to send notification: {e}")
             
@@ -442,7 +442,7 @@ def add_images(request, pk):
                         TargetPhoto.objects.create(person=target, image=image, uploaded_by=request.user)
                         uploaded_count += 1
                         try:
-                            notify.send(request.user, recipient=target.created_by or request.user, verb='uploaded images', target=target)
+                            notify(recipient=target.created_by or request.user, actor=request.user, verb='uploaded images', target=target)
                         except Exception:
                             pass
                     except Exception as e:
@@ -476,7 +476,7 @@ def delete_image(request, pk, image_id):
             
             # Send notification
             try:
-                notify.send(request.user, recipient=target.created_by or request.user, verb='deleted image', target=target, action_object=image)
+                notify(recipient=target.created_by or request.user, actor=request.user, verb='deleted image', target=target, action_object=image)
             except Exception:
                 pass
             
@@ -537,12 +537,12 @@ def mark_notification_read(request):
 @login_required
 @require_POST
 def clear_notifications(request):
-    """Bulk clear notifications for the current user.
+    """Bulk clear notifications for the current user (soft delete).
     Actions:
-      - action=all: delete all notifications
-      - action=read: delete only read notifications
-      - action=older_than_days&days=N: delete notifications older than N days
-      - action=keep_latest&keep=N&scope=all|read: keep latest N (by timestamp desc), delete the rest in scope
+      - action=all: soft-delete all notifications (set deleted=True)
+      - action=read: soft-delete only read notifications
+      - action=older_than_days&days=N: soft-delete notifications older than N days
+      - action=keep_latest&keep=N&scope=all|read: keep latest N (by timestamp desc), soft-delete the rest in scope
     """
     action = request.POST.get('action')
     if not action:
@@ -550,11 +550,19 @@ def clear_notifications(request):
     qs = Notification.objects.filter(recipient=request.user)
     try:
         if action == 'all':
-            deleted, _ = qs.delete()
-            return JsonResponse({'success': True, 'deleted': deleted})
+            # Prefer library soft-delete if available
+            try:
+                updated = qs.mark_all_as_deleted()
+            except Exception:
+                updated = qs.update(deleted=True)
+            return JsonResponse({'success': True, 'deleted': updated})
         if action == 'read':
-            deleted, _ = qs.filter(unread=False).delete()
-            return JsonResponse({'success': True, 'deleted': deleted})
+            scope_qs = qs.filter(unread=False)
+            try:
+                updated = scope_qs.mark_all_as_deleted()
+            except Exception:
+                updated = scope_qs.filter(deleted=False).update(deleted=True)
+            return JsonResponse({'success': True, 'deleted': updated})
         if action == 'older_than_days':
             days_raw = request.POST.get('days')
             try:
@@ -562,8 +570,12 @@ def clear_notifications(request):
             except (TypeError, ValueError):
                 return JsonResponse({'success': False, 'error': 'Invalid days'}, status=400)
             cutoff = timezone.now() - timedelta(days=days)
-            deleted, _ = qs.filter(timestamp__lt=cutoff).delete()
-            return JsonResponse({'success': True, 'deleted': deleted})
+            scope_qs = qs.filter(timestamp__lt=cutoff)
+            try:
+                updated = scope_qs.mark_all_as_deleted()
+            except Exception:
+                updated = scope_qs.filter(deleted=False).update(deleted=True)
+            return JsonResponse({'success': True, 'deleted': updated})
         if action == 'keep_latest':
             keep_raw = request.POST.get('keep')
             scope = (request.POST.get('scope') or 'read').lower()
@@ -571,14 +583,22 @@ def clear_notifications(request):
                 keep = int(keep_raw)
             except (TypeError, ValueError):
                 return JsonResponse({'success': False, 'error': 'Invalid keep'}, status=400)
-            scope_qs = qs if scope == 'all' else qs.filter(unread=False)
-            ids_to_keep = list(scope_qs.order_by('-timestamp').values_list('id', flat=True)[:keep])
+            scope_qs = (qs if scope == 'all' else qs.filter(unread=False))
+            # Only consider non-deleted in ranking
+            scope_qs_active = scope_qs.filter(deleted=False)
+            ids_to_keep = list(scope_qs_active.order_by('-timestamp').values_list('id', flat=True)[:keep])
             if not ids_to_keep:
-                # nothing to keep; delete per scope
-                deleted, _ = scope_qs.delete()
-                return JsonResponse({'success': True, 'deleted': deleted})
-            deleted, _ = scope_qs.exclude(id__in=ids_to_keep).delete()
-            return JsonResponse({'success': True, 'deleted': deleted})
+                # nothing to keep; soft-delete per scope
+                try:
+                    updated = scope_qs_active.mark_all_as_deleted()
+                except Exception:
+                    updated = scope_qs_active.update(deleted=True)
+                return JsonResponse({'success': True, 'deleted': updated})
+            try:
+                updated = scope_qs_active.exclude(id__in=ids_to_keep).mark_all_as_deleted()
+            except Exception:
+                updated = scope_qs_active.exclude(id__in=ids_to_keep).update(deleted=True)
+            return JsonResponse({'success': True, 'deleted': updated})
         return JsonResponse({'success': False, 'error': 'Unknown action'}, status=400)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
@@ -586,7 +606,9 @@ def clear_notifications(request):
 @login_required
 @require_POST
 def delete_notification(request):
-    """Delete a single notification for the current user (hard delete)."""
+    """Delete a single notification for the current user.
+    Soft delete by default (set deleted=True). If 'hard=1' is provided, hard delete.
+    """
     notification_id = request.POST.get('id') or request.POST.get('notification_id')
     if not notification_id:
         return JsonResponse({'success': False, 'error': 'Missing id'}, status=400)
@@ -595,17 +617,29 @@ def delete_notification(request):
     except (TypeError, ValueError):
         return JsonResponse({'success': False, 'error': 'Invalid id'}, status=400)
     try:
-        deleted, _ = Notification.objects.filter(id=nid, recipient=request.user).delete()
-        if deleted:
-            return JsonResponse({'success': True, 'deleted': deleted})
-        return JsonResponse({'success': False, 'error': 'Not found'}, status=404)
+        hard = (request.POST.get('hard') in ('1', 'true', 'True'))
+        qs = Notification.objects.filter(id=nid, recipient=request.user)
+        if hard:
+            deleted_count, _ = qs.delete()
+            if deleted_count:
+                return JsonResponse({'success': True, 'deleted': deleted_count})
+            return JsonResponse({'success': False, 'error': 'Not found'}, status=404)
+        else:
+            try:
+                updated = qs.mark_all_as_deleted()
+            except Exception:
+                updated = qs.update(deleted=True)
+            if updated:
+                return JsonResponse({'success': True, 'deleted': updated})
+            return JsonResponse({'success': False, 'error': 'Not found'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+@ensure_csrf_cookie
 @login_required
 def notifications_list(request):
     """List notifications for the current user."""
-    notifications_qs = Notification.objects.filter(recipient=request.user).select_related('actor_content_type', 'target_content_type', 'action_object_content_type').order_by('-timestamp')
+    notifications_qs = Notification.objects.filter(recipient=request.user, deleted=False).select_related('actor_content_type', 'target_content_type', 'action_object_content_type').order_by('-timestamp')
     per_page_default = 20
     try:
         per_page = int(request.GET.get('per_page', per_page_default))
@@ -1449,7 +1483,7 @@ def case_create(request):
             case.save()
             messages.success(request, f'Case "{case.case_name}" created successfully!')
             try:
-                notify.send(request.user, recipient=request.user, verb='created case', target=case)
+                notify(recipient=request.user, actor=request.user, verb='created case', target=case)
             except Exception:
                 pass
             return redirect('case_detail', pk=case.pk)
@@ -1475,7 +1509,7 @@ def case_edit(request, pk):
             form.save()
             messages.success(request, f'Case "{case.case_name}" updated successfully!')
             try:
-                notify.send(request.user, recipient=request.user, verb='updated case', target=case)
+                notify(recipient=request.user, actor=request.user, verb='updated case', target=case)
             except Exception:
                 pass
             return redirect('case_detail', pk=case.pk)
@@ -1491,7 +1525,7 @@ def case_delete(request, pk):
     if request.method == 'POST':
         case_name = case.case_name
         try:
-            notify.send(request.user, recipient=case.created_by, verb='deleted case', target=case, description=f'Case "{case_name}" deleted')
+            notify(recipient=case.created_by, actor=request.user, verb='deleted case', target=case, description=f'Case "{case_name}" deleted')
         except Exception:
             pass
         case.delete()
@@ -1523,7 +1557,7 @@ def add_target_to_case(request, case_pk):
             target.created_by = request.user
             target.save()
             try:
-                notify.send(request.user, recipient=case.created_by, verb='added target', target=target, action_object=case)
+                notify(recipient=case.created_by, actor=request.user, verb='added target', target=target, action_object=case)
             except Exception:
                 pass
             

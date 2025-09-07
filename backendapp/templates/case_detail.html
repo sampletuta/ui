@@ -18,6 +18,9 @@
                         <a href="{% url 'add_target_to_case' case.pk %}" class="btn btn-primary btn-sm">
                             <i class="fa fa-plus me-2"></i>Add Target
                         </a>
+                        <a href="{% url 'reports:download_comments_pdf' 'case' case.pk %}" class="btn btn-outline-success btn-sm">
+                            <i class="fa fa-download me-2"></i>Download comments (PDF)
+                        </a>
                     </div>
                 </div>
                 

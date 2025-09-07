@@ -42,6 +42,10 @@ class SecurityMiddleware:
     def _perform_security_checks(self, request):
         """Perform various security checks"""
         try:
+            # Skip security checks for media files
+            if request.path.startswith('/media/'):
+                return None
+            
             # Rate limiting check
             if self._is_rate_limited(request):
                 logger.warning(f"Rate limit exceeded for IP: {self._get_client_ip(request)}")

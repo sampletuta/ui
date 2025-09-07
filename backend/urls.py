@@ -27,6 +27,7 @@ urlpatterns = [
     path('source-management/', include('source_management.urls', namespace="source_management")),
     path('inbox/notifications/', include('notifications.urls', namespace='notifications')),
     path('face-ai/', include('face_ai.urls', namespace='face_ai')),
+    path('reports/', include('reports.urls', namespace='reports')),
 ]
 
 if settings.DEBUG:

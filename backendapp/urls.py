@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from .views import face_verification_status, background_server_status
+from .views.media_views import serve_media
 
 urlpatterns = [
     # Dashboard and main views
@@ -81,4 +82,7 @@ urlpatterns = [
     # Watchlist management URLs
     path('watchlist/', views.list_watchlist, name='list_watchlist'),
     path('watchlist/add/', views.backend, name='add_watchlist'),
+    
+    # Media serving for production (when DEBUG=False)
+    path('media/<path:path>', serve_media, name='serve_media'),
 ] 
