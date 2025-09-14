@@ -1,7 +1,13 @@
 from django.urls import path
 from . import views
 from .views import face_verification_status, background_server_status
+from .views.face_verification_views import face_verification_whitelist
 from .views.media_views import serve_media
+from .views.whitelist_views import (
+    list_whitelist, whitelist_profile, add_whitelist, edit_whitelist,
+    delete_whitelist, add_whitelist_images, delete_whitelist_image,
+    approve_whitelist, suspend_whitelist
+)
 
 urlpatterns = [
     # Dashboard and main views
@@ -36,6 +42,7 @@ urlpatterns = [
     path('face-verification/', views.face_verification, name='face_verification'),
     path('face-verification/preview/', views.face_verification_preview, name='face_verification_preview'),
     path('face-verification/watchlist/', views.face_verification_watchlist, name='face_verification_watchlist'),
+    path('face-verification/whitelist/', face_verification_whitelist, name='face_verification_whitelist'),
     
     # Face Verification Status Checking
     path('face-verification/status/', face_verification_status.face_verification_status_api, name='face_verification_status'),
@@ -82,6 +89,17 @@ urlpatterns = [
     # Watchlist management URLs
     path('watchlist/', views.list_watchlist, name='list_watchlist'),
     path('watchlist/add/', views.backend, name='add_watchlist'),
+
+    # Whitelist management URLs
+    path('whitelist/', list_whitelist, name='list_whitelist'),
+    path('whitelist/add/', add_whitelist, name='add_whitelist'),
+    path('whitelist/<uuid:pk>/', whitelist_profile, name='whitelist_profile'),
+    path('whitelist/<uuid:pk>/edit/', edit_whitelist, name='edit_whitelist'),
+    path('whitelist/<uuid:pk>/delete/', delete_whitelist, name='delete_whitelist'),
+    path('whitelist/<uuid:pk>/add-images/', add_whitelist_images, name='add_whitelist_images'),
+    path('whitelist/<uuid:pk>/delete-image/<int:image_id>/', delete_whitelist_image, name='delete_whitelist_image'),
+    path('whitelist/<uuid:pk>/approve/', approve_whitelist, name='approve_whitelist'),
+    path('whitelist/<uuid:pk>/suspend/', suspend_whitelist, name='suspend_whitelist'),
     
     # Media serving for production (when DEBUG=False)
     path('media/<path:path>', serve_media, name='serve_media'),

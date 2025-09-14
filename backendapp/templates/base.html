@@ -130,6 +130,23 @@
                     </div>
                     <div class="nav-item dropdown">
                         <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fa fa-shield-alt me-2"></i>Whitelist
+                        </a>
+                        <div class="dropdown-menu bg-transparent border-0">
+                            <a href="{% url 'list_whitelist' %}" class="dropdown-item">
+                                <i class="fa fa-list me-2"></i>View All Authorized
+                            </a>
+                            <a href="{% url 'add_whitelist' %}" class="dropdown-item">
+                                <i class="fa fa-plus me-2"></i>Add Authorized Person
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="{% url 'face_verification_whitelist' %}" class="dropdown-item">
+                                <i class="fa fa-user-check me-2"></i>Access Control
+                            </a>
+                        </div>
+                    </div>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
                             <i class="fa fa-search me-2"></i>Search
                         </a>
                         <div class="dropdown-menu bg-transparent border-0">
@@ -144,6 +161,9 @@
                             </a>
                             <a href="{% url 'face_verification_watchlist' %}" class="dropdown-item">
                                 <i class="fa fa-search-plus me-2"></i>Watchlist Verification
+                            </a>
+                            <a href="{% url 'face_verification_whitelist' %}" class="dropdown-item">
+                                <i class="fa fa-shield-alt me-2"></i>Whitelist Verification
                             </a>
                         </div>
                     </div>

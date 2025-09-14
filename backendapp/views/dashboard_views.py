@@ -12,7 +12,7 @@ from datetime import date
 import logging
 
 from ..forms import TargetsWatchlistForm
-from ..models import TargetPhoto, Targets_watchlist, Case
+from ..models import TargetPhoto, Targets_watchlist, Case, Targets_whitelist, WhitelistPhoto
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,14 @@ def dashboard(request):
     total_targets = Targets_watchlist.objects.count()
     total_cases = Case.objects.count()
     total_images = TargetPhoto.objects.count()
+
+    # Whitelist statistics
+    total_whitelist = Targets_whitelist.objects.count()
+    active_whitelist = Targets_whitelist.objects.filter(status='active').count()
+    total_whitelist_images = WhitelistPhoto.objects.count()
+
     recent_targets = Targets_watchlist.objects.select_related('case').order_by('-created_at')[:5]
+    recent_whitelist = Targets_whitelist.objects.select_related('created_by').order_by('-created_at')[:5]
     
     # Status distribution for chart
     status_counts = list(Targets_watchlist.objects.values('case_status').annotate(count=Count('id')))
@@ -55,18 +62,37 @@ def dashboard(request):
             TargetPhoto.objects.filter(uploaded_at__year=mdate.year, uploaded_at__month=mdate.month).count()
         )
     
+    # Whitelist status distribution
+    whitelist_status_counts = list(Targets_whitelist.objects.values('status').annotate(count=Count('id')))
+    whitelist_access_counts = list(Targets_whitelist.objects.values('access_level').annotate(count=Count('id')))
+
+    # Monthly trend data for whitelist
+    whitelist_month_counts = []
+    for i in range(6, -1, -1):  # 7 points
+        mdate = add_months(now.replace(day=1), -i)
+        whitelist_month_counts.append(
+            Targets_whitelist.objects.filter(created_at__year=mdate.year, created_at__month=mdate.month).count()
+        )
+
     return render(request, 'dashboard.html', {
         'total_targets': total_targets,
         'total_cases': total_cases,
         'total_images': total_images,
+        'total_whitelist': total_whitelist,
+        'active_whitelist': active_whitelist,
+        'total_whitelist_images': total_whitelist_images,
         'recent_targets': recent_targets,
+        'recent_whitelist': recent_whitelist,
         'status_counts': status_counts,
         'gender_counts': gender_counts,
+        'whitelist_status_counts': whitelist_status_counts,
+        'whitelist_access_counts': whitelist_access_counts,
         'recent_cases': recent_cases,
         'months_labels': months_labels,
         'targets_month_counts': targets_month_counts,
         'cases_month_counts': cases_month_counts,
         'images_month_counts': images_month_counts,
+        'whitelist_month_counts': whitelist_month_counts,
     })
 
 @login_required

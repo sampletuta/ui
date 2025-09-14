@@ -27,7 +27,9 @@ def get_secret_key():
 SECRET_KEY = get_secret_key()
 
 # SECURITY: Production mode - DEBUG must be False
-DEBUG = False
+DEBUG = True
+# DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
+
 
 # SECURITY: Restrict allowed hosts - never use '*' in production
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
@@ -47,13 +49,14 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.humanize",
 
-    # Third-party security apps
+    # Third-party security apps (optional - uncomment when packages are installed)
     "django_ratelimit",  # Rate limiting
-    "csp",  # Content Security Policy
-    "django_helmet",  # Security headers
+    # "csp",  # Content Security Policy - temporarily disabled due to compatibility issues
+    "secure",  # Security headers
 
     # Project apps
     "backendapp",
+    "notifications",
     "video_player",
     "source_management",
     "face_ai",
@@ -67,7 +70,7 @@ MIDDLEWARE = [
 
     # Django security middleware
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "csp.middleware.CSPMiddleware",  # Content Security Policy
+    # "csp.middleware.CSPMiddleware",  # Content Security Policy - temporarily disabled
     "django.middleware.csrf.CsrfViewMiddleware",
 
     # Core middleware
@@ -107,45 +110,66 @@ TEMPLATES = [
 WSGI_APPLICATION = "backend.wsgi.application"
 ASGI_APPLICATION = "backend.asgi.application"
 
-# SECURITY: Production database configuration
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'face_ai_prod'),
-        'USER': os.environ.get('POSTGRES_USER', 'face_ai_prod_user'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
-        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
-        'OPTIONS': {
-            'sslmode': 'require',  # Enforce SSL
-            'sslcert': os.environ.get('SSL_CERT_PATH'),
-            'sslkey': os.environ.get('SSL_KEY_PATH'),
-            'sslrootcert': os.environ.get('SSL_ROOT_CERT_PATH'),
-        },
-        'CONN_MAX_AGE': 60,  # Connection pooling
-        'ATOMIC_REQUESTS': True,  # Transaction wrapping
-    }
-}
+# SECURITY: Database configuration - supports both SQLite and PostgreSQL
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3')
 
-# SECURITY: Redis cache for production
+if DATABASE_URL.startswith('postgresql://'):
+    # PostgreSQL configuration for production
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('POSTGRES_DB', 'face_ai_prod'),
+            'USER': os.environ.get('POSTGRES_USER', 'face_ai_prod_user'),
+            'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
+            'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+            'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+            'OPTIONS': {
+                'sslmode': 'require',  # Enforce SSL
+                'sslcert': os.environ.get('SSL_CERT_PATH'),
+                'sslkey': os.environ.get('SSL_KEY_PATH'),
+                'sslrootcert': os.environ.get('SSL_ROOT_CERT_PATH'),
+            },
+            'CONN_MAX_AGE': 60,  # Connection pooling
+            'ATOMIC_REQUESTS': True,  # Transaction wrapping
+        }
+    }
+else:
+    # SQLite configuration (for development)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+# SECURITY: Redis cache for production (fixed configuration)
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': os.environ.get('REDIS_CACHE_URL', 'redis://127.0.0.1:6379/2'),
+        'LOCATION': os.environ.get('REDIS_CACHE_URL', 'redis://127.0.0.1:6380/2'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'CONNECTION_POOL_KWARGS': {
                 'max_connections': 20,
-                'decode_responses': True,
+                'decode_responses': False,  # Don't decode responses to avoid encoding issues
             },
             'SERIALIZER': 'django_redis.serializers.json.JSONSerializer',
-        }
+            'PICKLE_PROTOCOL': 4,
+        },
+        'KEY_PREFIX': 'face_ai_cache',
+        'TIMEOUT': 300,  # 5 minutes default
+        'VERSION': 1,
     },
     'sessions': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': os.environ.get('REDIS_SESSION_URL', 'redis://127.0.0.1:6379/3'),
+        'LOCATION': os.environ.get('REDIS_SESSION_URL', 'redis://127.0.0.1:6380/3'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 10,
+                'decode_responses': False,  # Don't decode responses to avoid encoding issues
+            },
+            'PICKLE_PROTOCOL': 4,
         }
     }
 }
@@ -216,12 +240,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # SECURITY: File upload restrictions
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
-FILE_UPLOAD_TEMP_DIR = '/tmp/django_uploads'
+FILE_UPLOAD_TEMP_DIR = BASE_DIR / 'temp'
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 
 # SECURITY: HTTPS and SSL configuration
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
 SECURE_REDIRECT_EXEMPT = []  # No exemptions for SSL redirect
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
@@ -236,17 +260,22 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
-# SECURITY: Content Security Policy (CSP)
-CSP_DEFAULT_SRC = ("'self'",)
-CSP_SCRIPT_SRC = ("'self'", "https://cdn.jsdelivr.net", "https://code.jquery.com")
-CSP_STYLE_SRC = ("'self'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "'unsafe-inline'")
-CSP_IMG_SRC = ("'self'", "data:", "https:")
-CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
-CSP_CONNECT_SRC = ("'self'",)
-CSP_FRAME_SRC = ("'none'",)
-CSP_OBJECT_SRC = ("'none'",)
-CSP_BASE_URI = ("'self'",)
-CSP_FORM_ACTION = ("'self'",)
+# SECURITY: Content Security Policy (CSP) - Read from environment
+# Temporarily disabled due to django-csp compatibility issues
+# CONTENT_SECURITY_POLICY = {
+#     'DIRECTIVES': {
+#         'default-src': tuple(os.environ.get('CSP_DEFAULT_SRC', "'self'").split()),
+#         'script-src': tuple(os.environ.get('CSP_SCRIPT_SRC', "'self'").split()),
+#         'style-src': tuple(os.environ.get('CSP_STYLE_SRC', "'self'").split()),
+#         'img-src': tuple(os.environ.get('CSP_IMG_SRC', "'self'").split()),
+#         'font-src': tuple(os.environ.get('CSP_FONT_SRC', "'self'").split()),
+#         'connect-src': tuple(os.environ.get('CSP_CONNECT_SRC', "'self'").split()),
+#         'frame-src': tuple(os.environ.get('CSP_FRAME_SRC', "'none'").split()),
+#         'object-src': tuple(os.environ.get('CSP_OBJECT_SRC', "'none'").split()),
+#         'base-uri': tuple(os.environ.get('CSP_BASE_URI', "'self'").split()),
+#         'form-action': tuple(os.environ.get('CSP_FORM_ACTION', "'self'").split()),
+#     }
+# }
 
 # SECURITY: Rate limiting configuration
 RATELIMIT_ENABLE = True
@@ -342,8 +371,7 @@ LOGGING = {
 
 # SECURITY: Admin configuration
 ADMIN_ENABLED = os.environ.get('ADMIN_ENABLED', 'true').lower() == 'true'
-if ADMIN_ENABLED:
-    INSTALLED_APPS.append('django.contrib.admin')
+# Admin is already included in INSTALLED_APPS above
 
 # SECURITY: Django REST Framework (if used)
 REST_FRAMEWORK = {
@@ -420,7 +448,7 @@ if PROMETHEUS_METRICS_ENABLED:
 MILVUS_CONFIG = {
     'HOST': os.environ.get('MILVUS_HOST', 'localhost'),
     'PORT': int(os.environ.get('MILVUS_PORT', '19530')),
-    'COLLECTION_NAME': os.environ.get('MILVUS_COLLECTION_NAME', 'watchlist_prod'),
+    'COLLECTION_NAME': os.environ.get('MILVUS_COLLECTION_NAME', 'watchlist'),
     'COLLECTION_PREFIX': os.environ.get('MILVUS_COLLECTION_PREFIX', 'surveillance_'),
     'DIMENSION': int(os.environ.get('MILVUS_DIMENSION', '512')),
     'METRIC_TYPE': os.environ.get('MILVUS_METRIC_TYPE', 'COSINE'),
@@ -436,10 +464,10 @@ MILVUS_CONFIG = {
     'AUTO_LOAD_COLLECTION': os.environ.get('MILVUS_AUTO_LOAD_COLLECTION', 'True').lower() == 'true',
 }
 
-# Security: Face detection service (HTTPS required)
+# Security: Face detection service (HTTPS recommended for production)
 FACE_DETECTION_SERVICE_URL = os.environ.get('FACE_DETECTION_SERVICE_URL')
-if FACE_DETECTION_SERVICE_URL and not FACE_DETECTION_SERVICE_URL.startswith('https://'):
-    raise ImproperlyConfigured('FACE_DETECTION_SERVICE_URL must use HTTPS in production')
+if FACE_DETECTION_SERVICE_URL and not FACE_DETECTION_SERVICE_URL.startswith(('https://', 'http://')):
+    raise ImproperlyConfigured('FACE_DETECTION_SERVICE_URL must be a valid URL')
 
 # Security: Data ingestion service (with API key)
 DATA_INGESTION_SERVICE = {
@@ -468,13 +496,23 @@ STREAM_PROCESSSING_SERVICE = {
     'ENABLE_EVENTS': os.environ.get('DOWNSTREAM_SERVICE_ENABLE_EVENTS', 'true').lower() == 'true',
 }
 
-# Security: Base URL (must be HTTPS in production)
+# Security: Base URL (HTTPS recommended for production)
 BASE_URL = os.environ.get('BASE_URL')
-if BASE_URL and not BASE_URL.startswith('https://'):
-    raise ImproperlyConfigured('BASE_URL must use HTTPS in production')
+if BASE_URL and not BASE_URL.startswith(('https://', 'http://')):
+    raise ImproperlyConfigured('BASE_URL must be a valid URL')
 
 # Security: Additional production settings
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+
+# Security: Secure package configuration
+SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'

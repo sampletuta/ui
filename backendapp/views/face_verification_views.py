@@ -8,12 +8,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.utils import timezone
 import logging
 import json
 import requests
 from typing import Dict, List, Any
 
-from ..models import Targets_watchlist, TargetPhoto
+from ..models import Targets_watchlist, TargetPhoto, Targets_whitelist, WhitelistPhoto
 
 logger = logging.getLogger(__name__)
 
@@ -702,3 +703,334 @@ def face_verification_health_check(request):
             'message': f'Health check failed: {str(e)}',
             'error': str(e)
         }, status=500)
+
+@login_required
+def face_verification_whitelist(request):
+    """Advanced whitelist verification with multiple modes and enhanced status checking"""
+    # Get all active whitelist entries for selection
+    whitelist_entries = Targets_whitelist.objects.filter(status='active').all()
+
+    # Check service status
+    services_status = FaceVerificationStatus.check_all_services()
+
+    if request.method == 'POST':
+        try:
+            verification_mode = request.POST.get('verification_mode')
+            threshold = float(request.POST.get('threshold', 60)) / 100
+            max_results = int(request.POST.get('max_results', 5))
+
+            # Validate service health before processing
+            if not services_status['overall_status'] == 'healthy':
+                messages.warning(request, 'Some services are not fully operational. Whitelist verification may have limited functionality.')
+                logger.warning(f"Whitelist verification attempted with unhealthy services: {services_status}")
+
+            if verification_mode == 'mode1':
+                # Mode 1: Whitelist vs Image (Access Control)
+                return handle_whitelist_mode1_verification(request, whitelist_entries, threshold, max_results, services_status)
+            elif verification_mode == 'mode2':
+                # Mode 2: Image vs Whitelist (Identify Authorized Person)
+                return handle_whitelist_mode2_verification(request, whitelist_entries, threshold, max_results, services_status)
+            else:
+                messages.error(request, 'Invalid verification mode selected.')
+                return render(request, 'face_verification_whitelist.html', {
+                    'whitelist_entries': whitelist_entries,
+                    'services_status': services_status
+                })
+
+        except ValueError as e:
+            error_msg = f'Invalid input data: {str(e)}'
+            messages.error(request, error_msg)
+            logger.error(f"Invalid input data in whitelist verification: {e}")
+            return render(request, 'face_verification_whitelist.html', {
+                'whitelist_entries': whitelist_entries,
+                'services_status': services_status
+            })
+        except Exception as e:
+            error_msg = f'Error during whitelist verification: {str(e)}'
+            messages.error(request, error_msg)
+            logger.error(f"Whitelist verification error: {e}")
+            return render(request, 'face_verification_whitelist.html', {
+                'whitelist_entries': whitelist_entries,
+                'services_status': services_status
+            })
+
+    return render(request, 'face_verification_whitelist.html', {
+        'whitelist_entries': whitelist_entries,
+        'services_status': services_status
+    })
+
+def handle_whitelist_mode1_verification(request, whitelist_entries, threshold, max_results, services_status):
+    """Handle Mode 1: Verify if a person has whitelist access against their image"""
+    try:
+        query_image = request.FILES.get('query_image')
+
+        if not query_image:
+            messages.error(request, 'Please upload an image for verification.')
+            return render(request, 'face_verification_whitelist.html', {
+                'whitelist_entries': whitelist_entries,
+                'services_status': services_status
+            })
+
+        # Import services with error handling
+        try:
+            from face_ai.services.face_detection import FaceDetectionService
+            from face_ai.services.milvus_service import MilvusService
+
+            face_service = FaceDetectionService()
+            milvus_service = MilvusService()
+        except ImportError as e:
+            error_msg = f'Required services not available: {str(e)}'
+            messages.error(request, error_msg)
+            logger.error(f"Service import failed: {e}")
+            return render(request, 'face_verification_whitelist.html', {
+                'whitelist_entries': whitelist_entries,
+                'services_status': services_status
+            })
+
+        # Convert image to base64 for processing
+        import base64
+
+        def image_to_base64(image_file):
+            image_file.seek(0)
+            image_data = image_file.read()
+            return base64.b64encode(image_data).decode('utf-8')
+
+        # Process the query image
+        try:
+            query_image_base64 = image_to_base64(query_image)
+            query_faces = face_service.detect_faces(query_image_base64)
+
+            if not query_faces:
+                messages.error(request, 'No faces detected in the uploaded image.')
+                return render(request, 'face_verification_whitelist.html', {
+                    'whitelist_entries': whitelist_entries,
+                    'services_status': services_status
+                })
+
+            if len(query_faces) > 1:
+                messages.warning(request, f'Multiple faces detected ({len(query_faces)}). Using the largest face for verification.')
+
+            # Use the first (largest) face
+            query_face = query_faces[0]
+            query_embedding = query_face.get('embedding')
+
+            if not query_embedding:
+                messages.error(request, 'Could not extract face features from the uploaded image.')
+                return render(request, 'face_verification_whitelist.html', {
+                    'whitelist_entries': whitelist_entries,
+                    'services_status': services_status
+                })
+
+        except Exception as e:
+            error_msg = f'Error processing query image: {str(e)}'
+            messages.error(request, error_msg)
+            logger.error(f"Image processing error: {e}")
+            return render(request, 'face_verification_whitelist.html', {
+                'whitelist_entries': whitelist_entries,
+                'services_status': services_status
+            })
+
+        # Search against whitelist in Milvus
+        try:
+            search_results = milvus_service.search_whitelist_faces(
+                query_embedding=query_embedding,
+                threshold=threshold,
+                limit=max_results
+            )
+
+            # Process results and get whitelist entries
+            processed_results = []
+            for result in search_results:
+                try:
+                    whitelist_entry = Targets_whitelist.objects.get(id=result['whitelist_id'])
+                    processed_results.append({
+                        'whitelist_entry': whitelist_entry,
+                        'similarity': result['similarity'],
+                        'confidence': result['confidence'],
+                        'match': result['similarity'] >= threshold,
+                        'access_granted': result['similarity'] >= threshold and whitelist_entry.is_active()
+                    })
+                except Targets_whitelist.DoesNotExist:
+                    logger.warning(f"Whitelist entry {result['whitelist_id']} not found in database")
+                    continue
+
+            if processed_results:
+                # Sort by similarity (highest first)
+                processed_results.sort(key=lambda x: x['similarity'], reverse=True)
+
+                # Log successful verification
+                best_match = processed_results[0]
+                if best_match['access_granted']:
+                    messages.success(request,
+                        f'✅ Access GRANTED: {best_match["whitelist_entry"].person_name} '
+                        f'(Similarity: {best_match["similarity"]:.1%})'
+                    )
+                    # Update last verified timestamp
+                    best_match['whitelist_entry'].last_verified = timezone.now()
+                    best_match['whitelist_entry'].save()
+                else:
+                    messages.warning(request,
+                        f'❌ Access DENIED: Best match is {best_match["whitelist_entry"].person_name} '
+                        f'(Similarity: {best_match["similarity"]:.1%}, Threshold: {threshold:.1%})'
+                    )
+
+                return render(request, 'face_verification_results.html', {
+                    'verification_type': 'whitelist_access',
+                    'query_image': query_image,
+                    'results': processed_results,
+                    'threshold': threshold,
+                    'mode': 'whitelist_vs_image'
+                })
+            else:
+                messages.info(request, 'No matching faces found in whitelist.')
+                return render(request, 'face_verification_whitelist.html', {
+                    'whitelist_entries': whitelist_entries,
+                    'services_status': services_status
+                })
+
+        except Exception as e:
+            error_msg = f'Error searching whitelist: {str(e)}'
+            messages.error(request, error_msg)
+            logger.error(f"Milvus search error: {e}")
+            return render(request, 'face_verification_whitelist.html', {
+                'whitelist_entries': whitelist_entries,
+                'services_status': services_status
+            })
+
+    except Exception as e:
+        error_msg = f'Unexpected error in whitelist verification: {str(e)}'
+        messages.error(request, error_msg)
+        logger.error(f"Unexpected error in whitelist verification: {e}")
+        return render(request, 'face_verification_whitelist.html', {
+            'whitelist_entries': whitelist_entries,
+            'services_status': services_status
+        })
+
+def handle_whitelist_mode2_verification(request, whitelist_entries, threshold, max_results, services_status):
+    """Handle Mode 2: Identify which authorized person is in the image"""
+    try:
+        query_image = request.FILES.get('query_image')
+
+        if not query_image:
+            messages.error(request, 'Please upload an image for identification.')
+            return render(request, 'face_verification_whitelist.html', {
+                'whitelist_entries': whitelist_entries,
+                'services_status': services_status
+            })
+
+        # Import services with error handling
+        try:
+            from face_ai.services.face_detection import FaceDetectionService
+            from face_ai.services.milvus_service import MilvusService
+
+            face_service = FaceDetectionService()
+            milvus_service = MilvusService()
+        except ImportError as e:
+            error_msg = f'Required services not available: {str(e)}'
+            messages.error(request, error_msg)
+            logger.error(f"Service import failed: {e}")
+            return render(request, 'face_verification_whitelist.html', {
+                'whitelist_entries': whitelist_entries,
+                'services_status': services_status
+            })
+
+        # Convert image to base64 for processing
+        import base64
+
+        def image_to_base64(image_file):
+            image_file.seek(0)
+            image_data = image_file.read()
+            return base64.b64encode(image_data).decode('utf-8')
+
+        # Process the query image
+        try:
+            query_image_base64 = image_to_base64(query_image)
+            query_faces = face_service.detect_faces(query_image_base64)
+
+            if not query_faces:
+                messages.error(request, 'No faces detected in the uploaded image.')
+                return render(request, 'face_verification_whitelist.html', {
+                    'whitelist_entries': whitelist_entries,
+                    'services_status': services_status
+                })
+
+            if len(query_faces) > 1:
+                messages.warning(request, f'Multiple faces detected ({len(query_faces)}). Processing all faces.')
+
+            # Process each face found
+            all_results = []
+            for idx, query_face in enumerate(query_faces):
+                query_embedding = query_face.get('embedding')
+
+                if not query_embedding:
+                    continue
+
+                # Search against whitelist in Milvus
+                try:
+                    search_results = milvus_service.search_whitelist_faces(
+                        query_embedding=query_embedding,
+                        threshold=threshold,
+                        limit=max_results
+                    )
+
+                    # Process results and get whitelist entries
+                    for result in search_results:
+                        try:
+                            whitelist_entry = Targets_whitelist.objects.get(id=result['whitelist_id'])
+                            all_results.append({
+                                'whitelist_entry': whitelist_entry,
+                                'similarity': result['similarity'],
+                                'confidence': result['confidence'],
+                                'face_index': idx + 1,
+                                'total_faces': len(query_faces),
+                                'access_granted': result['similarity'] >= threshold and whitelist_entry.is_active()
+                            })
+                        except Targets_whitelist.DoesNotExist:
+                            logger.warning(f"Whitelist entry {result['whitelist_id']} not found in database")
+                            continue
+
+                except Exception as e:
+                    logger.error(f"Error searching for face {idx + 1}: {e}")
+                    continue
+
+            if all_results:
+                # Sort by similarity (highest first)
+                all_results.sort(key=lambda x: x['similarity'], reverse=True)
+
+                # Group by face if multiple faces were detected
+                if len(query_faces) > 1:
+                    messages.info(request, f'Found {len(query_faces)} faces in image. Showing results for all faces.')
+                else:
+                    messages.info(request, 'Face identification completed.')
+
+                return render(request, 'face_verification_results.html', {
+                    'verification_type': 'whitelist_identification',
+                    'query_image': query_image,
+                    'results': all_results,
+                    'threshold': threshold,
+                    'mode': 'image_vs_whitelist'
+                })
+            else:
+                messages.info(request, 'No matching faces found in whitelist.')
+                return render(request, 'face_verification_whitelist.html', {
+                    'whitelist_entries': whitelist_entries,
+                    'services_status': services_status
+                })
+
+        except Exception as e:
+            error_msg = f'Error processing query image: {str(e)}'
+            messages.error(request, error_msg)
+            logger.error(f"Image processing error: {e}")
+            return render(request, 'face_verification_whitelist.html', {
+                'whitelist_entries': whitelist_entries,
+                'services_status': services_status
+            })
+
+    except Exception as e:
+        error_msg = f'Unexpected error in whitelist identification: {str(e)}'
+        messages.error(request, error_msg)
+        logger.error(f"Unexpected error in whitelist identification: {e}")
+        return render(request, 'face_verification_whitelist.html', {
+            'whitelist_entries': whitelist_entries,
+            'services_status': services_status
+        })

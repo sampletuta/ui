@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <!-- Header Section -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <div>
+                        <h4 class="mb-1 text-white">
+                            <i class="fa fa-shield-alt me-2 text-success"></i>Whitelist Verification
+                        </h4>
+                        <p class="mb-0 text-light">Access control and identification using authorized personnel database</p>
+                        <ul class="mb-0 small mt-2 text-light">
+                            <li>✅ <strong>Mode 1:</strong> Access Control - Verify if person has whitelist access</li>
+                            <li>✅ <strong>Mode 2:</strong> Identification - Identify which authorized person is in the image</li>
+                            <li>✅ <strong>Real-time Validation:</strong> Check validity periods and access levels</li>
+                        </ul>
+                    </div>
+                    <div class="text-end">
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-success btn-sm">
+                            <i class="fa fa-home me-1"></i>Dashboard
+                        </a>
+                        <a href="{% url 'list_whitelist' %}" class="btn btn-outline-success btn-sm ms-2">
+                            <i class="fa fa-users me-1"></i>View Whitelist
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Status Component -->
+        {% include 'components/service_status.html' %}
+
+        <!-- Verification Mode Selection -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <h5 class="mb-4 text-white">
+                    <i class="fa fa-cogs me-2 text-success"></i>Verification Mode
+                </h5>
+
+                <div class="row g-3">
+                    <!-- Mode 1: Access Control -->
+                    <div class="col-12">
+                        <div class="bg-black rounded p-4 h-100 border border-success">
+                            <div class="text-center mb-3">
+                                <i class="fa fa-lock-open fa-3x text-success mb-3"></i>
+                                <h6 class="text-white">Access Control Verification</h6>
+                                <p class="text-light small">Verify if a person has authorized access by comparing against whitelist</p>
+                            </div>
+
+                            <form method="post" enctype="multipart/form-data" class="row g-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="verification_mode" value="mode1">
+
+                                <!-- Image Upload -->
+                                <div class="col-12">
+                                    <label for="query_image" class="form-label text-white">
+                                        <i class="fa fa-camera me-2"></i>Upload Person's Image
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="file" name="query_image" id="query_image"
+                                           class="form-control bg-secondary text-white border-0"
+                                           accept="image/*" required>
+                                    <div class="form-text text-light">
+                                        Upload a clear photo of the person requesting access
+                                    </div>
+                                </div>
+
+                                <!-- Verification Settings -->
+                                <div class="col-md-6">
+                                    <label for="threshold" class="form-label text-white">
+                                        <i class="fa fa-sliders-h me-2"></i>Similarity Threshold
+                                    </label>
+                                    <div class="input-group">
+                                        <input type="range" class="form-range" id="threshold_range" name="threshold"
+                                               min="10" max="100" value="60" step="5"
+                                               oninput="updateThresholdValue(this.value)">
+                                        <span class="input-group-text bg-secondary text-white border-0" id="threshold_value">60%</span>
+                                    </div>
+                                    <div class="form-text text-light">
+                                        Minimum similarity score required for access (10-100%)
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="max_results" class="form-label text-white">
+                                        <i class="fa fa-list me-2"></i>Maximum Results
+                                    </label>
+                                    <select name="max_results" class="form-select bg-secondary text-white border-0">
+                                        <option value="1">1 result</option>
+                                        <option value="3" selected>3 results</option>
+                                        <option value="5">5 results</option>
+                                        <option value="10">10 results</option>
+                                    </select>
+                                    <div class="form-text text-light">
+                                        Number of potential matches to return
+                                    </div>
+                                </div>
+
+                                <!-- Submit Button -->
+                                <div class="col-12 text-center">
+                                    <button type="submit" class="btn btn-success btn-lg">
+                                        <i class="fa fa-shield-alt me-2"></i>Verify Access
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Mode 2: Person Identification -->
+                    <div class="col-12">
+                        <div class="bg-black rounded p-4 h-100 border border-success">
+                            <div class="text-center mb-3">
+                                <i class="fa fa-user-tag fa-3x text-success mb-3"></i>
+                                <h6 class="text-white">Person Identification</h6>
+                                <p class="text-light small">Identify which authorized person appears in the uploaded image</p>
+                            </div>
+
+                            <form method="post" enctype="multipart/form-data" class="row g-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="verification_mode" value="mode2">
+
+                                <!-- Image Upload -->
+                                <div class="col-12">
+                                    <label for="query_image_mode2" class="form-label text-white">
+                                        <i class="fa fa-camera me-2"></i>Upload Image for Identification
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="file" name="query_image" id="query_image_mode2"
+                                           class="form-control bg-secondary text-white border-0"
+                                           accept="image/*" required>
+                                    <div class="form-text text-light">
+                                        Upload an image containing one or more authorized personnel
+                                    </div>
+                                </div>
+
+                                <!-- Verification Settings -->
+                                <div class="col-md-6">
+                                    <label for="threshold_mode2" class="form-label text-white">
+                                        <i class="fa fa-sliders-h me-2"></i>Similarity Threshold
+                                    </label>
+                                    <div class="input-group">
+                                        <input type="range" class="form-range" id="threshold_range_mode2" name="threshold"
+                                               min="10" max="100" value="60" step="5"
+                                               oninput="updateThresholdValueMode2(this.value)">
+                                        <span class="input-group-text bg-secondary text-white border-0" id="threshold_value_mode2">60%</span>
+                                    </div>
+                                    <div class="form-text text-light">
+                                        Minimum similarity score for identification (10-100%)
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="max_results_mode2" class="form-label text-white">
+                                        <i class="fa fa-list me-2"></i>Maximum Results per Person
+                                    </label>
+                                    <select name="max_results" class="form-select bg-secondary text-white border-0">
+                                        <option value="1">1 result</option>
+                                        <option value="3" selected>3 results</option>
+                                        <option value="5">5 results</option>
+                                        <option value="10">10 results</option>
+                                    </select>
+                                    <div class="form-text text-light">
+                                        Number of potential matches per detected person
+                                    </div>
+                                </div>
+
+                                <!-- Submit Button -->
+                                <div class="col-12 text-center">
+                                    <button type="submit" class="btn btn-success btn-lg">
+                                        <i class="fa fa-search me-2"></i>Identify Person
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Whitelist Summary -->
+        <div class="col-12">
+            <div class="bg-dark rounded h-100 p-4">
+                <h5 class="mb-4 text-white">
+                    <i class="fa fa-users me-2 text-success"></i>Active Whitelist Summary
+                </h5>
+
+                <div class="row g-4">
+                    {% for entry in whitelist_entries %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="bg-black rounded p-3 h-100 border border-success">
+                            <div class="d-flex align-items-center mb-3">
+                                {% if entry.images.first %}
+                                    <img src="{{ entry.images.first.image.url }}"
+                                         class="rounded-circle me-3"
+                                         style="width:50px;height:50px;object-fit:cover;"
+                                         alt="Profile">
+                                {% else %}
+                                    <div class="bg-secondary rounded-circle me-3 d-flex align-items-center justify-content-center"
+                                         style="width:50px;height:50px;">
+                                        <i class="fa fa-user text-white"></i>
+                                    </div>
+                                {% endif %}
+                                <div>
+                                    <h6 class="text-white mb-0">{{ entry.person_name }}</h6>
+                                    <small class="text-light">{{ entry.employee_id|default:'No ID' }}</small>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 text-center">
+                                <div class="col-6">
+                                    <span class="badge bg-success">{{ entry.get_access_level_display }}</span>
+                                </div>
+                                <div class="col-6">
+                                    <span class="badge bg-info">{{ entry.get_image_count }} img</span>
+                                </div>
+                            </div>
+
+                            {% if entry.authorized_areas %}
+                            <div class="mt-2">
+                                <small class="text-light">
+                                    <i class="fa fa-map-marker-alt me-1"></i>
+                                    {{ entry.authorized_areas|join:', ' }}
+                                </small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-center">
+                        <div class="alert alert-warning">
+                            <i class="fa fa-exclamation-triangle me-2"></i>
+                            <strong>No Active Whitelist Entries:</strong>
+                            <a href="{% url 'add_whitelist' %}" class="alert-link">Add authorized personnel</a> to enable verification.
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Update threshold value display for Mode 1
+function updateThresholdValue(value) {
+    document.getElementById('threshold_value').textContent = value + '%';
+}
+
+// Update threshold value display for Mode 2
+function updateThresholdValueMode2(value) {
+    document.getElementById('threshold_value_mode2').textContent = value + '%';
+}
+</script>
+{% endblock %}
+
+

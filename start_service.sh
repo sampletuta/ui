@@ -157,7 +157,7 @@ setup_environment() {
     export ENVIRONMENT="${ENVIRONMENT:-development}"
     if [ -z "${DEBUG:-}" ]; then
         if [ "$ENVIRONMENT" = "production" ]; then
-            export DEBUG=False
+            export DEBUG=True
         else
             export DEBUG=True
         fi

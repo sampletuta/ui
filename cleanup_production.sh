@@ -113,10 +113,6 @@ print_info "⚙️  Cleaning configuration files..."
 
 DEV_CONFIGS=(
     "env.development"
-    "backend/settings_docker.py"
-    "docker-compose.yml"
-    "Dockerfile"
-    "docker-entrypoint.sh"
 )
 
 for config in "${DEV_CONFIGS[@]}"; do

@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm, PasswordChangeForm
 from django.contrib.auth import get_user_model
-from .models import Targets_watchlist, TargetPhoto, Case, SearchQuery
+from .models import Targets_watchlist, TargetPhoto, Case, SearchQuery, Targets_whitelist, WhitelistPhoto
 
 User = get_user_model()
 
@@ -330,4 +330,88 @@ class CaseForm(forms.ModelForm):
         widgets = {
             'case_name': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-        } 
+        }
+
+class WhitelistForm(forms.ModelForm):
+    images = MultipleFileField(
+        widget=MultipleImageInput(attrs={
+            'class': 'form-control',
+            'accept': 'image/*',
+            'multiple': True,
+        }),
+        required=False,
+        help_text='Upload one or more images of the authorized person (required for new entries)'
+    )
+
+    class Meta:
+        model = Targets_whitelist
+        fields = [
+            'person_name', 'employee_id', 'department', 'position',
+            'person_text', 'email', 'phone', 'address',
+            'access_level', 'status', 'gender',
+            'valid_from', 'valid_until',
+            'clearance_level', 'authorized_areas'
+        ]
+        widgets = {
+            'person_name': forms.TextInput(attrs={'class': 'form-control', 'required': True}),
+            'employee_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'department': forms.TextInput(attrs={'class': 'form-control'}),
+            'position': forms.TextInput(attrs={'class': 'form-control'}),
+            'person_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'access_level': forms.Select(attrs={'class': 'form-select', 'required': True}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'gender': forms.Select(attrs={'class': 'form-select'}),
+            'valid_from': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'valid_until': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'clearance_level': forms.TextInput(attrs={'class': 'form-control'}),
+            'authorized_areas': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Enter authorized areas as comma-separated values'}),
+        }
+
+    def clean_images(self):
+        """Validate uploaded images"""
+        images = self.cleaned_data.get('images') or []
+        has_uploaded = any(getattr(img, 'name', None) for img in images)
+
+        # Determine if we must require at least one image
+        is_new = not getattr(self.instance, 'pk', None)
+        has_existing = False
+        try:
+            has_existing = (not is_new) and hasattr(self.instance, 'images') and self.instance.images.exists()
+        except Exception:
+            has_existing = False
+
+        if not has_uploaded and not has_existing:
+            raise forms.ValidationError('At least one image is required for the whitelist entry.')
+
+        for image in images:
+            if image and getattr(image, 'name', None):
+                if not getattr(image, 'content_type', '').startswith('image/'):
+                    raise forms.ValidationError(f'{image.name} is not a valid image file.')
+                if getattr(image, 'size', 0) > 5 * 1024 * 1024:
+                    raise forms.ValidationError(f'{image.name} is too large. Maximum size is 5MB.')
+
+        return images
+
+    def clean_authorized_areas(self):
+        """Convert authorized_areas textarea to JSON-compatible list"""
+        areas_text = self.cleaned_data.get('authorized_areas', '')
+        if areas_text and areas_text.strip():
+            # Split by comma and clean up whitespace
+            areas = [area.strip() for area in areas_text.split(',') if area.strip()]
+            return areas
+        return []
+
+    def clean(self):
+        """Additional form validation"""
+        cleaned_data = super().clean()
+        valid_from = cleaned_data.get('valid_from')
+        valid_until = cleaned_data.get('valid_until')
+
+        # Validate date range
+        if valid_from and valid_until and valid_from >= valid_until:
+            raise forms.ValidationError('Valid until date must be after valid from date.')
+
+        return cleaned_data 

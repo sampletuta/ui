@@ -9,6 +9,7 @@ import uuid
 import json
 from django.conf import settings
 from django.urls import reverse
+from django.utils import timezone
 from backendapp.utils.notifications import notify
 
 # Create your models here.
@@ -355,6 +356,175 @@ class SearchResult(models.Model):
     def get_url_for_notifications(self, notification, request):
         from django.urls import reverse
         return reverse('search_results_advanced', kwargs={'search_id': self.search_query.id})
+
+# Whitelist Models
+class Targets_whitelist(models.Model):
+    """Whitelist for trusted/authorized individuals"""
+    ACCESS_LEVELS = [
+        ('basic', 'Basic Access'),
+        ('standard', 'Standard Access'),
+        ('premium', 'Premium Access'),
+        ('admin', 'Administrative Access'),
+        ('vip', 'VIP Access'),
+    ]
+
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('suspended', 'Suspended'),
+        ('expired', 'Expired'),
+        ('revoked', 'Revoked'),
+    ]
+
+    GENDER = [
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    person_name = models.CharField(max_length=100, help_text='Name of the authorized person')
+    employee_id = models.CharField(max_length=50, blank=True, null=True, help_text='Employee ID or badge number')
+    department = models.CharField(max_length=100, blank=True, null=True, help_text='Department or division')
+    position = models.CharField(max_length=100, blank=True, null=True, help_text='Job position or title')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Contact information
+    person_text = models.TextField(blank=True, null=True, help_text='Additional notes about the person')
+    email = models.EmailField(blank=True, null=True)
+    phone = models.CharField(max_length=100, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+
+    # Authorization details
+    access_level = models.CharField(max_length=20, choices=ACCESS_LEVELS, default='standard')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    gender = models.CharField(max_length=20, choices=GENDER, default='other')
+
+    # Validity period
+    valid_from = models.DateTimeField(blank=True, null=True, help_text='Access valid from this date')
+    valid_until = models.DateTimeField(blank=True, null=True, help_text='Access expires on this date')
+
+    # Security clearance
+    clearance_level = models.CharField(max_length=50, blank=True, null=True, help_text='Security clearance level')
+    authorized_areas = models.JSONField(default=list, blank=True, help_text='List of authorized areas/zones')
+
+    # Audit fields
+    created_by = models.ForeignKey(CustomUser, related_name='whitelist_created', on_delete=models.SET_NULL, null=True, blank=True)
+    approved_by = models.ForeignKey(CustomUser, related_name='whitelist_approved', on_delete=models.SET_NULL, null=True, blank=True)
+    last_verified = models.DateTimeField(blank=True, null=True, help_text='Last time access was verified')
+
+    def __str__(self):
+        return f"{self.person_name} ({self.employee_id or 'No ID'})"
+
+    def is_active(self):
+        """Check if the whitelist entry is currently active"""
+        if self.status != 'active':
+            return False
+        if self.valid_from and self.valid_from > timezone.now():
+            return False
+        if self.valid_until and self.valid_until < timezone.now():
+            return False
+        return True
+
+    def has_images(self):
+        """Check if person has at least one image"""
+        return self.images.exists()
+
+    def get_primary_image(self):
+        """Get the first image or return None"""
+        return self.images.first()
+
+    def get_image_count(self):
+        """Get the total number of images"""
+        return self.images.count()
+
+    def get_absolute_url(self):
+        return reverse('whitelist_profile', kwargs={'pk': self.id})
+
+    class Meta:
+        verbose_name = 'Whitelist Entry'
+        verbose_name_plural = 'Whitelist Entries'
+        ordering = ['-created_at']
+
+class WhitelistPhoto(models.Model):
+    """Photos for whitelist entries"""
+    person = models.ForeignKey(Targets_whitelist, related_name='images', on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='whitelist_photos/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(CustomUser, related_name='whitelist_images', on_delete=models.CASCADE)
+
+    # Image quality metadata
+    face_confidence = models.FloatField(blank=True, null=True, help_text='Face detection confidence score')
+    image_quality = models.CharField(max_length=20, blank=True, null=True, help_text='Image quality assessment')
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"Photo for {self.person.person_name} ({self.id})"
+
+    def clean(self):
+        """Validate image file"""
+        if self.image:
+            # Check file size (max 5MB)
+            try:
+                if getattr(self.image, 'size', 0) > 5 * 1024 * 1024:
+                    raise ValidationError('Image file size must be under 5MB.')
+            except Exception:
+                pass
+
+            # Validate that the file is an actual image
+            try:
+                if hasattr(self.image, 'open'):
+                    self.image.open()
+                if hasattr(self.image, 'seek'):
+                    self.image.seek(0)
+                with Image.open(self.image) as img:
+                    img.verify()
+                if hasattr(self.image, 'seek'):
+                    self.image.seek(0)
+            except (UnidentifiedImageError, OSError, ValueError) as _e:
+                raise ValidationError('File must be an image.')
+
+            # Additional validation for face detection quality
+            try:
+                if hasattr(self.image, 'open'):
+                    self.image.open()
+                if hasattr(self.image, 'seek'):
+                    self.image.seek(0)
+
+                with Image.open(self.image) as img:
+                    width, height = img.size
+                    if width < 100 or height < 100:
+                        raise ValidationError('Image resolution is too low for reliable face detection.')
+
+            except Exception as e:
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Could not validate image dimensions for {self.image.name}: {e}")
+                pass
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """Prevent deletion of the last image for a whitelist entry"""
+        if self.person.images.count() <= 1:
+            raise ValidationError(
+                f"Cannot delete the last image for '{self.person.person_name}'. "
+                "Each whitelist entry must have at least one image."
+            )
+        super().delete(*args, **kwargs)
+
+    def force_delete(self, *args, **kwargs):
+        """Force delete without validation"""
+        super().delete(*args, **kwargs)
+
+    def get_url_for_notifications(self, notification, request):
+        from django.urls import reverse
+        return reverse('whitelist_profile', kwargs={'pk': self.person.id})
 
 # Legacy models for backward compatibility
 class SearchHistory(models.Model):

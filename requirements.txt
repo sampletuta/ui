@@ -12,9 +12,8 @@ channels>=4.0.0,<5.0.0
 # Face Recognition and AI
 opencv-contrib-python>=4.8.0,<4.9.0
 facenet-pytorch>=0.2.1,<0.3.0
-torch>=1.13.0,<1.14.0
-torchvision>=0.14.0,<0.15.0
-numpy>=1.24.0,<1.25.0
+# torch and torchvision are installed as CPU-only wheels
+numpy>=1.24.0,<2.0.0
 Pillow>=10.0.0,<11.0.0
 
 # Vector Database
@@ -36,6 +35,17 @@ django-celery-beat>=2.5.0,<2.6.0
 
 # PDF Rendering
 xhtml2pdf>=0.2.15,<0.3.0
+
+# Map visualization
+folium>=0.14.0,<0.16.0
+
+# Database
+psycopg2-binary>=2.9.0,<2.10.0
+dj-database-url>=2.1.0,<2.2.0
+
+# Production Server
+gunicorn>=21.2.0,<22.0.0
+gevent>=23.9.0,<24.0.0
 
 # Development and Testing
 pytest>=7.0.0,<7.1.0

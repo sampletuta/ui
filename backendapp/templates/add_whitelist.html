@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12 col-md-10 col-lg-8 mx-auto">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">Add Authorized Person to Whitelist</h6>
+                    <a href="{% url 'list_whitelist' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa fa-list me-2"></i>View Whitelist
+                    </a>
+                </div>
+
+                <div class="alert alert-success">
+                    <i class="fa fa-shield-alt me-2"></i>
+                    <strong>Note:</strong> Adding someone to the whitelist grants them authorized access.
+                    Ensure you have proper authorization before proceeding.
+                </div>
+
+                <form method="post" enctype="multipart/form-data" class="row g-3">
+                    {% csrf_token %}
+
+                    <!-- Personal Information Section -->
+                    <div class="col-12">
+                        <h6 class="text-primary mb-3">
+                            <i class="fa fa-user me-2"></i>Personal Information
+                        </h6>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.person_name.id_for_label }}" class="form-label">
+                            Full Name <span class="text-danger">*</span>
+                        </label>
+                        {{ form.person_name }}
+                        {% for error in form.person_name.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.employee_id.id_for_label }}" class="form-label">Employee ID</label>
+                        {{ form.employee_id }}
+                        {% for error in form.employee_id.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Optional employee or badge number</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.department.id_for_label }}" class="form-label">Department</label>
+                        {{ form.department }}
+                        {% for error in form.department.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.position.id_for_label }}" class="form-label">Position</label>
+                        {{ form.position }}
+                        {% for error in form.position.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.gender.id_for_label }}" class="form-label">Gender</label>
+                        {{ form.gender }}
+                        {% for error in form.gender.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Contact Information Section -->
+                    <div class="col-12">
+                        <h6 class="text-primary mb-3">
+                            <i class="fa fa-address-book me-2"></i>Contact Information
+                        </h6>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.email.id_for_label }}" class="form-label">Email Address</label>
+                        {{ form.email }}
+                        {% for error in form.email.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.phone.id_for_label }}" class="form-label">Phone Number</label>
+                        {{ form.phone }}
+                        {% for error in form.phone.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-12">
+                        <label for="{{ form.address.id_for_label }}" class="form-label">Address</label>
+                        {{ form.address }}
+                        {% for error in form.address.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Authorization Section -->
+                    <div class="col-12">
+                        <h6 class="text-primary mb-3">
+                            <i class="fa fa-key me-2"></i>Authorization Details
+                        </h6>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.access_level.id_for_label }}" class="form-label">
+                            Access Level <span class="text-danger">*</span>
+                        </label>
+                        {{ form.access_level }}
+                        {% for error in form.access_level.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.clearance_level.id_for_label }}" class="form-label">Security Clearance</label>
+                        {{ form.clearance_level }}
+                        {% for error in form.clearance_level.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Security clearance level (optional)</div>
+                    </div>
+
+                    <!-- Validity Period -->
+                    <div class="col-12">
+                        <h6 class="text-primary mb-3">
+                            <i class="fa fa-calendar me-2"></i>Validity Period
+                        </h6>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.valid_from.id_for_label }}" class="form-label">Valid From</label>
+                        {{ form.valid_from }}
+                        {% for error in form.valid_from.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Leave empty for immediate activation</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="{{ form.valid_until.id_for_label }}" class="form-label">Valid Until</label>
+                        {{ form.valid_until }}
+                        {% for error in form.valid_until.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Leave empty for no expiration</div>
+                    </div>
+
+                    <div class="col-12">
+                        <label for="{{ form.authorized_areas.id_for_label }}" class="form-label">Authorized Areas</label>
+                        {{ form.authorized_areas }}
+                        {% for error in form.authorized_areas.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Enter authorized areas/zones separated by commas</div>
+                    </div>
+
+                    <!-- Additional Notes -->
+                    <div class="col-12">
+                        <label for="{{ form.person_text.id_for_label }}" class="form-label">Additional Notes</label>
+                        {{ form.person_text }}
+                        {% for error in form.person_text.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Any additional information about this person</div>
+                    </div>
+
+                    <!-- Image Upload Section -->
+                    <div class="col-12">
+                        <h6 class="text-primary mb-3">
+                            <i class="fa fa-camera me-2"></i>Identification Images
+                        </h6>
+                        <label for="{{ form.images.id_for_label }}" class="form-label">
+                            Upload Images <span class="text-danger">*</span>
+                        </label>
+                        {{ form.images }}
+                        {% if form.images.help_text %}<div class="form-text">{{ form.images.help_text }}</div>{% endif %}
+                        {% for error in form.images.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+
+                        <!-- Image Quality Guidelines -->
+                        <div class="mt-3 p-3 bg-light rounded border">
+                            <h6 class="mb-2"><i class="fa fa-lightbulb me-2"></i>Image Quality Guidelines</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="text-success mb-2"><i class="fa fa-check me-1"></i>Recommended:</h6>
+                                    <ul class="small text-muted mb-0">
+                                        <li>High resolution images (at least 200x200 pixels)</li>
+                                        <li>Clear, well-lit faces</li>
+                                        <li>Front-facing or slightly angled faces</li>
+                                        <li>Good contrast and focus</li>
+                                        <li>Natural lighting (avoid heavy filters)</li>
+                                        <li>Professional/business attire when applicable</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="text-warning mb-2"><i class="fa fa-exclamation-triangle me-1"></i>Avoid:</h6>
+                                    <ul class="small text-muted mb-0">
+                                        <li>Very small faces (below 100x100 pixels)</li>
+                                        <li>Blurry or low-quality images</li>
+                                        <li>Heavily filtered or edited photos</li>
+                                        <li>Faces in shadow or poor lighting</li>
+                                        <li>Side profiles or obscured faces</li>
+                                        <li>Casual/party attire for professional contexts</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-info">
+                                    <i class="fa fa-info-circle me-1"></i>
+                                    <strong>Note:</strong> Images with faces smaller than 20x20 pixels cannot be processed by the face recognition system.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fa fa-plus me-2"></i>Add to Whitelist
+                            </button>
+                            <a href="{% url 'list_whitelist' %}" class="btn btn-secondary">
+                                <i class="fa fa-times me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

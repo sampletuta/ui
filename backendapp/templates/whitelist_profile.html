@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12 col-lg-8 mx-auto">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex align-items-center mb-4">
+                    <div class="me-4">
+                        {% with primary=whitelist_entry.get_primary_image %}
+                            {% if primary and primary.image %}
+                                <img src="{{ primary.image.url }}" class="img-fluid rounded" style="width:120px;height:120px;object-fit:cover;" alt="Profile Image">
+                            {% else %}
+                                <img src="https://ui-avatars.com/api/?name={{ whitelist_entry.person_name|urlencode }}&size=120&background=28a745" class="img-fluid rounded" style="width:120px;height:120px;object-fit:cover;" alt="No Image">
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                    <div>
+                        <h3 class="mb-0">{{ whitelist_entry.person_name }}</h3>
+                        {% if whitelist_entry.employee_id %}
+                            <small class="text-muted">Employee ID: {{ whitelist_entry.employee_id }}</small>
+                        {% endif %}
+
+                        {% if not whitelist_entry.has_images %}
+                            <div class="alert alert-warning alert-sm mt-2 mb-0">
+                                <i class="fa fa-exclamation-triangle me-2"></i>
+                                <strong>Warning:</strong> This person has no images. Add images for better face recognition.
+                            </div>
+                        {% elif whitelist_entry.get_image_count == 1 %}
+                            <div class="alert alert-info alert-sm mt-2 mb-0">
+                                <i class="fa fa-info-circle me-2"></i>
+                                <strong>Info:</strong> This person has only one image. You cannot delete it as each whitelist entry must have at least one image.
+                                <a href="{% url 'add_whitelist_images' whitelist_entry.pk %}" class="alert-link">Add more images</a> to enable deletion.
+                            </div>
+                        {% endif %}
+
+                        <!-- Status Badge -->
+                        <div class="mt-2">
+                            {% if whitelist_entry.status == 'active' %}
+                                <span class="badge bg-success">{{ whitelist_entry.get_status_display }}</span>
+                            {% elif whitelist_entry.status == 'suspended' %}
+                                <span class="badge bg-warning">{{ whitelist_entry.get_status_display }}</span>
+                            {% elif whitelist_entry.status == 'expired' %}
+                                <span class="badge bg-secondary">{{ whitelist_entry.get_status_display }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">{{ whitelist_entry.get_status_display }}</span>
+                            {% endif %}
+
+                            <span class="badge bg-info ms-1">{{ whitelist_entry.get_access_level_display }}</span>
+                        </div>
+
+                        <div class="mt-2">
+                            <a href="{% url 'edit_whitelist' whitelist_entry.pk %}" class="btn btn-warning btn-sm">Edit</a>
+                            <a href="{% url 'delete_whitelist' whitelist_entry.pk %}" class="btn btn-danger btn-sm">Delete</a>
+                            <a href="{% url 'add_whitelist_images' whitelist_entry.pk %}" class="btn btn-info btn-sm">
+                                <i class="fa fa-camera me-1"></i>Add Images
+                            </a>
+                            <a href="{% url 'list_whitelist' %}" class="btn btn-secondary btn-sm">Back to Whitelist</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Personal Information -->
+                    <div class="col-md-6">
+                        <h5 class="text-primary mb-3">
+                            <i class="fa fa-user me-2"></i>Personal Information
+                        </h5>
+                        <table class="table table-borderless">
+                            <tr><th>Full Name:</th><td>{{ whitelist_entry.person_name }}</td></tr>
+                            <tr><th>Employee ID:</th><td>{{ whitelist_entry.employee_id|default:'-' }}</td></tr>
+                            <tr><th>Department:</th><td>{{ whitelist_entry.department|default:'-' }}</td></tr>
+                            <tr><th>Position:</th><td>{{ whitelist_entry.position|default:'-' }}</td></tr>
+                            <tr><th>Gender:</th><td>{{ whitelist_entry.get_gender_display }}</td></tr>
+                        </table>
+                    </div>
+
+                    <!-- Authorization Details -->
+                    <div class="col-md-6">
+                        <h5 class="text-primary mb-3">
+                            <i class="fa fa-shield-alt me-2"></i>Authorization Details
+                        </h5>
+                        <table class="table table-borderless">
+                            <tr><th>Access Level:</th><td>{{ whitelist_entry.get_access_level_display }}</td></tr>
+                            <tr><th>Status:</th><td>{{ whitelist_entry.get_status_display }}</td></tr>
+                            <tr><th>Clearance Level:</th><td>{{ whitelist_entry.clearance_level|default:'-' }}</td></tr>
+                            <tr><th>Valid From:</th><td>
+                                {% if whitelist_entry.valid_from %}
+                                    {{ whitelist_entry.valid_from|date:'M d, Y H:i' }}
+                                {% else %}
+                                    Immediate
+                                {% endif %}
+                            </td></tr>
+                            <tr><th>Valid Until:</th><td>
+                                {% if whitelist_entry.valid_until %}
+                                    {{ whitelist_entry.valid_until|date:'M d, Y H:i' }}
+                                {% else %}
+                                    No expiration
+                                {% endif %}
+                            </td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Contact Information -->
+                <div class="row">
+                    <div class="col-12">
+                        <h5 class="text-primary mb-3">
+                            <i class="fa fa-address-book me-2"></i>Contact Information
+                        </h5>
+                        <table class="table table-borderless">
+                            <tr><th>Email:</th><td>{{ whitelist_entry.email|default:'-' }}</td></tr>
+                            <tr><th>Phone:</th><td>{{ whitelist_entry.phone|default:'-' }}</td></tr>
+                            <tr><th>Address:</th><td>{{ whitelist_entry.address|linebreaksbr|default:'-' }}</td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Authorized Areas -->
+                {% if whitelist_entry.authorized_areas %}
+                <div class="row">
+                    <div class="col-12">
+                        <h5 class="text-primary mb-3">
+                            <i class="fa fa-map-marker-alt me-2"></i>Authorized Areas
+                        </h5>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for area in whitelist_entry.authorized_areas %}
+                                <span class="badge bg-light text-dark">{{ area }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Additional Notes -->
+                {% if whitelist_entry.person_text %}
+                <div class="row">
+                    <div class="col-12">
+                        <h5 class="text-primary mb-3">
+                            <i class="fa fa-sticky-note me-2"></i>Additional Notes
+                        </h5>
+                        <div class="bg-dark rounded p-3">{{ whitelist_entry.person_text|linebreaksbr }}</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Audit Information -->
+                <div class="row">
+                    <div class="col-12">
+                        <h5 class="text-primary mb-3">
+                            <i class="fa fa-history me-2"></i>Audit Information
+                        </h5>
+                        <table class="table table-borderless">
+                            <tr><th>Created:</th><td>{{ whitelist_entry.created_at|date:'M d, Y H:i' }} ({{ whitelist_entry.created_at|naturaltime }})</td></tr>
+                            <tr><th>Created By:</th><td>{{ whitelist_entry.created_by.email|default:'-' }}</td></tr>
+                            <tr><th>Approved By:</th><td>{{ whitelist_entry.approved_by.email|default:'Not approved' }}</td></tr>
+                            <tr><th>Last Verified:</th><td>
+                                {% if whitelist_entry.last_verified %}
+                                    {{ whitelist_entry.last_verified|date:'M d, Y H:i' }}
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Photo Gallery -->
+                <h5 class="mt-4">
+                    <i class="fa fa-images me-2"></i>Photo Gallery
+                    <span class="badge bg-primary ms-2">{{ whitelist_entry.get_image_count }}</span>
+                </h5>
+                <div class="row g-2">
+                    {% if whitelist_entry.has_images %}
+                        {% for img in images %}
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <div class="card bg-dark mb-2">
+                                    {% if img.image and img.image.url %}
+                                        <img src="{{ img.image.url }}" class="card-img-top img-fluid rounded" style="max-width:100%;max-height:200px;object-fit:contain;" alt="Person Image">
+                                    {% endif %}
+                                    <div class="card-body p-2 text-center">
+                                        <small class="text-muted">
+                                            <i class="fa fa-calendar me-1"></i>{{ img.uploaded_at|date:'M d, Y' }}
+                                        </small>
+                                        {% if img.face_confidence %}
+                                        <div class="mt-1">
+                                            <small class="text-info">
+                                                <i class="fa fa-brain me-1"></i>{{ img.face_confidence|floatformat:1 }}%
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                        <div class="mt-2">
+                                            {% if whitelist_entry.get_image_count > 1 %}
+                                                <a href="{% url 'delete_whitelist_image' whitelist_entry.pk img.pk %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this image?');">
+                                                    <i class="fa fa-trash me-1"></i>Delete
+                                                </a>
+                                            {% else %}
+                                                <button class="btn btn-sm btn-outline-secondary" disabled title="Cannot delete the last image. Each whitelist entry must have at least one image.">
+                                                    <i class="fa fa-lock me-1"></i>Last Image
+                                                </button>
+                                                <small class="d-block text-muted mt-1">
+                                                    <i class="fa fa-info-circle me-1"></i>Cannot delete
+                                                </small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-warning text-center">
+                                <i class="fa fa-exclamation-triangle me-2"></i>
+                                <strong>No Images Found:</strong> This person has no images.
+                                <a href="{% url 'add_whitelist_images' whitelist_entry.pk %}" class="alert-link">Add images</a> for better face recognition.
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

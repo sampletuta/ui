@@ -4,23 +4,34 @@
 
 This is a Django-based ClearSight that separates video management from search functionality, integrates with external face detection services, and provides advanced search capabilities with geospatial filtering and Milvus vector search integration.
 
-## 🚀 Quick Start with Docker
+## 🚀 Quick Start
 
-The easiest way to deploy this application is using Docker:
+To get started with this application:
 
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd ui
 
-# Run the automated deployment
-./deploy.sh
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run migrations
+python3 manage.py migrate
+
+# Create superuser
+python3 manage.py createsuperuser
+
+# Start the development server
+python3 manage.py runserver
 
 # Access the application
 # Open http://localhost:8000 in your browser
 ```
-
-For detailed Docker deployment instructions, see [DOCKER_README.md](DOCKER_README.md).
 
 ## Key Features
 
