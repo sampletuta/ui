@@ -322,6 +322,14 @@ class MilvusSearchForm(forms.Form):
             'step': '0.1'
         })
     )
+    
+    apply_rerank = forms.BooleanField(
+        label="Apply Re-ranking",
+        required=False,
+        initial=True,
+        help_text="Enable query-time re-ranking (embedding + metadata boosts).",
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
 
 class CaseForm(forms.ModelForm):
     class Meta:

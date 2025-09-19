@@ -8,20 +8,46 @@
                 <h3 class="mb-4 text-white">Face Search</h3>
                 
                 <!-- Search Statistics -->
-                {% if stats.success %}
+                {% if service_info.status == 'operational' %}
                 <div class="row mb-4">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="bg-dark rounded p-3 text-center">
-                            <h5 class="text-primary mb-2">{{ stats.milvus_stats.total_vectors }}</h5>
+                            <h5 class="text-primary mb-2">{{ service_info.vector_database.total_vectors }}</h5>
                             <p class="text-light mb-0 small">Total Face Embeddings</p>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="bg-dark rounded p-3 text-center">
-                            <h5 class="text-primary mb-2">{{ stats.django_stats.total_targets }}</h5>
-                            <p class="text-light mb-0 small">Total Targets</p>
+                            <h5 class="text-success mb-2">{{ service_info.vector_database.dimension }}</h5>
+                            <p class="text-light mb-0 small">Vector Dimension</p>
                         </div>
                     </div>
+                    <div class="col-md-4">
+                        <div class="bg-dark rounded p-3 text-center">
+                            <h5 class="text-info mb-2">{{ service_info.vector_database.metric_type }}</h5>
+                            <p class="text-light mb-0 small">Distance Metric</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Service Status -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="alert alert-{% if service_info.health_status.is_healthy %}success{% else %}warning{% endif %} d-flex align-items-center">
+                            <i class="fa fa-{% if service_info.health_status.is_healthy %}check-circle{% else %}exclamation-triangle{% endif %} me-2"></i>
+                            <div>
+                                <strong>Service Status:</strong> {{ service_info.health_status.status|title }}
+                                {% if not service_info.health_status.is_healthy %}
+                                    <br><small>Connection: {{ service_info.health_status.connection_status }}, Collection: {{ service_info.health_status.collection_status }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-danger mb-4">
+                    <i class="fa fa-exclamation-triangle me-2"></i>
+                    <strong>Service Unavailable:</strong> {{ service_info.error }}
                 </div>
                 {% endif %}
                 

@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<style>
+    .search-item {
+        background: rgba(0,0,0,0.1);
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        border-left: 4px solid #007bff;
+    }
+    .search-item:hover {
+        background: rgba(0,0,0,0.2);
+        transition: background 0.3s ease;
+    }
+    .search-meta {
+        color: #6c757d;
+        font-size: 0.9em;
+    }
+    .search-type-badge {
+        font-size: 0.8em;
+        padding: 4px 8px;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">
+                        <i class="fa fa-history me-2"></i>Search History
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'advanced_search' %}" class="btn btn-sm btn-outline-primary">Advanced Search</a>
+                        <a href="{% url 'quick_search' %}" class="btn btn-sm btn-outline-info">Quick Search</a>
+                        <a href="{% url 'milvus_search' %}" class="btn btn-sm btn-outline-success">Milvus Search</a>
+                    </div>
+                </div>
+
+                {% if search_queries %}
+                    <div class="row">
+                        {% for query in search_queries %}
+                        <div class="col-lg-6 col-xl-4 mb-3">
+                            <div class="search-item">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="text-white mb-0">{{ query.query_name }}</h6>
+                                    <span class="badge bg-primary search-type-badge">{{ query.get_search_type_display }}</span>
+                                </div>
+                                
+                                {% if query.description %}
+                                <p class="text-muted mb-2">{{ query.description|truncatechars:100 }}</p>
+                                {% endif %}
+                                
+                                <div class="search-meta mb-3">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <small><i class="fa fa-calendar me-1"></i>{{ query.created_at|date:"M d, Y" }}</small>
+                                        </div>
+                                        <div class="col-6">
+                                            <small><i class="fa fa-clock me-1"></i>{{ query.created_at|time:"H:i" }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="search-details mb-3">
+                                    {% if query.latitude and query.longitude %}
+                                    <div class="mb-1">
+                                        <small class="text-info">
+                                            <i class="fa fa-map-marker-alt me-1"></i>
+                                            Location: {{ query.latitude|floatformat:4 }}, {{ query.longitude|floatformat:4 }}
+                                            {% if query.radius_km %}({{ query.radius_km }}km radius){% endif %}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if query.start_date or query.end_date %}
+                                    <div class="mb-1">
+                                        <small class="text-warning">
+                                            <i class="fa fa-calendar-alt me-1"></i>
+                                            Date Range: 
+                                            {% if query.start_date %}{{ query.start_date|date:"M d, Y" }}{% endif %}
+                                            {% if query.start_date and query.end_date %} - {% endif %}
+                                            {% if query.end_date %}{{ query.end_date|date:"M d, Y" }}{% endif %}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="mb-1">
+                                        <small class="text-success">
+                                            <i class="fa fa-percentage me-1"></i>
+                                            Confidence: {{ query.confidence_threshold|floatformat:2 }}
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="status-indicator">
+                                        {% if query.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="action-buttons">
+                                        <a href="{% url 'search_results_advanced' query.id %}" class="btn btn-sm btn-primary">
+                                            <i class="fa fa-eye me-1"></i>View Results
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Pagination would go here if needed -->
+                    {% if search_queries|length > 12 %}
+                    <div class="d-flex justify-content-center mt-4">
+                        <nav aria-label="Search history pagination">
+                            <ul class="pagination">
+                                <!-- Pagination links would be added here -->
+                            </ul>
+                        </nav>
+                    </div>
+                    {% endif %}
+                    
+                {% else %}
+                    <div class="empty-state">
+                        <i class="fa fa-search"></i>
+                        <h5>No Search History</h5>
+                        <p>You haven't performed any searches yet. Start by creating an advanced search or try a quick search.</p>
+                        <div class="mt-4">
+                            <a href="{% url 'advanced_search' %}" class="btn btn-primary me-2">
+                                <i class="fa fa-plus me-1"></i>Create Advanced Search
+                            </a>
+                            <a href="{% url 'quick_search' %}" class="btn btn-outline-primary">
+                                <i class="fa fa-bolt me-1"></i>Quick Search
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Add any JavaScript functionality here if needed
+    console.log('Search history page loaded');
+});
+</script>
+{% endblock %}

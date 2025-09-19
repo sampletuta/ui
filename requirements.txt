@@ -12,6 +12,9 @@ channels>=4.0.0,<5.0.0
 # Face Recognition and AI
 opencv-contrib-python>=4.8.0,<4.9.0
 facenet-pytorch>=0.2.1,<0.3.0
+
+# insightface>=0.7.3,<0.8.0
+
 # torch and torchvision are installed as CPU-only wheels
 numpy>=1.24.0,<2.0.0
 Pillow>=10.0.0,<11.0.0

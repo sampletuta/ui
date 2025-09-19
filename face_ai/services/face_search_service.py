@@ -74,7 +74,7 @@ class FaceSearchService:
             logger.error(f"Failed to initialize FaceSearchService: {e}")
             raise
     
-    def search_faces_in_image(self, image_file, top_k: int = 5, confidence_threshold: float = 0.6) -> Dict:
+    def search_faces_in_image(self, image_file, top_k: int = 5, confidence_threshold: float = 0.6, apply_rerank: bool = True) -> Dict:
         """
         Main method to search for similar faces in uploaded image
         
@@ -129,15 +129,34 @@ class FaceSearchService:
                         
                         # Search for similar faces in Milvus
                         similar_faces = self.milvus_service.search_similar_faces(
-                            face_embedding, 
-                            top_k=top_k, 
+                            face_embedding,
+                            top_k=top_k,
                             threshold=confidence_threshold
                         )
+
+                        # Apply query-time re-ranking if requested and available
+                        if apply_rerank:
+                            try:
+                                from .re_ranking import ReRanker
+                                reranker = ReRanker()
+                                query_meta = {'source': 'uploaded_image'}
+                                similar_faces = reranker.rerank(face_embedding, similar_faces, query_meta=query_meta)
+                            except Exception as e:
+                                logger.debug(f"Re-ranking not applied: {e}")
                         
                         logger.info(f"Face {i}: Found {len(similar_faces)} similar faces in Milvus (threshold: {confidence_threshold})")
                         
                         # Enrich results with target information
                         enriched_results = self._enrich_search_results(similar_faces)
+
+                        # Ensure each enriched result contains final_score/embed_score for template display
+                        for r in enriched_results:
+                            if 'final_score' not in r:
+                                r['final_score'] = r.get('similarity_score', 0.0)
+                            if 'embed_score' not in r:
+                                r['embed_score'] = r.get('similarity_score', 0.0)
+                            if 'metadata_score' not in r:
+                                r['metadata_score'] = 0.0
                         
                         # Store results for this face
                         face_results = {

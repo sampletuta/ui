@@ -106,41 +106,52 @@ def quick_search(request):
 @login_required
 def milvus_search(request):
     """Milvus vector search interface for face similarity search"""
+    import asyncio
+    
     if request.method == 'POST':
         form = MilvusSearchForm(request.POST, request.FILES)
         if form.is_valid():
             try:
-                # Import the face search service
-                from face_ai.services.face_search_service import FaceSearchService
+                # Import the new face search service
+                from face_ai.services.face_search_service_v2 import FaceSearchService
                 
-                # Initialize the service
-                face_search_service = FaceSearchService()
+                # Define async function to handle the search
+                async def perform_search():
+                    async with FaceSearchService() as face_search_service:
+                        # Get form data
+                        face_image = form.cleaned_data['face_image']
+                        top_k = form.cleaned_data['top_k']
+                        confidence_threshold = form.cleaned_data['confidence_threshold']
+                        
+                        # Perform face search; allow toggling re-ranking from form
+                        apply_rerank = form.cleaned_data.get('apply_rerank', True)
+                        search_result = await face_search_service.search_faces_in_image(
+                            face_image,
+                            top_k=top_k,
+                            confidence_threshold=confidence_threshold,
+                            apply_rerank=apply_rerank
+                        )
+                        
+                        if search_result['success']:
+                            # Get service information
+                            service_info = await face_search_service.get_service_info()
+                            return search_result, service_info
+                        else:
+                            return search_result, None
                 
-                # Get form data
-                face_image = form.cleaned_data['face_image']
-                top_k = form.cleaned_data['top_k']
-                confidence_threshold = form.cleaned_data['confidence_threshold']
-                
-                # Perform face search
-                search_result = face_search_service.search_faces_in_image(
-                    face_image, 
-                    top_k=top_k, 
-                    confidence_threshold=confidence_threshold
-                )
+                # Run the async function
+                search_result, service_info = asyncio.run(perform_search())
                 
                 if search_result['success']:
-                    # Get search statistics
-                    stats = face_search_service.get_search_statistics()
-                    
                     return render(request, 'milvus_search_results.html', {
                         'search_result': search_result,
-                        'stats': stats,
+                        'service_info': service_info,
                         'form': form,
-                        'uploaded_image': face_image
+                        'uploaded_image': form.cleaned_data['face_image']
                     })
                 else:
                     messages.error(request, f'Search failed: {search_result["error"]}')
-                    
+                        
             except ImportError as e:
                 messages.error(request, f'Face search service not available: {e}')
             except Exception as e:
@@ -149,18 +160,22 @@ def milvus_search(request):
     else:
         form = MilvusSearchForm()
     
-    # Get basic statistics for display
+    # Get basic service information for display
     try:
-        from face_ai.services.face_search_service import FaceSearchService
-        face_search_service = FaceSearchService()
-        stats = face_search_service.get_search_statistics()
+        from face_ai.services.face_search_service_v2 import FaceSearchService
+        
+        async def get_service_info():
+            async with FaceSearchService() as face_search_service:
+                return await face_search_service.get_service_info()
+        
+        service_info = asyncio.run(get_service_info())
     except Exception as e:
-        logger.warning(f"Could not get search statistics: {e}")
-        stats = {'success': False, 'error': str(e)}
+        logger.warning(f"Could not get service information: {e}")
+        service_info = {'status': 'error', 'error': str(e)}
     
     return render(request, 'milvus_search.html', {
         'form': form, 
-        'stats': stats
+        'service_info': service_info
     })
 
 @login_required
