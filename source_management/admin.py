@@ -36,8 +36,8 @@ class CameraSourceAdmin(admin.ModelAdmin):
 
 @admin.register(FileSource)
 class FileSourceAdmin(admin.ModelAdmin):
-    list_display = ['name', 'status', 'file_size', 'ingestion_notified', 'created_at']
-    list_filter = ['status', 'file_format', 'ingestion_notified', 'created_at']
+    list_display = ['name', 'status', 'file_size', 'is_active', 'ingestion_notified', 'created_at']
+    list_filter = ['status', 'file_format', 'is_active', 'ingestion_notified', 'created_at']
     search_fields = ['name', 'description', 'location']
     readonly_fields = ['source_id', 'access_token', 'api_endpoint', 'stream_url', 'thumbnail_url', 
                       'created_at', 'updated_at', 'processing_started_at', 'processing_completed_at',
@@ -65,6 +65,9 @@ class FileSourceAdmin(admin.ModelAdmin):
         ('Processing', {
             'fields': ('processing_started_at', 'processing_completed_at', 'processing_error'),
             'classes': ('collapse',)
+        }),
+        ('Status & Configuration', {
+            'fields': ('is_active',)
         }),
         ('Additional Info', {
             'fields': ('recording_date', 'camera_info', 'scene_info'),

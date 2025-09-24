@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<style>
+    .search-summary {
+        background: rgba(0,0,0,0.1);
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid #007bff;
+    }
+    .result-item {
+        background: rgba(0,0,0,0.1);
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        border-left: 4px solid #28a745;
+    }
+    .result-item:hover {
+        background: rgba(0,0,0,0.2);
+        transition: background 0.3s ease;
+    }
+    .result-meta {
+        color: #6c757d;
+        font-size: 0.9em;
+    }
+    .confidence-bar {
+        height: 8px;
+        background: rgba(255,255,255,0.2);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 5px;
+    }
+    .confidence-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+    .search-type-badge {
+        font-size: 0.8em;
+        padding: 4px 8px;
+    }
+    .result-thumbnail {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 2px solid rgba(255,255,255,0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">
+                        <i class="fa fa-search me-2"></i>Quick Search Results
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'quick_search' %}" class="btn btn-sm btn-outline-primary">New Search</a>
+                        <a href="{% url 'advanced_search' %}" class="btn btn-sm btn-outline-info">Advanced Search</a>
+                        <a href="{% url 'milvus_search' %}" class="btn btn-sm btn-outline-success">Milvus Search</a>
+                        <a href="{% url 'search_history' %}" class="btn btn-sm btn-outline-secondary">Search History</a>
+                    </div>
+                </div>
+
+                <!-- Search Summary -->
+                <div class="search-summary">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6 class="text-white mb-2">
+                                <i class="fa fa-info-circle me-2"></i>Search Summary
+                            </h6>
+                            <div class="row">
+                                <div class="col-sm-6 col-md-3">
+                                    <small class="text-muted">Search Type:</small><br>
+                                    <span class="badge bg-primary search-type-badge">{{ search_type|title }}</span>
+                                </div>
+                                <div class="col-sm-6 col-md-3">
+                                    <small class="text-muted">Query:</small><br>
+                                    <strong class="text-white">{{ query_text }}</strong>
+                                </div>
+                                <div class="col-sm-6 col-md-3">
+                                    <small class="text-muted">Confidence:</small><br>
+                                    <strong class="text-white">{{ confidence|floatformat:2 }}</strong>
+                                </div>
+                                <div class="col-sm-6 col-md-3">
+                                    <small class="text-muted">Results:</small><br>
+                                    <strong class="text-white">{{ results|length }} found</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <small class="text-muted">Search completed at:</small><br>
+                            <strong class="text-white">{{ "now"|date:"M d, Y H:i" }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                {% if results %}
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="text-white mb-3">
+                                <i class="fa fa-list me-2"></i>Search Results ({{ results|length }})
+                            </h6>
+                        </div>
+                    </div>
+                    
+                    {% for result in results %}
+                    <div class="result-item">
+                        <div class="row align-items-center">
+                            <div class="col-md-2">
+                                {% if result.thumbnail_url %}
+                                    <img src="{{ result.thumbnail_url }}" alt="Result thumbnail" class="result-thumbnail">
+                                {% else %}
+                                    <div class="result-thumbnail d-flex align-items-center justify-content-center bg-dark">
+                                        <i class="fa fa-image text-muted"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h6 class="text-white mb-1">{{ result.title|default:"Search Result" }}</h6>
+                                {% if result.description %}
+                                    <p class="text-muted mb-2">{{ result.description|truncatechars:150 }}</p>
+                                {% endif %}
+                                
+                                <div class="result-meta">
+                                    {% if result.timestamp %}
+                                    <div class="mb-1">
+                                        <i class="fa fa-clock me-1"></i>
+                                        <small>{{ result.timestamp|date:"M d, Y H:i" }}</small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if result.location %}
+                                    <div class="mb-1">
+                                        <i class="fa fa-map-marker-alt me-1"></i>
+                                        <small>{{ result.location }}</small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if result.source %}
+                                    <div class="mb-1">
+                                        <i class="fa fa-video me-1"></i>
+                                        <small>{{ result.source }}</small>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <div class="mb-2">
+                                        <strong class="text-white">{{ result.confidence|floatformat:2 }}</strong>
+                                        <small class="text-muted d-block">Confidence</small>
+                                    </div>
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill" style="width: {{ result.confidence|floatformat:0 }}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-2">
+                                <div class="d-flex flex-column gap-2">
+                                    {% if result.detail_url %}
+                                    <a href="{{ result.detail_url }}" class="btn btn-sm btn-primary">
+                                        <i class="fa fa-eye me-1"></i>View Details
+                                    </a>
+                                    {% endif %}
+                                    
+                                    {% if result.download_url %}
+                                    <a href="{{ result.download_url }}" class="btn btn-sm btn-outline-success">
+                                        <i class="fa fa-download me-1"></i>Download
+                                    </a>
+                                    {% endif %}
+                                    
+                                    {% if result.analyze_url %}
+                                    <a href="{{ result.analyze_url }}" class="btn btn-sm btn-outline-info">
+                                        <i class="fa fa-search-plus me-1"></i>Analyze
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    <!-- Pagination would go here if needed -->
+                    {% if results|length > 10 %}
+                    <div class="d-flex justify-content-center mt-4">
+                        <nav aria-label="Search results pagination">
+                            <ul class="pagination">
+                                <!-- Pagination links would be added here -->
+                            </ul>
+                        </nav>
+                    </div>
+                    {% endif %}
+                    
+                {% else %}
+                    <div class="empty-state">
+                        <i class="fa fa-search"></i>
+                        <h5>No Results Found</h5>
+                        <p>No results were found for your search criteria. Try adjusting your search parameters:</p>
+                        <ul class="list-unstyled mt-3">
+                            <li><i class="fa fa-check me-2"></i>Lower the confidence threshold</li>
+                            <li><i class="fa fa-check me-2"></i>Try different search terms</li>
+                            <li><i class="fa fa-check me-2"></i>Expand the time range</li>
+                            <li><i class="fa fa-check me-2"></i>Try a different search type</li>
+                        </ul>
+                        <div class="mt-4">
+                            <a href="{% url 'quick_search' %}" class="btn btn-primary me-2">
+                                <i class="fa fa-search me-1"></i>Try New Search
+                            </a>
+                            <a href="{% url 'advanced_search' %}" class="btn btn-outline-primary">
+                                <i class="fa fa-cog me-1"></i>Advanced Search
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Animate confidence bars on page load
+    $('.confidence-fill').each(function() {
+        var width = $(this).data('width') || $(this).css('width');
+        $(this).css('width', '0%');
+        $(this).animate({width: width}, 1000);
+    });
+    
+    // Add click handlers for result actions
+    $('.result-item').on('click', function(e) {
+        if (!$(e.target).is('a, button, i')) {
+            var detailLink = $(this).find('a[href*="detail"]').first();
+            if (detailLink.length) {
+                window.location.href = detailLink.attr('href');
+            }
+        }
+    });
+    
+    console.log('Quick search results page loaded');
+});
+</script>
+{% endblock %}

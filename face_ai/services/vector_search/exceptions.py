@@ -48,3 +48,5 @@ class RateLimitError(VectorSearchError):
 class ConfigurationError(VectorSearchError):
     """Configuration-related errors"""
     pass
+
+

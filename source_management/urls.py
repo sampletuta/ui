@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views_main as views
+from .views import source_activation_views
 
 app_name = 'source_management'
 
@@ -76,4 +77,14 @@ urlpatterns = [
     # FastPublisher endpoints (aliases for template compatibility)
     path('api/fastpublisher/health/', views.fastpublisher_health, name='fastpublisher_health'),
     path('api/fastpublisher/submit-video/<uuid:source_id>/', views.fastpublisher_submit_video, name='fastpublisher_submit_video'),
+    
+    # Source Activation/Deactivation endpoints
+    path('api/source/<uuid:source_id>/activate/', source_activation_views.ActivateSourceView.as_view(), name='activate_source'),
+    path('api/source/<uuid:source_id>/deactivate/', source_activation_views.DeactivateSourceView.as_view(), name='deactivate_source'),
+    path('api/source/<uuid:source_id>/toggle/', source_activation_views.ToggleSourceActivationView.as_view(), name='toggle_source'),
+    path('api/source/<str:source_type>/bulk-activation/', source_activation_views.BulkActivationView.as_view(), name='bulk_activation'),
+    
+    # Source Activation/Deactivation confirmation pages
+    path('source/<uuid:source_id>/<str:source_type>/<str:action>/confirm/', source_activation_views.source_activation_confirmation, name='source_activation_confirm'),
+    path('source/activation/confirm/', source_activation_views.confirm_source_activation, name='confirm_source_activation'),
 ] 

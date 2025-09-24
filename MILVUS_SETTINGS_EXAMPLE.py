@@ -48,3 +48,5 @@ MONITORING_CONFIG = {
     'METRICS_INTERVAL': 60,  # seconds
     'HEALTH_CHECK_INTERVAL': 300  # seconds
 }
+
+

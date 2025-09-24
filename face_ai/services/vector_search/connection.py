@@ -279,3 +279,5 @@ class CollectionManager:
 # Global instances
 connection_pool = ConnectionPool()
 collection_manager = CollectionManager(connection_pool)
+
+

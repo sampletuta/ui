@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `source_management` Django app is a comprehensive video source management system that handles multiple types of video sources including file uploads, camera streams, and live streams. It provides a unified interface for managing video sources, processing them through external services, and integrating with downstream AI/ML systems.
+The `source_management` Django app is a comprehensive video source management system that handles multiple types of video sources including file uploads, camera streams, and live streams. It provides a unified interface for managing video sources, processing them through external microservices, and integrating with downstream AI/ML systems.
 
 ## Features
 
@@ -24,6 +24,7 @@ The `source_management` Django app is a comprehensive video source management sy
 - **Stream Integration**: Real-time stream processing with external services
 - **Topic Management**: MQTT topic generation for downstream systems
 - **Health Monitoring**: Service health checks and status monitoring
+- **Source Activation**: Bulk activation/deactivation of sources
 
 ## Architecture
 
@@ -47,6 +48,7 @@ Manages uploaded video files:
 - Processing status tracking
 - Access token generation
 - API endpoint generation
+- Data ingestion service integration
 
 #### CameraSource
 Manages IP/USB cameras:
@@ -55,6 +57,7 @@ Manages IP/USB cameras:
 - Video/audio parameters
 - Network settings
 - Stream processor integration
+- Topic name generation for downstream systems
 
 #### StreamSource
 Manages live video streams:
@@ -62,6 +65,7 @@ Manages live video streams:
 - Quality and performance settings
 - Authentication and headers
 - Stream processor integration
+- Topic name generation for downstream systems
 
 #### VideoProcessingJob
 Tracks video processing jobs:
@@ -82,6 +86,7 @@ views/
 ├── decorators.py             # Custom decorators
 ├── fastpublisher_views.py    # FastPublisher integration
 ├── health_views.py           # Health check endpoints
+├── source_activation_views.py # Source activation/deactivation
 ├── source_crud_views.py      # CRUD operations
 ├── source_list_views.py      # Source listing
 ├── stream_control_views.py   # Stream management
@@ -133,6 +138,7 @@ views/
 ### Stream Control API
 - `POST /api/stream/<source_id>/create/` - Create stream
 - `POST /api/stream/<source_id>/submit/` - Submit stream
+- `POST /api/stream/<source_id>/submit-comprehensive/` - Comprehensive stream submission
 - `POST /api/stream/<source_id>/start/` - Start stream
 - `POST /api/stream/<source_id>/stop/` - Stop stream
 - `GET /api/stream/<source_id>/status/` - Get stream status
@@ -140,6 +146,100 @@ views/
 ### Health Check API
 - `GET /api/data-ingestion/health/` - Data ingestion service health
 - `GET /api/data-ingestion/status/<source_id>/` - Source processing status
+
+### Source Activation API
+- `POST /api/source/<source_id>/activate/` - Activate source
+- `POST /api/source/<source_id>/deactivate/` - Deactivate source
+- `POST /api/source/<source_id>/toggle/` - Toggle source activation
+- `POST /api/source/<source_type>/bulk-activation/` - Bulk activation
+
+### Notification API
+- `POST /api/notifications/create/` - Create notification for external apps
+
+## Microservice Integration
+
+### Data Ingestion Service
+
+The source management app integrates with a **Data Ingestion Service** for video processing:
+
+**Service Details:**
+- **Base URL**: `http://localhost:8001` (configurable)
+- **Purpose**: Processes uploaded videos for AI/ML analysis
+- **Integration**: Automatic notification when videos are ready
+
+**API Endpoints:**
+- `POST /api/sources` - Submit video for processing
+- `GET /api/jobs/{job_id}` - Get job status
+- `GET /api/sources/{source_id}/status` - Get source processing status
+- `GET /health` - Health check
+
+**Integration Flow:**
+1. User uploads video file
+2. FileSource processes video and extracts metadata
+3. System automatically notifies Data Ingestion Service
+4. Service processes video and returns results
+5. Status updates are tracked via VideoProcessingJob model
+
+**Configuration:**
+```python
+DATA_INGESTION_SERVICE = {
+    'BASE_URL': 'http://localhost:8001',
+    'NOTIFY_ENDPOINT': '/api/sources',
+    'HEALTH_ENDPOINT': '/health',
+    'STATUS_ENDPOINT': '/api/sources/{source_id}/status',
+    'API_KEY': 'your-api-key',
+    'TIMEOUT': 30
+}
+```
+
+### Stream Processor Service
+
+The app integrates with a **Stream Processor Service** for real-time stream management:
+
+**Service Details:**
+- **Base URL**: `http://localhost:8002` (configurable)
+- **Purpose**: Manages real-time video streams from cameras and live sources
+- **Integration**: Automatic stream registration and control
+
+**API Endpoints:**
+- `POST /api/external/streams` - Register/create stream
+- `PUT /api/external/streams/{stream_id}` - Update stream
+- `DELETE /api/external/streams/{stream_id}` - Delete stream
+- `PUT /api/external/streams/{stream_id}/start` - Start stream
+- `PUT /api/external/streams/{stream_id}/stop` - Stop stream
+- `GET /api/external/streams/{stream_id}/status` - Get stream status
+
+**Integration Flow:**
+1. User creates CameraSource or StreamSource
+2. System generates topic name for downstream systems
+3. Stream is automatically registered with Stream Processor Service
+4. Service manages stream processing and provides status updates
+5. Users can start/stop streams via API
+
+**Configuration:**
+```python
+STREAM_PROCESSOR_CONFIG = {
+    'BASE_URL': 'http://localhost:8002',
+    'EXTERNAL_SERVICE_ID': 'django-source-management',
+    'TIMEOUT': 30,
+    'ENABLED': True
+}
+```
+
+**Topic Management:**
+- Automatic topic name generation for downstream model integration
+- Format: `{zone}_camera_{suffix}` or `{zone}_stream_{suffix}`
+- Customizable topic suffixes (max 6 characters)
+- Clean naming (spaces/special chars replaced with underscores)
+
+### FastPublisher Integration
+
+Alternative video processing service integration:
+
+**Service Details:**
+- **Purpose**: Alternative video processing service
+- **Integration**: Health monitoring and video submission
+- **Endpoints**: `/api/fastpublisher/health/`, `/api/fastpublisher/submit-video/`
 
 ## Configuration
 
@@ -256,22 +356,44 @@ else:
     print(f"Error: {result['error']}")
 ```
 
-## Integration with External Services
+### Stream Control Operations
 
-### Data Ingestion Service
-- Submits videos for AI/ML processing
-- Tracks processing status
-- Handles callbacks from external services
+```python
+# Start a camera stream
+result = camera.start_processor_stream()
 
-### Stream Processor Service
-- Manages real-time video streams
-- Provides stream control (start/stop)
-- Monitors stream health and metrics
+# Stop a stream
+result = stream.stop_processor_stream()
 
-### FastPublisher Integration
-- Alternative video processing service
-- Health monitoring
-- Video submission and status tracking
+# Get stream status
+status = camera.get_processor_status()
+```
+
+## Microservice Communication Patterns
+
+### 1. Video Processing Workflow
+
+```
+Django App → Data Ingestion Service → AI/ML Processing → Results
+     ↓              ↓                      ↓
+File Upload → Video Processing → Analysis Results → Notifications
+```
+
+### 2. Stream Processing Workflow
+
+```
+Django App → Stream Processor Service → Real-time Processing
+     ↓              ↓                         ↓
+Camera/Stream → Stream Management → Downstream Systems
+```
+
+### 3. Health Monitoring
+
+```
+Django App → Health Check APIs → Service Status
+     ↓              ↓              ↓
+Monitoring → Service Health → Status Updates
+```
 
 ## Admin Interface
 

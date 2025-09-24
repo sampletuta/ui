@@ -18,3 +18,5 @@ __all__ = [
     'ConnectionError',
     'SearchError'
 ]
+
+

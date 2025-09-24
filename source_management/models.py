@@ -402,6 +402,9 @@ class FileSource(BaseSource):
     ingestion_notified = models.BooleanField(default=False, help_text="Whether data ingestion service was notified")
     ingestion_notified_at = models.DateTimeField(null=True, blank=True, help_text="When data ingestion service was notified")
     ingestion_response = models.JSONField(default=dict, blank=True, help_text="Response from data ingestion service")
+    
+    # Source activation status
+    is_active = models.BooleanField(default=True, help_text="Whether this source is active")
 
     class Meta:
         verbose_name = "File Source"
@@ -444,6 +447,7 @@ class FileSource(BaseSource):
             'audio_codec': self.audio_codec,
             'audio_channels': self.audio_channels,
             'audio_sample_rate': self.audio_sample_rate,
+            'is_active': self.is_active,
         }
 
     def get_absolute_url(self):

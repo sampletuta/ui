@@ -459,6 +459,103 @@ class StreamSourceForm(forms.ModelForm):
             instance.save()
         return instance
 
+
+class SourceActivationForm(forms.Form):
+    """Form for source activation/deactivation confirmation"""
+    
+    SOURCE_TYPE_CHOICES = [
+        ('camera', 'Camera Source'),
+        ('file', 'File Source'),
+        ('stream', 'Stream Source'),
+    ]
+    
+    ACTION_CHOICES = [
+        ('activate', 'Activate'),
+        ('deactivate', 'Deactivate'),
+    ]
+    
+    source_id = forms.UUIDField(widget=forms.HiddenInput())
+    source_type = forms.ChoiceField(choices=SOURCE_TYPE_CHOICES, widget=forms.HiddenInput())
+    action = forms.ChoiceField(choices=ACTION_CHOICES, widget=forms.HiddenInput())
+    source_name = forms.CharField(max_length=200, widget=forms.HiddenInput())
+    confirmation = forms.BooleanField(
+        required=True,
+        label="I confirm this action",
+        help_text="Check this box to confirm the activation/deactivation",
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    reason = forms.CharField(
+        required=False,
+        max_length=500,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Optional: Provide a reason for this action...'
+        }),
+        help_text="Optional: Provide a reason for activating/deactivating this source"
+    )
+    
+    def clean_source_id(self):
+        """Validate that the source exists"""
+        source_id = self.cleaned_data.get('source_id')
+        source_type = self.cleaned_data.get('source_type')
+        
+        if source_id and source_type:
+            model_map = {
+                'camera': CameraSource,
+                'file': FileSource,
+                'stream': StreamSource,
+            }
+            
+            model_class = model_map.get(source_type)
+            if not model_class:
+                raise forms.ValidationError(f"Invalid source type: {source_type}")
+            
+            try:
+                source = model_class.objects.get(source_id=source_id)
+                return source_id
+            except model_class.DoesNotExist:
+                raise forms.ValidationError(f"{source_type.title()} source not found")
+        
+        return source_id
+    
+    def clean_confirmation(self):
+        """Ensure confirmation is checked"""
+        confirmation = self.cleaned_data.get('confirmation')
+        if not confirmation:
+            raise forms.ValidationError("You must confirm this action to proceed")
+        return confirmation
+    
+    def clean(self):
+        """Cross-field validation"""
+        cleaned_data = super().clean()
+        source_id = cleaned_data.get('source_id')
+        source_type = cleaned_data.get('source_type')
+        action = cleaned_data.get('action')
+        
+        if source_id and source_type and action:
+            model_map = {
+                'camera': CameraSource,
+                'file': FileSource,
+                'stream': StreamSource,
+            }
+            
+            model_class = model_map.get(source_type)
+            if model_class:
+                try:
+                    source = model_class.objects.get(source_id=source_id)
+                    
+                    # Check if already in desired state
+                    if action == 'activate' and source.is_active:
+                        raise forms.ValidationError("Source is already active")
+                    elif action == 'deactivate' and not source.is_active:
+                        raise forms.ValidationError("Source is already inactive")
+                        
+                except model_class.DoesNotExist:
+                    raise forms.ValidationError(f"{source_type.title()} source not found")
+        
+        return cleaned_data
+
 class VideoProcessingForm(forms.Form):
     """Form for configuring video processing parameters"""
     

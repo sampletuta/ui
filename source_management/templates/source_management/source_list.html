@@ -183,6 +183,26 @@
                                                         <i class="fa fa-broadcast-tower"></i>
                                                     </a>
                                                     {% endif %}
+                                                    
+                                                    <!-- Activation/Deactivation Button -->
+                                                    {% if source.is_active %}
+                                                    <button class="btn btn-sm btn-warning toggle-activation" 
+                                                            data-source-id="{{ source.source_id }}" 
+                                                            data-source-type="{{ source.type }}" 
+                                                            data-action="deactivate"
+                                                            title="Deactivate Source">
+                                                        <i class="fa fa-pause"></i>
+                                                    </button>
+                                                    {% else %}
+                                                    <button class="btn btn-sm btn-success toggle-activation" 
+                                                            data-source-id="{{ source.source_id }}" 
+                                                            data-source-type="{{ source.type }}" 
+                                                            data-action="activate"
+                                                            title="Activate Source">
+                                                        <i class="fa fa-play"></i>
+                                                    </button>
+                                                    {% endif %}
+                                                    
                                                     <a href="{% url 'source_management:'|add:source.type|add:'_detail' source.source_id %}" class="btn btn-sm btn-outline-primary">
                                                         <i class="fa fa-eye"></i>
                                                     </a>
@@ -215,4 +235,207 @@
         </div>
     </div>
 </div>
+
+<!-- Activation/Deactivation Confirmation Modal -->
+<div class="modal fade" id="activationModal" tabindex="-1" aria-labelledby="activationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title text-white" id="activationModalLabel">Confirm Source Action</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-light" id="activationMessage">Are you sure you want to perform this action?</p>
+                <div class="alert alert-info" id="activationDetails" style="display: none;">
+                    <small id="activationDetailsText"></small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmActivation">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const activationButtons = document.querySelectorAll('.toggle-activation');
+    const modal = new bootstrap.Modal(document.getElementById('activationModal'));
+    const modalTitle = document.getElementById('activationModalLabel');
+    const modalMessage = document.getElementById('activationMessage');
+    const modalDetails = document.getElementById('activationDetails');
+    const modalDetailsText = document.getElementById('activationDetailsText');
+    const confirmButton = document.getElementById('confirmActivation');
+    
+    let currentSource = null;
+    
+    activationButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const sourceId = this.dataset.sourceId;
+            const sourceType = this.dataset.sourceType;
+            const action = this.dataset.action;
+            
+            currentSource = {
+                id: sourceId,
+                type: sourceType,
+                action: action,
+                button: this
+            };
+            
+            // Update modal content
+            const actionText = action === 'activate' ? 'activate' : 'deactivate';
+            const actionPast = action === 'activate' ? 'activated' : 'deactivated';
+            
+            modalTitle.textContent = `${action.charAt(0).toUpperCase() + action.slice(1)} Source`;
+            modalMessage.textContent = `Are you sure you want to ${actionText} this ${sourceType} source?`;
+            
+            // Show additional details for camera/stream sources
+            if (sourceType === 'camera' || sourceType === 'stream') {
+                modalDetails.style.display = 'block';
+                if (action === 'activate') {
+                    modalDetailsText.textContent = 'This will start the stream in the processor service and make it available for downstream integration.';
+                } else {
+                    modalDetailsText.textContent = 'This will stop the stream and remove it from the processor service.';
+                }
+            } else {
+                modalDetails.style.display = 'none';
+            }
+            
+            // Update confirm button
+            confirmButton.className = `btn btn-${action === 'activate' ? 'success' : 'warning'}`;
+            confirmButton.textContent = `${action.charAt(0).toUpperCase() + action.slice(1)} Source`;
+            
+            modal.show();
+        });
+    });
+    
+    confirmButton.addEventListener('click', function() {
+        if (!currentSource) return;
+        
+        const { id, type, action, button } = currentSource;
+        
+        // Disable button and show loading state
+        button.disabled = true;
+        const originalIcon = button.innerHTML;
+        button.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+        
+        // Make API call
+        const url = `/source-management/api/source/${id}/${action}/`;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update UI
+                updateSourceStatus(button, action === 'activate');
+                
+                // Show success message
+                showToast('success', data.message);
+                
+                // Close modal
+                modal.hide();
+            } else {
+                // Show error message
+                showToast('error', data.error || 'Operation failed');
+                
+                // Restore button
+                button.disabled = false;
+                button.innerHTML = originalIcon;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('error', 'An error occurred while processing the request');
+            
+            // Restore button
+            button.disabled = false;
+            button.innerHTML = originalIcon;
+        });
+    });
+    
+    function updateSourceStatus(button, isActive) {
+        // Update button appearance
+        if (isActive) {
+            button.className = 'btn btn-sm btn-warning toggle-activation';
+            button.dataset.action = 'deactivate';
+            button.title = 'Deactivate Source';
+            button.innerHTML = '<i class="fa fa-pause"></i>';
+        } else {
+            button.className = 'btn btn-sm btn-success toggle-activation';
+            button.dataset.action = 'activate';
+            button.title = 'Activate Source';
+            button.innerHTML = '<i class="fa fa-play"></i>';
+        }
+        
+        // Update status badge
+        const card = button.closest('.bg-secondary');
+        const statusBadge = card.querySelector('.badge');
+        if (statusBadge) {
+            if (isActive) {
+                statusBadge.className = 'badge bg-success';
+                statusBadge.textContent = 'Active';
+            } else {
+                statusBadge.className = 'badge bg-secondary';
+                statusBadge.textContent = 'Inactive';
+            }
+        }
+        
+        // Update stream processor status
+        const streamProcessorDiv = card.querySelector('.mb-2');
+        if (streamProcessorDiv && streamProcessorDiv.textContent.includes('Stream Processor')) {
+            if (isActive) {
+                streamProcessorDiv.style.display = 'block';
+            } else {
+                streamProcessorDiv.style.display = 'none';
+            }
+        }
+        
+        button.disabled = false;
+    }
+    
+    function showToast(type, message) {
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fa fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+        
+        // Add to page
+        document.body.appendChild(toast);
+        
+        // Show toast
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        
+        // Remove from DOM after hiding
+        toast.addEventListener('hidden.bs.toast', function() {
+            document.body.removeChild(toast);
+        });
+    }
+});
+</script>
 {% endblock %} 

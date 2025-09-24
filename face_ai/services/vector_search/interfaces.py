@@ -142,3 +142,5 @@ class VectorSearchInterface(ABC):
     async def drop_collection(self, name: str) -> bool:
         """Drop a collection"""
         pass
+
+
