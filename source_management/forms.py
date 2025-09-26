@@ -6,7 +6,88 @@ import os
 
 User = get_user_model()
 
-class CameraSourceForm(forms.ModelForm):
+# Base form class with unified styling
+class BaseSourceForm(forms.ModelForm):
+    """Base form class with unified styling for source management forms"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.apply_unified_styling()
+    
+    def apply_unified_styling(self):
+        """Apply unified styling to all form fields"""
+        for field_name, field in self.fields.items():
+            # Apply base classes
+            if isinstance(field.widget, forms.TextInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'placeholder': field.label or ''
+                })
+            elif isinstance(field.widget, forms.EmailInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'placeholder': field.label or 'Email address'
+                })
+            elif isinstance(field.widget, forms.PasswordInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'placeholder': field.label or 'Password'
+                })
+            elif isinstance(field.widget, forms.Textarea):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'rows': 3,
+                    'placeholder': field.label or ''
+                })
+            elif isinstance(field.widget, forms.Select):
+                field.widget.attrs.update({
+                    'class': 'form-select'
+                })
+            elif isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs.update({
+                    'class': 'form-check-input'
+                })
+            elif isinstance(field.widget, forms.FileInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'accept': 'image/*' if 'image' in field_name.lower() else '*'
+                })
+            elif isinstance(field.widget, forms.DateTimeInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'type': 'datetime-local'
+                })
+            elif isinstance(field.widget, forms.DateInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'type': 'date'
+                })
+            elif isinstance(field.widget, forms.TimeInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'type': 'time'
+                })
+            elif isinstance(field.widget, forms.NumberInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'type': 'number'
+                })
+            elif isinstance(field.widget, forms.URLInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'placeholder': field.label or 'URL'
+                })
+            elif isinstance(field.widget, forms.TelephoneInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'placeholder': field.label or 'Phone number'
+                })
+            
+            # Add help text styling
+            if field.help_text:
+                field.help_text = f'<small class="form-text text-muted">{field.help_text}</small>'
+
+class CameraSourceForm(BaseSourceForm):
     """Form for creating/editing camera sources"""
     
     class Meta:
@@ -156,7 +237,7 @@ class CameraSourceForm(forms.ModelForm):
                 raise forms.ValidationError('Tags must be valid JSON array')
         return tags
 
-class FileSourceForm(forms.ModelForm):
+class FileSourceForm(BaseSourceForm):
     """Form for creating/editing file sources"""
     
     class Meta:
@@ -247,7 +328,7 @@ class FileSourceForm(forms.ModelForm):
                 raise forms.ValidationError('Tags must be valid JSON array')
         return tags
 
-class StreamSourceForm(forms.ModelForm):
+class StreamSourceForm(BaseSourceForm):
     """Form for creating/editing stream sources"""
     
     # Add proper authentication fields instead of JSON

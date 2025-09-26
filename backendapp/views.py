@@ -14,6 +14,8 @@ from .forms import (
     SelfUserChangeForm,
 )
 from .models import TargetPhoto, Targets_watchlist, Case, SearchHistory, SearchQuery, SearchResult, CustomUser
+# Import detection API views
+from .views.detection_api_views import api_create_detection, api_create_detection_batch, api_get_detection_stats, api_get_detection_timeline
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login
@@ -1231,7 +1233,7 @@ def custom_login(request):
                 
                 if user is not None:
                     handle_successful_login(user)
-                    login(request, user)
+                    auth_login(request, user)
                     messages.success(request, f'Welcome back, {user.first_name or user.email}!')
                     
                     # Redirect to next page or dashboard
@@ -1242,7 +1244,8 @@ def custom_login(request):
                     
             except CustomUser.DoesNotExist:
                 messages.error(request, 'Invalid email or password.')
-            
+        else:
+            messages.error(request, 'Please correct the errors below.')
     else:
         form = LoginForm()
     

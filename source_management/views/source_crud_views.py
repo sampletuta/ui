@@ -1,6 +1,6 @@
 """
 Source CRUD Views Module
-Handles Create, Read, Update, Delete operations for sources
+Handles Create, Read, Update, Delete operations for sources using the Source Management Service
 """
 
 import os
@@ -11,9 +11,8 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.conf import settings
 from django.utils import timezone
-from django.db import transaction
 from .decorators import login_required_source_list
-from ..models import CameraSource, FileSource, StreamSource
+from ..services import SourceManagementService, VideoProcessingService
 from ..forms import CameraSourceForm, FileSourceForm, StreamSourceForm
 
 logger = logging.getLogger(__name__)

@@ -8,46 +8,44 @@ from django.utils.decorators import method_decorator
 from django.views import View
 import logging
 
-from ..models import CameraSource, FileSource, StreamSource
+from ..services import SourceManagementService, VideoProcessingService
 from ..forms import SourceActivationForm
 
 logger = logging.getLogger(__name__)
 
 class SourceActivationView(View):
-    """Base class for source activation/deactivation"""
-    
-    def get_source_model(self, source_type):
-        """Get the appropriate model class for the source type"""
-        model_map = {
-            'camera': CameraSource,
-            'file': FileSource,
-            'stream': StreamSource,
-        }
-        return model_map.get(source_type)
-    
+    """Base class for source activation/deactivation using Source Management Service"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source_service = SourceManagementService()
+
     def get_source(self, source_id, source_type):
-        """Get the source object"""
-        model_class = self.get_source_model(source_type)
-        if not model_class:
-            raise ValueError(f"Invalid source type: {source_type}")
-        
-        return get_object_or_404(model_class, source_id=source_id)
-    
-    def handle_activation_change(self, source, new_status, source_type):
-        """Handle the activation status change and any related operations"""
-        old_status = source.is_active
-        source.is_active = new_status
-        source.save()
-        
-        # Log the change
-        action = "activated" if new_status else "deactivated"
-        logger.info(f"Source {source_type} {source.source_id} ({source.name}) {action} by user")
-        
-        # Handle stream processor integration for camera and stream sources
-        if source_type in ['camera', 'stream']:
-            try:
-                if new_status:
-                    # Activate: Create or start stream in processor
+        """Get the source data from the service"""
+        result = self.source_service.get_source(source_id)
+        if not result['success']:
+            return None
+        return result['data']
+
+    def handle_activation_change(self, source_id, new_status, source_type):
+        """Handle the activation status change using the API"""
+        try:
+            if new_status:
+                result = self.source_service.activate_source(source_id)
+            else:
+                result = self.source_service.deactivate_source(source_id)
+
+            if result['success']:
+                # Log the change
+                action = "activated" if new_status else "deactivated"
+                logger.info(f"Source {source_type} {source_id} {action} by user")
+
+                # Handle stream processor integration for camera and stream sources
+                if source_type in ['camera', 'stream']:
+                    try:
+                        source = self.get_source(source_id, source_type)
+                        if source and new_status:
+                            # Activate: Create or start stream in processor
                     source._create_in_stream_processor()
                     if hasattr(source, 'start_processor_stream'):
                         source.start_processor_stream()

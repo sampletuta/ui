@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load form_utils %}
 
 {% block title %}
     {% if form.instance.pk %}Edit User{% else %}Create User{% endif %}

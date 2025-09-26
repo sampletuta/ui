@@ -7,10 +7,13 @@ from django.core.exceptions import ValidationError
 from PIL import Image, UnidentifiedImageError
 import uuid 
 import json
+import logging
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
 from backendapp.utils.notifications import notify
+
+logger = logging.getLogger(__name__)
 
 # Create your models here.
 from datetime import timedelta
@@ -323,6 +326,19 @@ class SearchResult(models.Model):
     milvus_vector_id = models.CharField(max_length=100, blank=True, null=True)
     milvus_distance = models.FloatField(blank=True, null=True, help_text='Distance from query vector')
     
+    # NEW: Deduplication tracking
+    is_duplicate = models.BooleanField(default=False, help_text='Whether this detection is a duplicate')
+    duplicate_of = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, help_text='Original detection if this is a duplicate')
+    deduplication_reason = models.CharField(max_length=50, blank=True, help_text='Reason for deduplication: temporal, spatial, confidence, rate_limit')
+    
+    # NEW: Alert tracking
+    alert_created = models.BooleanField(default=False, help_text='Whether an alert was created for this detection')
+    alert_created_at = models.DateTimeField(null=True, blank=True, help_text='When the alert was created')
+    
+    # NEW: External detection tracking
+    external_detection_id = models.CharField(max_length=100, blank=True, null=True, help_text='External detection service ID')
+    detection_source = models.CharField(max_length=50, default='internal', help_text='Source of detection: internal, external, api')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
@@ -337,21 +353,81 @@ class SearchResult(models.Model):
     def save(self, *args, **kwargs):
         is_new = self._state.adding
         super().save(*args, **kwargs)
+        
         if is_new:
+            self._handle_detection_storage_and_alert()
+    
+    def _handle_detection_storage_and_alert(self):
+        """Handle both storage deduplication and alert creation"""
+        try:
+            from .utils.enhanced_deduplication import enhanced_deduplication_service
+            
+            # Prepare detection data for deduplication
+            detection_data = {
+                'target_id': str(self.target.id),
+                'timestamp': self.timestamp,
+                'confidence': self.confidence,
+                'bounding_box': self.bounding_box or {},
+                'camera_id': self.camera_id,
+                'user_id': str(self.search_query.user.id),
+                'detection_id': str(self.id)
+            }
+            
+            # Check storage deduplication (less strict - keep more history)
+            storage_result = enhanced_deduplication_service.check_storage_deduplication(detection_data)
+            
+            if not storage_result['should_store']:
+                # Mark as duplicate and link to original
+                self.is_duplicate = True
+                self.duplicate_of_id = storage_result['original_detection_id']
+                self.deduplication_reason = storage_result['reason']
+                self.save(update_fields=['is_duplicate', 'duplicate_of', 'deduplication_reason'])
+                logger.info(f"Detection {self.id} marked as duplicate: {storage_result['reason']}")
+                return
+            
+            # Check alert deduplication (stricter rules)
+            alert_result = enhanced_deduplication_service.check_alert_deduplication(detection_data)
+            
+            if alert_result['should_alert']:
+                self._create_alert()
+                logger.info(f"Alert created for detection {self.id}")
+            else:
+                logger.info(f"Alert suppressed for detection {self.id}: {alert_result['reason']}")
+                
+        except Exception as e:
+            logger.error(f"Error in detection handling: {e}")
+            # Fallback: create alert without deduplication
             try:
-                actor = self.search_query.user
-                recipient = self.search_query.user
-                notify(
-                    recipient=recipient,
-                    actor=actor,
-                    verb='detected',
-                    target=self.target,
-                    action_object=self,
-                    description=f"Detection at {self.timestamp}s (conf {self.confidence:.2f})"
-                )
+                self._create_alert()
             except Exception:
-                # Silently ignore notification failures to avoid blocking saves
                 pass
+    
+    def _create_alert(self):
+        """Create notification alert for this detection"""
+        try:
+            actor = self.search_query.user
+            recipient = self.search_query.user
+            
+            description = f"Detection at {self.timestamp}s (conf {self.confidence:.2f})"
+            if self.camera_name:
+                description += f" - {self.camera_name}"
+            
+            notify(
+                recipient=recipient,
+                actor=actor,
+                verb='detected',
+                target=self.target,
+                action_object=self,
+                description=description
+            )
+            
+            # Mark alert as created
+            self.alert_created = True
+            self.alert_created_at = timezone.now()
+            self.save(update_fields=['alert_created', 'alert_created_at'])
+            
+        except Exception as e:
+            logger.error(f"Error creating alert: {e}")
 
     def get_url_for_notifications(self, notification, request):
         from django.urls import reverse

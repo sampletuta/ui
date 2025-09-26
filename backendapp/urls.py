@@ -1,12 +1,21 @@
 from django.urls import path
 from . import views
 from .views import face_verification_status, background_server_status
+from .views.detection_api_views import api_create_detection, api_create_detection_batch, api_get_detection_stats, api_get_detection_timeline
 from .views.face_verification_views import face_verification_whitelist
 from .views.media_views import serve_media
 from .views.whitelist_views import (
     list_whitelist, whitelist_profile, add_whitelist, edit_whitelist,
     delete_whitelist, add_whitelist_images, delete_whitelist_image,
     approve_whitelist, suspend_whitelist
+)
+
+# Import new API views
+from .views.search_api_views import api_submit_search, api_get_search_results, api_get_search_status
+from .views.watchlist_api_views import api_submit_detection, api_submit_batch_detections, api_get_watchlist_targets, api_get_detection_stats
+from .views.source_api_views import (
+    api_register_camera, api_register_stream, api_register_file,
+    api_get_source_status, api_list_sources, api_update_source, api_delete_source
 )
 
 urlpatterns = [
@@ -78,6 +87,34 @@ urlpatterns = [
     path('notifications/delete/', views.delete_notification, name='delete_notification'),
     path('notifications/', views.notifications_list, name='notifications_list'),
     path('notifications/<int:notification_id>/', views.notification_detail, name='notification_detail'),
+    
+    # Legacy Detection API endpoints (for backward compatibility)
+    path('api/detections/create/', api_create_detection, name='api_create_detection'),
+    path('api/detections/batch-create/', api_create_detection_batch, name='api_create_detection_batch'),
+    path('api/detections/stats/', api_get_detection_stats, name='api_get_detection_stats'),
+    path('api/detections/timeline/', api_get_detection_timeline, name='api_get_detection_timeline'),
+    
+    # New Separated API Endpoints
+    
+    # 1. Search API
+    path('api/search/submit/', api_submit_search, name='api_submit_search'),
+    path('api/search/results/<str:search_id>/', api_get_search_results, name='api_get_search_results'),
+    path('api/search/status/<str:search_id>/', api_get_search_status, name='api_get_search_status'),
+    
+    # 2. Watchlist Monitoring API
+    path('api/watchlist/detection/', api_submit_detection, name='api_submit_detection'),
+    path('api/watchlist/detection/batch/', api_submit_batch_detections, name='api_submit_batch_detections'),
+    path('api/watchlist/targets/', api_get_watchlist_targets, name='api_get_watchlist_targets'),
+    path('api/watchlist/stats/', api_get_detection_stats, name='api_get_watchlist_stats'),
+    
+    # 3. Source Management API
+    path('api/sources/camera/register/', api_register_camera, name='api_register_camera'),
+    path('api/sources/stream/register/', api_register_stream, name='api_register_stream'),
+    path('api/sources/file/register/', api_register_file, name='api_register_file'),
+    path('api/sources/<str:source_id>/status/', api_get_source_status, name='api_get_source_status'),
+    path('api/sources/list/', api_list_sources, name='api_list_sources'),
+    path('api/sources/<str:source_id>/update/', api_update_source, name='api_update_source'),
+    path('api/sources/<str:source_id>/delete/', api_delete_source, name='api_delete_source'),
     
     # Target management URLs
     path('targets/<uuid:pk>/', views.target_profile, name='target_profile'),

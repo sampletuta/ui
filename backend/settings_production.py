@@ -27,7 +27,7 @@ def get_secret_key():
 SECRET_KEY = get_secret_key()
 
 # SECURITY: Production mode - DEBUG must be False
-DEBUG = True
+DEBUG = False
 # DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 
@@ -200,25 +200,22 @@ LOGOUT_REDIRECT_URL = '/login/'
 # SECURITY: Password validation (enhanced for production)
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validators.UserAttributeSimilarityValidator',
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
         'OPTIONS': {
             'max_similarity': 0.7,
         }
     },
     {
-        'NAME': 'django.contrib.auth.password_validators.MinimumLengthValidator',
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
         'OPTIONS': {
-            'min_length': 16,  # Increased for production
+            'min_length': 8,
         }
     },
     {
-        'NAME': 'django.contrib.auth.password_validators.CommonPasswordValidator',
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validators.NumericPasswordValidator',
-    },
-    {
-        'NAME': 'backendapp.validators.CustomPasswordValidator',  # Custom validator
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
 
@@ -468,6 +465,10 @@ MILVUS_CONFIG = {
 FACE_DETECTION_SERVICE_URL = os.environ.get('FACE_DETECTION_SERVICE_URL')
 if FACE_DETECTION_SERVICE_URL and not FACE_DETECTION_SERVICE_URL.startswith(('https://', 'http://')):
     raise ImproperlyConfigured('FACE_DETECTION_SERVICE_URL must be a valid URL')
+
+# Security: Source Management Service (main service for source operations)
+SOURCE_MANAGEMENT_SERVICE_URL = os.environ.get('SOURCE_MANAGEMENT_SERVICE_URL', 'http://localhost:8001')
+SOURCE_MANAGEMENT_TIMEOUT = int(os.environ.get('SOURCE_MANAGEMENT_TIMEOUT', 30))
 
 # Security: Data ingestion service (with API key)
 DATA_INGESTION_SERVICE = {

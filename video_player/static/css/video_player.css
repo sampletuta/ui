@@ -299,6 +299,75 @@
     opacity: 1;
 }
 
+/* Detection Markers on Progress Bar */
+.detection-markers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.detection-marker {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 20px;
+    border-radius: 2px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: all 0.2s ease;
+    z-index: 11;
+}
+
+.detection-marker:hover {
+    height: 24px;
+    width: 6px;
+    transform: translateY(-50%) scale(1.1);
+}
+
+.detection-marker.alert {
+    background-color: var(--accent-red);
+    box-shadow: 0 0 8px rgba(235, 22, 22, 0.6);
+}
+
+.detection-marker.duplicate {
+    background-color: var(--warning-yellow);
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+
+.detection-marker.normal {
+    background-color: var(--success-green);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.detection-marker-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--secondary-surface);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 20;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.detection-marker:hover .detection-marker-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
 .time-display {
     color: white;
     font-size: 14px;
@@ -630,6 +699,166 @@
 .type-alert {
     background: rgba(245, 158, 11, 0.2);
     color: #f59e0b;
+}
+
+/* Detections Container */
+.detections-container {
+    padding: 16px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.detections-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.detections-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.detections-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.detection-filter-btn {
+    background-color: var(--secondary-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.detection-filter-btn:hover {
+    background-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.detection-filter-btn.active {
+    background-color: var(--accent-red);
+    color: white;
+    border-color: var(--accent-red);
+}
+
+.detections-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.detection-item {
+    background-color: var(--secondary-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.detection-item:hover {
+    background-color: var(--border-color);
+    border-color: var(--accent-red);
+}
+
+.detection-item.alert {
+    border-left: 4px solid var(--accent-red);
+}
+
+.detection-item.duplicate {
+    border-left: 4px solid var(--warning-yellow);
+}
+
+.detection-item.normal {
+    border-left: 4px solid var(--success-green);
+}
+
+.detection-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.detection-item-time {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.detection-item-confidence {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background-color: var(--bg-dark);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.detection-item-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.detection-item-face {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid var(--border-color);
+}
+
+.detection-item-info {
+    flex: 1;
+}
+
+.detection-item-target {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.detection-item-details {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 12px;
+}
+
+.detection-item-status {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.detection-item-status.alert {
+    background-color: var(--accent-red);
+    box-shadow: 0 0 6px rgba(235, 22, 22, 0.6);
+}
+
+.detection-item-status.duplicate {
+    background-color: var(--warning-yellow);
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+}
+
+.detection-item-status.normal {
+    background-color: var(--success-green);
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
 }
 
 /* Bookmarks */

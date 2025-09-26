@@ -208,8 +208,8 @@ setup_database() {
 from django.contrib.auth import get_user_model
 User = get_user_model()
 if not User.objects.filter(email='admin@admin.com').exists():
-    User.objects.create_superuser('admin', 'admin@admin.com', 'admin123')
-    print('Superuser created: admin@admin.com / admin123')
+    User.objects.create_superuser('admin@admin.com', 'adminadminadmin123')
+    print('Superuser created: admin@admin.com / adminadminadmin123')
 else:
     print('Superuser already exists')
 "
@@ -275,7 +275,7 @@ start_service() {
         print_info "Service URL: http://localhost:8000"
         print_info "Login URL: http://localhost:8000/login/"
         print_info "Admin URL: http://localhost:8000/admin/"
-        print_info "Default Login: admin@admin.com / admin123"
+        print_info "Default Login: admin@admin.com / adminadminadmin123"
         print_info "Log File: logs/django.log"
         print_info "PID File: logs/django.pid"
         print_header "=========================="

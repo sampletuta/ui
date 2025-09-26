@@ -13,7 +13,7 @@ from django.db import transaction
 import logging
 
 from ..forms import TargetsWatchlistForm
-from ..models import TargetPhoto, Targets_watchlist
+from ..models import TargetPhoto, Targets_watchlist, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,46 @@ def list_watchlist(request):
 
 @login_required
 def target_profile(request, pk):
-    """View target profile details"""
+    """View target profile details with complete detection history"""
     target = get_object_or_404(Targets_watchlist.objects.select_related('case', 'created_by').prefetch_related('images'), pk=pk)
-    return render(request, 'target_profile.html', {'target': target})
+    
+    # Get ALL detections (including duplicates) for complete history
+    all_detections = SearchResult.objects.filter(target=target).order_by('-timestamp')
+    
+    # Get unique detections (non-duplicates)
+    unique_detections = all_detections.filter(is_duplicate=False)
+    
+    # Get detection statistics
+    detection_stats = {
+        'total_detections': all_detections.count(),
+        'unique_detections': unique_detections.count(),
+        'duplicate_detections': all_detections.filter(is_duplicate=True).count(),
+        'alerts_created': all_detections.filter(alert_created=True).count(),
+        'first_detection': all_detections.last().timestamp if all_detections.exists() else None,
+        'last_detection': all_detections.first().timestamp if all_detections.exists() else None,
+        'duplicate_rate': (all_detections.filter(is_duplicate=True).count() / all_detections.count() * 100) if all_detections.count() > 0 else 0,
+        'alert_rate': (all_detections.filter(alert_created=True).count() / all_detections.count() * 100) if all_detections.count() > 0 else 0
+    }
+    
+    # Get recent detections (last 10)
+    recent_detections = all_detections[:10]
+    
+    # Get detections by camera
+    detections_by_camera = {}
+    for detection in unique_detections:
+        camera_name = detection.camera_name or 'Unknown Camera'
+        if camera_name not in detections_by_camera:
+            detections_by_camera[camera_name] = []
+        detections_by_camera[camera_name].append(detection)
+    
+    return render(request, 'target_profile.html', {
+        'target': target,
+        'all_detections': all_detections,
+        'unique_detections': unique_detections,
+        'recent_detections': recent_detections,
+        'detection_stats': detection_stats,
+        'detections_by_camera': detections_by_camera
+    })
 
 @login_required
 def edit_target(request, pk):

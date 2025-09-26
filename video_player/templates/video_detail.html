@@ -53,6 +53,8 @@
                             <div class="progress-container" id="progressContainer">
                                 <div class="progress-buffer" id="progressBuffer"></div>
                                 <div class="progress-bar" id="progressBar"></div>
+                                <!-- Detection markers overlay -->
+                                <div class="detection-markers" id="detectionMarkers"></div>
                                 <div class="progress-time-display" id="progressTimeDisplay">
                                     <span id="progressCurrentTime">0:00</span>
                                 </div>
@@ -136,6 +138,7 @@
                     <div class="time-nav-title">Time Navigation</div>
                     <div class="time-nav-tabs">
                         <button class="time-nav-tab active" data-tab="tags">Time Tags</button>
+                        <button class="time-nav-tab" data-tab="detections">Detections</button>
                         <button class="time-nav-tab" data-tab="bookmarks">Bookmarks</button>
                         <button class="time-nav-tab" data-tab="manual">Manual</button>
                     </div>
@@ -150,6 +153,21 @@
                 <!-- Time Tags Container -->
                 <div class="time-tags-container" id="timeTagsContainer">
                     <!-- Time tags will be populated by JavaScript -->
+                </div>
+
+                <!-- Detections Container -->
+                <div class="detections-container" id="detectionsContainer" style="display: none;">
+                    <div class="detections-header">
+                        <div class="detections-title">Face Detections</div>
+                        <div class="detections-controls">
+                            <button class="detection-filter-btn" id="showAllDetections" data-filter="all">All</button>
+                            <button class="detection-filter-btn" id="showAlertsOnly" data-filter="alerts">Alerts Only</button>
+                            <button class="detection-filter-btn" id="showDuplicates" data-filter="duplicates">Duplicates</button>
+                        </div>
+                    </div>
+                    <div class="detections-list" id="detectionsList">
+                        <!-- Detections will be populated by JavaScript -->
+                    </div>
                 </div>
 
                 <!-- Bookmarks Container -->

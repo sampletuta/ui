@@ -56,54 +56,49 @@
                     </div>
                 </div>
 
-                <!-- Stream Processor Service Status -->
+                <!-- Service Status -->
                 <div class="row g-4 mb-4">
                     <div class="col-12">
                         <div class="bg-dark rounded p-4">
                             <h6 class="mb-4 text-primary">
-                                <i class="fa fa-cogs me-2"></i>Stream Processor Service Status
+                                <i class="fa fa-cogs me-2"></i>Service Status
                             </h6>
                             <div class="row g-3">
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <div class="text-center">
                                         <div class="bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 60px; height: 60px;">
-                                            <i class="fa fa-broadcast-tower fa-2x text-success"></i>
+                                            <i class="fa fa-server fa-2x text-success"></i>
                                         </div>
-                                        <h6 class="text-white mb-1">Stream Processor</h6>
+                                        <h6 class="text-white mb-1">Source Management Service</h6>
                                         <p class="text-success mb-0">
-                                            <i class="fa fa-check-circle me-1"></i>Connected
+                                            <i class="fa fa-check-circle me-1"></i>
+                                            {% if service_health.source_management_service.ok %}Connected{% else %}Disconnected{% endif %}
                                         </p>
-                                        <small class="text-muted">localhost:8002</small>
+                                        <small class="text-muted">localhost:8001</small>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <div class="text-center">
                                         <div class="bg-info bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 60px; height: 60px;">
-                                            <i class="fa fa-video-camera fa-2x text-info"></i>
+                                            <i class="fa fa-database fa-2x text-info"></i>
                                         </div>
-                                        <h6 class="text-white mb-1">Camera Sources</h6>
-                                        <p class="text-info mb-0">{{ camera_sources_count|default:0 }}</p>
-                                        <small class="text-muted">Integrated</small>
+                                        <h6 class="text-white mb-1">Database</h6>
+                                        <p class="text-info mb-0">
+                                            <i class="fa fa-check-circle me-1"></i>Connected
+                                        </p>
+                                        <small class="text-muted">PostgreSQL</small>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <div class="text-center">
                                         <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 60px; height: 60px;">
-                                            <i class="fa fa-broadcast-tower fa-2x text-warning"></i>
+                                            <i class="fa fa-cloud fa-2x text-warning"></i>
                                         </div>
-                                        <h6 class="text-white mb-1">Stream Sources</h6>
-                                        <p class="text-warning mb-0">{{ stream_sources_count|default:0 }}</p>
-                                        <small class="text-muted">Integrated</small>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="text-center">
-                                        <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 60px; height: 60px;">
-                                            <i class="fa fa-play fa-2x text-primary"></i>
-                                        </div>
-                                        <h6 class="text-white mb-1">Active Streams</h6>
-                                        <p class="text-primary mb-0">{{ active_streams_count|default:0 }}</p>
-                                        <small class="text-muted">Processing</small>
+                                        <h6 class="text-white mb-1">Object Storage</h6>
+                                        <p class="text-warning mb-0">
+                                            <i class="fa fa-check-circle me-1"></i>Available
+                                        </p>
+                                        <small class="text-muted">MinIO</small>
                                     </div>
                                 </div>
                             </div>

@@ -1,41 +1,46 @@
 from django.urls import path
 from . import views_main as views
-from .views import source_activation_views
+from .views import source_activation_views_new as activation_views
+from .views import source_crud_views_new as crud_views
+from .views import source_list_views_new as list_views
 
 app_name = 'source_management'
 
 urlpatterns = [
     # Dashboard
-    path('', views.source_list, name='source_list'),
-    path('dashboard/', views.source_list, name='dashboard'),
-    
+    path('', list_views.source_list, name='source_list'),
+    path('dashboard/', list_views.dashboard, name='dashboard'),
+
     # Source creation
-    path('add/', views.source_create, name='source_create'),
-    
-    # File sources
-    path('file/<uuid:source_id>/', views.source_detail, name='file_detail'),
-    path('file/<uuid:source_id>/edit/', views.source_update, name='file_update'),
-    path('file/<uuid:source_id>/delete/', views.source_delete, name='file_delete'),
-    
-    # Camera sources
-    path('camera/<uuid:source_id>/', views.source_detail, name='camera_detail'),
-    path('camera/<uuid:source_id>/edit/', views.source_update, name='camera_update'),
-    path('camera/<uuid:source_id>/delete/', views.source_delete, name='camera_delete'),
-    
-    # Stream sources
-    path('stream/<uuid:source_id>/', views.source_detail, name='stream_detail'),
-    path('stream/<uuid:source_id>/edit/', views.source_update, name='stream_update'),
-    path('stream/<uuid:source_id>/delete/', views.source_delete, name='stream_delete'),
-    
+    path('add/', crud_views.source_create, name='source_create'),
+
+    # Unified source routes (work for all source types)
+    path('<uuid:source_id>/', crud_views.source_detail, name='source_detail'),
+    path('<uuid:source_id>/edit/', crud_views.source_update, name='source_update'),
+    path('<uuid:source_id>/delete/', crud_views.source_delete, name='source_delete'),
+
+    # Legacy routes (keeping for backward compatibility)
+    path('file/<uuid:source_id>/', crud_views.source_detail, name='file_detail'),
+    path('file/<uuid:source_id>/edit/', crud_views.source_update, name='file_update'),
+    path('file/<uuid:source_id>/delete/', crud_views.source_delete, name='file_delete'),
+
+    path('camera/<uuid:source_id>/', crud_views.source_detail, name='camera_detail'),
+    path('camera/<uuid:source_id>/edit/', crud_views.source_update, name='camera_update'),
+    path('camera/<uuid:source_id>/delete/', crud_views.source_delete, name='camera_delete'),
+
+    path('stream/<uuid:source_id>/', crud_views.source_detail, name='stream_detail'),
+    path('stream/<uuid:source_id>/edit/', crud_views.source_update, name='stream_update'),
+    path('stream/<uuid:source_id>/delete/', crud_views.source_delete, name='stream_delete'),
+
     # Video management
-    path('video/upload/', views.source_create, name='video_upload'),
-    path('video/list/', views.source_list, name='video_list'),
-    path('video/<int:video_id>/', views.source_detail, name='video_detail'),
-    path('video/<int:video_id>/delete/', views.source_delete, name='video_delete'),
-    path('video/<int:video_id>/send-to-face-detection/', views.source_detail, name='send_to_face_detection'),
-    
+    path('video/upload/', crud_views.source_create, name='video_upload'),
+    path('video/list/', list_views.source_list, name='video_list'),
+    path('video/<int:video_id>/', crud_views.source_detail, name='video_detail'),
+    path('video/<int:video_id>/delete/', crud_views.source_delete, name='video_delete'),
+    path('video/<int:video_id>/send-to-face-detection/', crud_views.source_detail, name='send_to_face_detection'),
+
     # Job management
-    path('job/<int:job_id>/', views.source_detail, name='job_detail'),
+    path('job/<int:job_id>/', crud_views.source_detail, name='job_detail'),
     
     # API endpoints (authenticated)
     path('api/source/<uuid:source_id>/', views.api_source_metadata, name='api_source_metadata'),
@@ -43,7 +48,13 @@ urlpatterns = [
     path('api/video/<str:access_token>/metadata/', views.api_video_metadata, name='api_video_metadata'),
     path('api/video/<str:access_token>/download/', views.api_video_download, name='api_video_download'),
     path('api/video/<str:access_token>/stream/', views.api_video_stream, name='api_video_stream'),
-    
+
+    # New API endpoints for source management
+    path('api/source/<uuid:source_id>/activate/', activation_views.ActivateSourceView.as_view(), name='api_activate_source'),
+    path('api/source/<uuid:source_id>/deactivate/', activation_views.DeactivateSourceView.as_view(), name='api_deactivate_source'),
+    path('api/source/<uuid:source_id>/toggle/', activation_views.ToggleSourceActivationView.as_view(), name='api_toggle_source'),
+    path('api/source/<str:source_type>/bulk-activation/', activation_views.BulkActivationView.as_view(), name='api_bulk_activate'),
+
     # Public API endpoints (no authentication required - for data ingestion service)
     path('api/public/video/<str:access_token>/', views.api_video_access_public, name='api_video_access_public'),
     path('api/public/video/<str:access_token>/metadata/', views.api_video_metadata_public, name='api_video_metadata_public'),
@@ -79,12 +90,12 @@ urlpatterns = [
     path('api/fastpublisher/submit-video/<uuid:source_id>/', views.fastpublisher_submit_video, name='fastpublisher_submit_video'),
     
     # Source Activation/Deactivation endpoints
-    path('api/source/<uuid:source_id>/activate/', source_activation_views.ActivateSourceView.as_view(), name='activate_source'),
-    path('api/source/<uuid:source_id>/deactivate/', source_activation_views.DeactivateSourceView.as_view(), name='deactivate_source'),
-    path('api/source/<uuid:source_id>/toggle/', source_activation_views.ToggleSourceActivationView.as_view(), name='toggle_source'),
-    path('api/source/<str:source_type>/bulk-activation/', source_activation_views.BulkActivationView.as_view(), name='bulk_activation'),
-    
+    path('api/source/<uuid:source_id>/activate/', activation_views.ActivateSourceView.as_view(), name='activate_source'),
+    path('api/source/<uuid:source_id>/deactivate/', activation_views.DeactivateSourceView.as_view(), name='deactivate_source'),
+    path('api/source/<uuid:source_id>/toggle/', activation_views.ToggleSourceActivationView.as_view(), name='toggle_source'),
+    path('api/source/<str:source_type>/bulk-activation/', activation_views.BulkActivationView.as_view(), name='bulk_activation'),
+
     # Source Activation/Deactivation confirmation pages
-    path('source/<uuid:source_id>/<str:source_type>/<str:action>/confirm/', source_activation_views.source_activation_confirmation, name='source_activation_confirm'),
-    path('source/activation/confirm/', source_activation_views.confirm_source_activation, name='confirm_source_activation'),
+    path('source/<uuid:source_id>/<str:source_type>/<str:action>/confirm/', activation_views.source_activation_confirmation, name='source_activation_confirm'),
+    path('source/activation/confirm/', activation_views.confirm_source_activation, name='confirm_source_activation'),
 ] 

@@ -14,7 +14,7 @@ from django.conf import settings
 import os
 import logging
 
-from ..forms import AdvancedSearchForm, QuickSearchForm, MilvusSearchForm
+from ..forms import AdvancedSearchForm
 from ..models import (
     SearchHistory, SearchQuery, SearchResult, Targets_watchlist, TargetPhoto, Case
 )

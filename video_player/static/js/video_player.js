@@ -59,10 +59,11 @@ function initializeGlobalData() {
 // DOM Elements
 let video, playPauseBtn, playIcon, progressBar, progressContainer, currentTimeSpan, durationSpan;
 let volumeBtn, fullscreenBtn, cameraTabsContainer, detectionItems;
-let timeNavTabs, timeTagsContainer, bookmarksContainer, manualTimeContainer;
+let timeNavTabs, timeTagsContainer, detectionsContainer, detectionsList, bookmarksContainer, manualTimeContainer;
 let timeInput, seekButton, seekBackwardBtn, seekForwardBtn, speedButton, speedDropdown;
 let progressBuffer, loadingOverlay, loadingText, loadingProgressBar, networkError;
 let errorMessage, retryButton, refreshDataBtn, toggleRealTimeBtn, apiStatus;
+let detectionMarkers, detectionFilterBtns;
 
 // Initialize video player
 function initVideoPlayer() {
@@ -86,10 +87,16 @@ function initVideoPlayer() {
     // Time navigation elements
     timeNavTabs = document.querySelectorAll('.time-nav-tab');
     timeTagsContainer = document.getElementById('timeTagsContainer');
+    detectionsContainer = document.getElementById('detectionsContainer');
+    detectionsList = document.getElementById('detectionsList');
     bookmarksContainer = document.getElementById('bookmarksContainer');
     manualTimeContainer = document.getElementById('manualTimeContainer');
     timeInput = document.getElementById('timeInput');
     seekButton = document.getElementById('seekButton');
+    
+    // Detection elements
+    detectionMarkers = document.getElementById('detectionMarkers');
+    detectionFilterBtns = document.querySelectorAll('.detection-filter-btn');
 
     // New control elements
     seekBackwardBtn = document.getElementById('seekBackwardBtn');
@@ -305,6 +312,259 @@ function highlightActiveBookmark(activeElement) {
         bookmark.classList.remove('active');
     });
     activeElement.classList.add('active');
+}
+
+// Detection Timeline Functions
+let detectionData = [];
+let currentDetectionFilter = 'all';
+
+// Load detection data from API
+async function loadDetectionData() {
+    try {
+        console.log('Loading detection data for video...');
+        
+        // Get current video URL or source ID
+        const videoUrl = video?.src || window.location.href;
+        const sourceId = getSourceIdFromUrl(videoUrl);
+        
+        const response = await fetch('/api/detections/timeline/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                source_id: sourceId,
+                video_url: videoUrl,
+                time_range_hours: 24
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            detectionData = data.timeline || [];
+            console.log(`Loaded ${detectionData.length} detections`);
+            
+            // Update detection markers on progress bar
+            updateDetectionMarkers();
+            
+            // Update detection list
+            updateDetectionList();
+            
+            return detectionData;
+        } else {
+            throw new Error(data.error || 'Failed to load detection data');
+        }
+    } catch (error) {
+        console.error('Error loading detection data:', error);
+        detectionData = [];
+        return [];
+    }
+}
+
+// Update detection markers on progress bar
+function updateDetectionMarkers() {
+    if (!detectionMarkers || !video || !video.duration) return;
+    
+    // Clear existing markers
+    detectionMarkers.innerHTML = '';
+    
+    // Filter detections based on current filter
+    const filteredDetections = getFilteredDetections();
+    
+    filteredDetections.forEach(detection => {
+        const marker = createDetectionMarker(detection);
+        detectionMarkers.appendChild(marker);
+    });
+}
+
+// Create a detection marker element
+function createDetectionMarker(detection) {
+    const marker = document.createElement('div');
+    marker.className = 'detection-marker';
+    
+    // Determine marker type
+    if (detection.alert_created) {
+        marker.classList.add('alert');
+    } else if (detection.is_duplicate) {
+        marker.classList.add('duplicate');
+    } else {
+        marker.classList.add('normal');
+    }
+    
+    // Calculate position on progress bar
+    const position = (detection.timestamp / video.duration) * 100;
+    marker.style.left = `${position}%`;
+    
+    // Create tooltip
+    const tooltip = document.createElement('div');
+    tooltip.className = 'detection-marker-tooltip';
+    tooltip.innerHTML = `
+        <div><strong>${detection.target_name}</strong></div>
+        <div>Time: ${formatTime(detection.timestamp)}</div>
+        <div>Confidence: ${(detection.confidence * 100).toFixed(1)}%</div>
+        <div>Status: ${detection.alert_created ? 'Alert' : detection.is_duplicate ? 'Duplicate' : 'Normal'}</div>
+    `;
+    marker.appendChild(tooltip);
+    
+    // Add click handler
+    marker.addEventListener('click', (e) => {
+        e.stopPropagation();
+        seekToTime(detection.timestamp);
+        highlightDetectionItem(detection.id);
+    });
+    
+    return marker;
+}
+
+// Update detection list
+function updateDetectionList() {
+    if (!detectionsList) return;
+    
+    // Clear existing items
+    detectionsList.innerHTML = '';
+    
+    // Filter detections based on current filter
+    const filteredDetections = getFilteredDetections();
+    
+    // Sort by timestamp
+    filteredDetections.sort((a, b) => a.timestamp - b.timestamp);
+    
+    filteredDetections.forEach(detection => {
+        const item = createDetectionItem(detection);
+        detectionsList.appendChild(item);
+    });
+}
+
+// Create a detection list item
+function createDetectionItem(detection) {
+    const item = document.createElement('div');
+    item.className = 'detection-item';
+    item.setAttribute('data-detection-id', detection.id);
+    
+    // Determine item type
+    if (detection.alert_created) {
+        item.classList.add('alert');
+    } else if (detection.is_duplicate) {
+        item.classList.add('duplicate');
+    } else {
+        item.classList.add('normal');
+    }
+    
+    // Create status indicator
+    const status = document.createElement('div');
+    status.className = 'detection-item-status';
+    if (detection.alert_created) {
+        status.classList.add('alert');
+    } else if (detection.is_duplicate) {
+        status.classList.add('duplicate');
+    } else {
+        status.classList.add('normal');
+    }
+    
+    // Create face image
+    const faceImg = document.createElement('img');
+    faceImg.className = 'detection-item-face';
+    faceImg.src = detection.face_image_url || '/static/img/default-face.jpg';
+    faceImg.alt = detection.target_name;
+    faceImg.onerror = () => {
+        faceImg.src = '/static/img/default-face.jpg';
+    };
+    
+    item.innerHTML = `
+        <div class="detection-item-header">
+            <div class="detection-item-time">${formatTime(detection.timestamp)}</div>
+            <div class="detection-item-confidence">${(detection.confidence * 100).toFixed(1)}%</div>
+        </div>
+        <div class="detection-item-content">
+            <img class="detection-item-face" src="${detection.face_image_url || '/static/img/default-face.jpg'}" alt="${detection.target_name}" onerror="this.src='/static/img/default-face.jpg'">
+            <div class="detection-item-info">
+                <div class="detection-item-target">${detection.target_name}</div>
+                <div class="detection-item-details">
+                    <span>Camera: ${detection.camera_name || 'Unknown'}</span>
+                    <span>Status: ${detection.alert_created ? 'Alert' : detection.is_duplicate ? 'Duplicate' : 'Normal'}</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add status indicator
+    item.appendChild(status);
+    
+    // Add click handler
+    item.addEventListener('click', () => {
+        seekToTime(detection.timestamp);
+        highlightDetectionItem(detection.id);
+    });
+    
+    return item;
+}
+
+// Get filtered detections based on current filter
+function getFilteredDetections() {
+    switch (currentDetectionFilter) {
+        case 'alerts':
+            return detectionData.filter(d => d.alert_created);
+        case 'duplicates':
+            return detectionData.filter(d => d.is_duplicate);
+        case 'all':
+        default:
+            return detectionData;
+    }
+}
+
+// Highlight active detection item
+function highlightDetectionItem(detectionId) {
+    document.querySelectorAll('.detection-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    const activeItem = document.querySelector(`[data-detection-id="${detectionId}"]`);
+    if (activeItem) {
+        activeItem.classList.add('active');
+        activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+// Set detection filter
+function setDetectionFilter(filter) {
+    currentDetectionFilter = filter;
+    
+    // Update filter buttons
+    detectionFilterBtns.forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.filter === filter) {
+            btn.classList.add('active');
+        }
+    });
+    
+    // Update markers and list
+    updateDetectionMarkers();
+    updateDetectionList();
+}
+
+// Get source ID from URL
+function getSourceIdFromUrl(url) {
+    // Extract source ID from URL patterns
+    const patterns = [
+        /\/stream\/([^\/]+)/,
+        /\/source\/([^\/]+)/,
+        /source_id=([^&]+)/
+    ];
+    
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) {
+            return match[1];
+        }
+    }
+    
+    return null;
 }
 
 // Show loading overlay
@@ -662,6 +922,10 @@ function loadDirectVideo(url) {
                 isPlaying = true;
                 if (playIcon) playIcon.className = 'fas fa-pause';
                 initTimeNavigation();
+                
+                // Load detection data for timeline markers
+                loadDetectionData();
+                
                 // Seek if requested
                 if (window.initialSeek && isFinite(window.initialSeek) && window.initialSeek > 0) {
                     video.currentTime = window.initialSeek;
@@ -730,6 +994,22 @@ function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+// Get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
 }
 
 // Initialize event listeners
@@ -935,8 +1215,14 @@ function initEventListeners() {
                 
                 // Show/hide containers
                 if (timeTagsContainer) timeTagsContainer.style.display = tabType === 'tags' ? 'flex' : 'none';
+                if (detectionsContainer) detectionsContainer.style.display = tabType === 'detections' ? 'block' : 'none';
                 if (bookmarksContainer) bookmarksContainer.style.display = tabType === 'bookmarks' ? 'flex' : 'none';
                 if (manualTimeContainer) manualTimeContainer.style.display = tabType === 'manual' ? 'flex' : 'none';
+                
+                // Load detection data when detections tab is selected
+                if (tabType === 'detections' && detectionData.length === 0) {
+                    loadDetectionData();
+                }
             });
         });
     }
@@ -961,6 +1247,16 @@ function initEventListeners() {
             if (e.key === 'Enter') {
                 seekButton.click();
             }
+        });
+    }
+
+    // Detection filter buttons
+    if (detectionFilterBtns) {
+        detectionFilterBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const filter = this.getAttribute('data-filter');
+                setDetectionFilter(filter);
+            });
         });
     }
 

@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+
+{% block title %}Video Sources{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="bg-secondary rounded h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="mb-0">
+                        <i class="fa fa-video me-2"></i>Video Sources
+                    </h6>
+                    <div class="d-flex gap-2">
+                        {% if total_sources > 0 %}
+                        <a href="{% url 'video_player:source_video_list' %}" class="btn btn-success btn-sm">
+                            <i class="fa fa-play me-2"></i>Video Player
+                        </a>
+                        {% endif %}
+                        <div class="dropdown">
+                            <button class="btn btn-primary btn-sm dropdown-toggle" type="button" id="addSourceDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fa fa-plus me-2"></i>Add Source
+                            </button>
+                            <ul class="dropdown-menu bg-secondary border-0" aria-labelledby="addSourceDropdown">
+                                <li><a class="dropdown-item" href="{% url 'source_management:source_create' %}?type=camera">
+                                    <i class="fa fa-video-camera me-2"></i>Add Camera
+                                </a></li>
+                                <li><a class="dropdown-item" href="{% url 'source_management:source_create' %}?type=file">
+                                    <i class="fa fa-file-video me-2"></i>Add File
+                                </a></li>
+                                <li><a class="dropdown-item" href="{% url 'source_management:source_create' %}?type=stream">
+                                    <i class="fa fa-broadcast-tower me-2"></i>Add Stream
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ total_sources }}</h5>
+                                <p class="mb-0 text-muted">Total Sources</p>
+                            </div>
+                            <i class="fa fa-video fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ active_sources }}</h5>
+                                <p class="mb-0 text-muted">Active Sources</p>
+                            </div>
+                            <i class="fa fa-check-circle fa-2x text-success"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ camera_sources }}</h5>
+                                <p class="mb-0 text-muted">Camera Sources</p>
+                            </div>
+                            <i class="fa fa-video-camera fa-2x text-info"></i>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <div class="bg-dark rounded d-flex align-items-center justify-content-between p-4">
+                            <div>
+                                <h5 class="mb-0 text-white">{{ stream_sources }}</h5>
+                                <p class="mb-0 text-muted">Stream Sources</p>
+                            </div>
+                            <i class="fa fa-broadcast-tower fa-2x text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="row g-4 mb-4">
+                    <div class="col-12">
+                        <div class="bg-dark rounded p-4">
+                            <form method="get" class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="searchInput" class="form-label text-white">Search</label>
+                                    <input type="text" class="form-control" id="searchInput" name="search"
+                                           value="{{ search_query }}" placeholder="Search sources...">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="typeFilter" class="form-label text-white">Type</label>
+                                    <select class="form-select" id="typeFilter" name="type">
+                                        <option value="">All Types</option>
+                                        <option value="camera" {% if source_type_filter == 'camera' %}selected{% endif %}>Camera</option>
+                                        <option value="file" {% if source_type_filter == 'file' %}selected{% endif %}>File</option>
+                                        <option value="stream" {% if source_type_filter == 'stream' %}selected{% endif %}>Stream</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="statusFilter" class="form-label text-white">Status</label>
+                                    <select class="form-select" id="statusFilter" name="status">
+                                        <option value="">All Status</option>
+                                        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                                        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="zoneFilter" class="form-label text-white">Zone</label>
+                                    <select class="form-select" id="zoneFilter" name="zone">
+                                        <option value="">All Zones</option>
+                                        {% for zone in zones %}
+                                        <option value="{{ zone }}" {% if zone_filter == zone %}selected{% endif %}>{{ zone }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <div class="d-flex gap-2 w-100">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fa fa-search me-2"></i>Filter
+                                        </button>
+                                        <a href="{% url 'source_management:source_list' %}" class="btn btn-outline-secondary">
+                                            <i class="fa fa-times me-2"></i>Clear
+                                        </a>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sources Table -->
+                <div class="row g-4">
+                    <div class="col-12">
+                        <div class="bg-dark rounded p-4">
+                            {% if sources %}
+                                <div class="table-responsive">
+                                    <table class="table table-borderless text-white">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Type</th>
+                                                <th>Location</th>
+                                                <th>Zone</th>
+                                                <th>Status</th>
+                                                <th>Created</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for source in sources %}
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <div>
+                                                            <a href="{% url 'source_management:source_detail' source.source_id %}" class="text-white fw-bold">
+                                                                {{ source.name }}
+                                                            </a>
+                                                            <div class="text-muted small">{{ source.description|truncatechars:50 }}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span class="badge
+                                                        {% if source.type == 'camera' %}bg-info
+                                                        {% elif source.type == 'file' %}bg-success
+                                                        {% elif source.type == 'stream' %}bg-warning
+                                                        {% else %}bg-secondary{% endif %}">
+                                                        {{ source.type|title }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ source.location|default:"-" }}</td>
+                                                <td>{{ source.configuration.zone|default:"-" }}</td>
+                                                <td>
+                                                    {% if source.is_active %}
+                                                        <span class="badge bg-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Inactive</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ source.created_at|date:"M d, Y H:i" }}</td>
+                                                <td>
+                                                    <div class="btn-group" role="group">
+                                                        <a href="{% url 'source_management:source_detail' source.source_id %}"
+                                                           class="btn btn-sm btn-outline-primary">
+                                                            <i class="fa fa-eye"></i>
+                                                        </a>
+                                                        <a href="{% url 'source_management:source_update' source.source_id %}"
+                                                           class="btn btn-sm btn-outline-warning">
+                                                            <i class="fa fa-edit"></i>
+                                                        </a>
+                                                        {% if source.is_active %}
+                                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                                                onclick="toggleSourceStatus('{{ source.source_id }}', false)"
+                                                                title="Deactivate">
+                                                            <i class="fa fa-pause"></i>
+                                                        </button>
+                                                        {% else %}
+                                                        <button type="button" class="btn btn-sm btn-outline-success"
+                                                                onclick="toggleSourceStatus('{{ source.source_id }}', true)"
+                                                                title="Activate">
+                                                            <i class="fa fa-play"></i>
+                                                        </button>
+                                                        {% endif %}
+                                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                                                onclick="deleteSource('{{ source.source_id }}')"
+                                                                title="Delete">
+                                                            <i class="fa fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Pagination -->
+                                {% if page_obj.has_other_pages %}
+                                <nav aria-label="Sources pagination" class="mt-4">
+                                    <ul class="pagination justify-content-center">
+                                        {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&laquo;</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ page_obj.previous_page_number }}</a>
+                                        </li>
+                                        {% endif %}
+
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_obj.number }}</span>
+                                        </li>
+
+                                        {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ page_obj.next_page_number }}</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&raquo;</a>
+                                        </li>
+                                        {% endif %}
+                                    </ul>
+                                </nav>
+                                {% endif %}
+                            {% else %}
+                                <div class="text-center py-5">
+                                    <i class="fa fa-video fa-3x text-muted mb-3"></i>
+                                    <h6 class="text-white mb-2">No Sources Found</h6>
+                                    <p class="text-muted mb-4">Get started by adding your first video source.</p>
+                                    <a href="{% url 'source_management:source_create' %}" class="btn btn-primary">
+                                        <i class="fa fa-plus me-2"></i>Add Your First Source
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleSourceStatus(sourceId, activate) {
+    const action = activate ? 'activate' : 'deactivate';
+    if (confirm(`Are you sure you want to ${action} this source?`)) {
+        fetch(`/source-management/api/source/${sourceId}/${action}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        });
+    }
+}
+
+function deleteSource(sourceId) {
+    if (confirm('Are you sure you want to delete this source? This action cannot be undone.')) {
+        fetch(`/source-management/api/source/${sourceId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        });
+    }
+}
+
+// Auto-submit form on filter change
+document.getElementById('typeFilter').addEventListener('change', function() {
+    this.form.submit();
+});
+
+document.getElementById('statusFilter').addEventListener('change', function() {
+    this.form.submit();
+});
+
+document.getElementById('zoneFilter').addEventListener('change', function() {
+    this.form.submit();
+});
+
+// Auto-search with debounce
+let searchTimeout;
+document.getElementById('searchInput').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        this.form.submit();
+    }, 500);
+});
+</script>
+{% endblock %}
